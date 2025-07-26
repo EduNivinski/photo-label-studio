@@ -52,6 +52,14 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				// PhotoLabel specific colors
+				'photo-background': 'hsl(var(--photo-background))',
+				'photo-border': 'hsl(var(--photo-border))',
+				'photo-hover': 'hsl(var(--photo-hover))',
+				'label-background': 'hsl(var(--label-background))',
+				'label-foreground': 'hsl(var(--label-foreground))',
+				'search-background': 'hsl(var(--search-background))',
+				'gallery-background': 'hsl(var(--gallery-background))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
