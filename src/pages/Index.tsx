@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { SearchBar } from '@/components/SearchBar';
-import { LabelFilter } from '@/components/LabelFilter';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { PhotoModal } from '@/components/PhotoModal';
+import { LabelManager } from '@/components/LabelManager';
+import { UploadDialog } from '@/components/UploadDialog';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
-import { mockPhotos, mockLabels } from '@/data/mockData';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useToast } from '@/hooks/use-toast';
 import type { Photo } from '@/types/photo';
 
@@ -12,13 +13,29 @@ const Index = () => {
   const { toast } = useToast();
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   
+  const {
+    photos,
+    labels,
+    loading,
+    createLabel,
+    deleteLabel,
+    updatePhotoLabels,
+    deletePhoto,
+    uploadPhotos
+  } = useSupabaseData();
+
   const {
     filters,
     filteredPhotos,
+    filterMode,
     updateSearchTerm,
-    toggleLabel
-  } = usePhotoFilters(mockPhotos);
+    toggleLabel,
+    clearFilters,
+    setFilterMode
+  } = usePhotoFilters(photos);
 
   const handlePhotoClick = (photo: Photo) => {
     setSelectedPhoto(photo);
@@ -31,25 +48,54 @@ const Index = () => {
   };
 
   const handleUpload = () => {
-    toast({
-      title: "Upload",
-      description: "Funcionalidade de upload será implementada com Supabase",
-    });
+    setIsUploadOpen(true);
   };
 
-  const handleLabelManage = () => {
-    toast({
-      title: "Gerenciar Labels",
-      description: "Funcionalidade de gerenciamento de labels será implementada",
-    });
+  const handleUploadFiles = async (files: File[]) => {
+    await uploadPhotos(files);
   };
 
-  const handlePhotoDelete = () => {
-    toast({
-      title: "Excluir Foto",
-      description: "Funcionalidade de exclusão será implementada com Supabase",
-    });
+  const handleLabelManage = (photo?: Photo) => {
+    if (photo) {
+      setSelectedPhoto(photo);
+    }
+    setIsLabelManagerOpen(true);
   };
+
+  const handlePhotoDelete = async () => {
+    if (!selectedPhoto) return;
+    
+    const success = await deletePhoto(selectedPhoto.id);
+    if (success) {
+      toast({
+        title: "Foto excluída",
+        description: "Foto removida com sucesso!",
+      });
+      handleModalClose();
+    } else {
+      toast({
+        title: "Erro",
+        description: "Falha ao excluir foto.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏳</div>
+          <h3 className="text-lg font-medium text-foreground mb-2">
+            Carregando PhotoLabel...
+          </h3>
+          <p className="text-muted-foreground">
+            Conectando ao banco de dados
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -68,30 +114,51 @@ const Index = () => {
         searchTerm={filters.searchTerm}
         onSearchChange={updateSearchTerm}
         onUpload={handleUpload}
-      />
-
-      {/* Filters */}
-      <LabelFilter
-        labels={mockLabels}
+        labels={labels}
         selectedLabels={filters.labels}
+        filterMode={filterMode}
         onLabelToggle={toggleLabel}
+        onFilterModeChange={setFilterMode}
+        onClearFilters={clearFilters}
+        onManageLabels={() => handleLabelManage()}
       />
 
       {/* Gallery */}
       <PhotoGallery
         photos={filteredPhotos}
-        labels={mockLabels}
+        labels={labels}
         onPhotoClick={handlePhotoClick}
         onLabelManage={handleLabelManage}
       />
 
-      {/* Modal */}
+      {/* Upload Dialog */}
+      <UploadDialog
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUpload={handleUploadFiles}
+      />
+
+      {/* Label Manager */}
+      <LabelManager
+        isOpen={isLabelManagerOpen}
+        onClose={() => {
+          setIsLabelManagerOpen(false);
+          setSelectedPhoto(null);
+        }}
+        labels={labels}
+        selectedPhoto={selectedPhoto}
+        onCreateLabel={createLabel}
+        onDeleteLabel={deleteLabel}
+        onUpdatePhotoLabels={updatePhotoLabels}
+      />
+
+      {/* Photo Modal */}
       <PhotoModal
         photo={selectedPhoto}
-        labels={mockLabels}
+        labels={labels}
         isOpen={isModalOpen}
         onClose={handleModalClose}
-        onLabelManage={handleLabelManage}
+        onLabelManage={() => handleLabelManage(selectedPhoto || undefined)}
         onDelete={handlePhotoDelete}
       />
     </div>

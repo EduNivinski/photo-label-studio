@@ -6,6 +6,7 @@ export function usePhotoFilters(photos: Photo[]) {
     labels: [],
     searchTerm: ''
   });
+  const [filterMode, setFilterMode] = useState<'AND' | 'OR'>('AND');
 
   const filteredPhotos = useMemo(() => {
     return photos.filter((photo) => {
@@ -13,13 +14,21 @@ export function usePhotoFilters(photos: Photo[]) {
       const matchesSearch = filters.searchTerm === '' || 
         photo.name.toLowerCase().includes(filters.searchTerm.toLowerCase());
 
-      // Filter by labels (AND logic - photo must have ALL selected labels)
-      const matchesLabels = filters.labels.length === 0 ||
-        filters.labels.every(labelId => photo.labels.includes(labelId));
+      // Filter by labels
+      let matchesLabels = true;
+      if (filters.labels.length > 0) {
+        if (filterMode === 'AND') {
+          // ALL selected labels must be present
+          matchesLabels = filters.labels.every(labelId => photo.labels.includes(labelId));
+        } else {
+          // ANY selected label must be present
+          matchesLabels = filters.labels.some(labelId => photo.labels.includes(labelId));
+        }
+      }
 
       return matchesSearch && matchesLabels;
     });
-  }, [photos, filters]);
+  }, [photos, filters, filterMode]);
 
   const updateSearchTerm = (searchTerm: string) => {
     setFilters(prev => ({ ...prev, searchTerm }));
@@ -41,8 +50,10 @@ export function usePhotoFilters(photos: Photo[]) {
   return {
     filters,
     filteredPhotos,
+    filterMode,
     updateSearchTerm,
     toggleLabel,
-    clearFilters
+    clearFilters,
+    setFilterMode
   };
 }
