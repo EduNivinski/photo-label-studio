@@ -4,7 +4,8 @@ import type { Photo, PhotoFilters } from '@/types/photo';
 export function usePhotoFilters(photos: Photo[]) {
   const [filters, setFilters] = useState<PhotoFilters>({
     labels: [],
-    searchTerm: ''
+    searchTerm: '',
+    showUnlabeled: false
   });
   const [filterMode, setFilterMode] = useState<'AND' | 'OR'>('AND');
 
@@ -26,7 +27,13 @@ export function usePhotoFilters(photos: Photo[]) {
         }
       }
 
-      return matchesSearch && matchesLabels;
+      // Filter by unlabeled
+      let matchesUnlabeled = true;
+      if (filters.showUnlabeled) {
+        matchesUnlabeled = photo.labels.length === 0;
+      }
+
+      return matchesSearch && matchesLabels && matchesUnlabeled;
     });
   }, [photos, filters, filterMode]);
 
@@ -43,8 +50,12 @@ export function usePhotoFilters(photos: Photo[]) {
     }));
   };
 
+  const toggleUnlabeled = () => {
+    setFilters(prev => ({ ...prev, showUnlabeled: !prev.showUnlabeled }));
+  };
+
   const clearFilters = () => {
-    setFilters({ labels: [], searchTerm: '' });
+    setFilters({ labels: [], searchTerm: '', showUnlabeled: false });
   };
 
   return {
@@ -53,6 +64,7 @@ export function usePhotoFilters(photos: Photo[]) {
     filterMode,
     updateSearchTerm,
     toggleLabel,
+    toggleUnlabeled,
     clearFilters,
     setFilterMode
   };

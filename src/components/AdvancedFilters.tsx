@@ -11,8 +11,10 @@ interface AdvancedFiltersProps {
   labels: Label[];
   selectedLabels: string[];
   filterMode: 'AND' | 'OR';
+  showUnlabeled: boolean;
   onLabelToggle: (labelId: string) => void;
   onFilterModeChange: (mode: 'AND' | 'OR') => void;
+  onToggleUnlabeled: () => void;
   onClearFilters: () => void;
 }
 
@@ -20,8 +22,10 @@ export function AdvancedFilters({
   labels,
   selectedLabels,
   filterMode,
+  showUnlabeled,
   onLabelToggle,
   onFilterModeChange,
+  onToggleUnlabeled,
   onClearFilters
 }: AdvancedFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -32,13 +36,13 @@ export function AdvancedFilters({
         <Button 
           variant="outline" 
           size="sm"
-          className={selectedLabels.length > 0 ? 'border-primary' : ''}
+          className={(selectedLabels.length > 0 || showUnlabeled) ? 'border-primary' : ''}
         >
           <Filter className="h-4 w-4 mr-2" />
           Filtros
-          {selectedLabels.length > 0 && (
+          {(selectedLabels.length > 0 || showUnlabeled) && (
             <span className="ml-1 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
-              {selectedLabels.length}
+              {selectedLabels.length + (showUnlabeled ? 1 : 0)}
             </span>
           )}
         </Button>
@@ -50,9 +54,27 @@ export function AdvancedFilters({
         </DialogHeader>
         
         <div className="space-y-6">
+          {/* Special Filters */}
+          <div className="space-y-3">
+            <UILabel className="text-sm font-medium">Filtros Especiais</UILabel>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={showUnlabeled ? "default" : "outline"}
+                size="sm"
+                onClick={onToggleUnlabeled}
+                className="text-sm"
+              >
+                {showUnlabeled ? '✓ ' : ''}Sem Labels
+              </Button>
+              <UILabel className="text-xs text-muted-foreground">
+                Mostrar apenas fotos que não têm nenhuma label
+              </UILabel>
+            </div>
+          </div>
+
           {/* Filter Mode */}
           <div className="space-y-3">
-            <UILabel className="text-sm font-medium">Modo de Filtro</UILabel>
+            <UILabel className="text-sm font-medium">Modo de Filtro para Labels</UILabel>
             <RadioGroup 
               value={filterMode} 
               onValueChange={(value: 'AND' | 'OR') => onFilterModeChange(value)}
@@ -78,7 +100,7 @@ export function AdvancedFilters({
               <UILabel className="text-sm font-medium">
                 Selecionar Labels ({selectedLabels.length} de {labels.length})
               </UILabel>
-              {selectedLabels.length > 0 && (
+              {(selectedLabels.length > 0 || showUnlabeled) && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -110,19 +132,26 @@ export function AdvancedFilters({
             </div>
           </div>
 
-          {/* Selected Labels Summary */}
-          {selectedLabels.length > 0 && (
+          {/* Active Filters Summary */}
+          {(selectedLabels.length > 0 || showUnlabeled) && (
             <div className="space-y-2 p-3 bg-muted rounded-lg">
               <UILabel className="text-xs font-medium text-muted-foreground">
-                Filtro Ativo:
+                Filtros Ativos:
               </UILabel>
-              <p className="text-sm">
-                Mostrar fotos que têm{' '}
-                <strong>
-                  {filterMode === 'AND' ? 'TODAS' : 'QUALQUER UMA'}
-                </strong>{' '}
-                das {selectedLabels.length} label{selectedLabels.length !== 1 ? 's' : ''} selecionada{selectedLabels.length !== 1 ? 's' : ''}
-              </p>
+              {showUnlabeled && (
+                <p className="text-sm">
+                  • Mostrar apenas fotos <strong>sem labels</strong>
+                </p>
+              )}
+              {selectedLabels.length > 0 && (
+                <p className="text-sm">
+                  • Mostrar fotos que têm{' '}
+                  <strong>
+                    {filterMode === 'AND' ? 'TODAS' : 'QUALQUER UMA'}
+                  </strong>{' '}
+                  das {selectedLabels.length} label{selectedLabels.length !== 1 ? 's' : ''} selecionada{selectedLabels.length !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           )}
 

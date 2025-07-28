@@ -11,8 +11,10 @@ interface SearchBarProps {
   labels: Label[];
   selectedLabels: string[];
   filterMode: 'AND' | 'OR';
+  showUnlabeled: boolean;
   onLabelToggle: (labelId: string) => void;
   onFilterModeChange: (mode: 'AND' | 'OR') => void;
+  onToggleUnlabeled: () => void;
   onClearFilters: () => void;
   onManageLabels: () => void;
 }
@@ -24,8 +26,10 @@ export function SearchBar({
   labels,
   selectedLabels,
   filterMode,
+  showUnlabeled,
   onLabelToggle,
   onFilterModeChange,
+  onToggleUnlabeled,
   onClearFilters,
   onManageLabels
 }: SearchBarProps) {
@@ -47,8 +51,10 @@ export function SearchBar({
           labels={labels}
           selectedLabels={selectedLabels}
           filterMode={filterMode}
+          showUnlabeled={showUnlabeled}
           onLabelToggle={onLabelToggle}
           onFilterModeChange={onFilterModeChange}
+          onToggleUnlabeled={onToggleUnlabeled}
           onClearFilters={onClearFilters}
         />
         

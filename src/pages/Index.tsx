@@ -33,6 +33,7 @@ const Index = () => {
     filterMode,
     updateSearchTerm,
     toggleLabel,
+    toggleUnlabeled,
     clearFilters,
     setFilterMode
   } = usePhotoFilters(photos);
@@ -117,8 +118,10 @@ const Index = () => {
         labels={labels}
         selectedLabels={filters.labels}
         filterMode={filterMode}
+        showUnlabeled={filters.showUnlabeled}
         onLabelToggle={toggleLabel}
         onFilterModeChange={setFilterMode}
+        onToggleUnlabeled={toggleUnlabeled}
         onClearFilters={clearFilters}
         onManageLabels={() => handleLabelManage()}
       />

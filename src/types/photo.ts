@@ -15,4 +15,5 @@ export interface Label {
 export interface PhotoFilters {
   labels: string[];
   searchTerm: string;
+  showUnlabeled: boolean;
 }
