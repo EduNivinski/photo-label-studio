@@ -8,7 +8,7 @@ export function useSupabaseData() {
   const [loading, setLoading] = useState(true);
 
   const fetchPhotos = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('photos')
       .select('*')
       .order('upload_date', { ascending: false });
@@ -18,7 +18,7 @@ export function useSupabaseData() {
       return;
     }
     
-    const formattedPhotos: Photo[] = data.map(photo => ({
+    const formattedPhotos: Photo[] = (data || []).map((photo: any) => ({
       id: photo.id,
       url: photo.url,
       name: photo.name,
@@ -30,7 +30,7 @@ export function useSupabaseData() {
   };
 
   const fetchLabels = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('labels')
       .select('*')
       .order('name');
@@ -40,7 +40,7 @@ export function useSupabaseData() {
       return;
     }
     
-    const formattedLabels: Label[] = data.map(label => ({
+    const formattedLabels: Label[] = (data || []).map((label: any) => ({
       id: label.id,
       name: label.name,
       color: label.color || undefined
@@ -50,7 +50,7 @@ export function useSupabaseData() {
   };
 
   const createLabel = async (name: string, color?: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('labels')
       .insert({ name, color })
       .select()
@@ -60,6 +60,8 @@ export function useSupabaseData() {
       console.error('Error creating label:', error);
       return null;
     }
+    
+    if (!data) return null;
     
     const newLabel: Label = {
       id: data.id,
@@ -72,7 +74,7 @@ export function useSupabaseData() {
   };
 
   const deleteLabel = async (labelId: string) => {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('labels')
       .delete()
       .eq('id', labelId);
@@ -88,7 +90,7 @@ export function useSupabaseData() {
     const photosWithLabel = photos.filter(photo => photo.labels.includes(labelId));
     for (const photo of photosWithLabel) {
       const updatedLabels = photo.labels.filter(id => id !== labelId);
-      await supabase
+      await (supabase as any)
         .from('photos')
         .update({ labels: updatedLabels })
         .eq('id', photo.id);
@@ -102,7 +104,7 @@ export function useSupabaseData() {
   };
 
   const updatePhotoLabels = async (photoId: string, labelIds: string[]) => {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('photos')
       .update({ labels: labelIds })
       .eq('id', photoId);
@@ -141,7 +143,7 @@ export function useSupabaseData() {
     }
 
     // Delete from database
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('photos')
       .delete()
       .eq('id', photoId);
@@ -176,7 +178,7 @@ export function useSupabaseData() {
         .getPublicUrl(fileName);
 
       // Save to database
-      const { data: photoData, error: dbError } = await supabase
+      const { data: photoData, error: dbError } = await (supabase as any)
         .from('photos')
         .insert({
           url: publicUrl,
@@ -190,6 +192,8 @@ export function useSupabaseData() {
         console.error('Error saving to database:', dbError);
         return null;
       }
+
+      if (!photoData) return null;
 
       return {
         id: photoData.id,
