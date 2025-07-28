@@ -1,21 +1,18 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { usePhotoFilters } from '@/hooks/usePhotoFilters';
+import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { SearchBar } from '@/components/SearchBar';
 import { PhotoGallery } from '@/components/PhotoGallery';
-import { PhotoModal } from '@/components/PhotoModal';
-import { LabelManager } from '@/components/LabelManager';
+import { SelectionPanel } from '@/components/SelectionPanel';
+import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { UploadDialog } from '@/components/UploadDialog';
-import { usePhotoFilters } from '@/hooks/usePhotoFilters';
-import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useToast } from '@/hooks/use-toast';
+import { LabelManager } from '@/components/LabelManager';
+import { PhotoModal } from '@/components/PhotoModal';
 import type { Photo } from '@/types/photo';
 
 const Index = () => {
-  const { toast } = useToast();
-  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
-  
   const {
     photos,
     labels,
@@ -38,14 +35,107 @@ const Index = () => {
     setFilterMode
   } = usePhotoFilters(photos);
 
+  // Photo selection state
+  const {
+    selectedPhotoIds,
+    selectedCount,
+    isSelected,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    getSelectedPhotos
+  } = usePhotoSelection();
+
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
+  const [isBulkLabelDialogOpen, setIsBulkLabelDialogOpen] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+
+  // Event handlers
   const handlePhotoClick = (photo: Photo) => {
-    setSelectedPhoto(photo);
-    setIsModalOpen(true);
+    if (selectedCount > 0) {
+      // If there are selected photos, treat click as selection toggle
+      toggleSelection(photo.id, false, filteredPhotos);
+    } else {
+      // Normal behavior: open modal
+      setSelectedPhoto(photo);
+      setIsModalOpen(true);
+    }
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedPhoto(null);
+  };
+
+  const handleSelectionToggle = (photoId: string, isShiftPressed: boolean) => {
+    toggleSelection(photoId, isShiftPressed, filteredPhotos);
+  };
+
+  const handleBulkLabelManage = () => {
+    setIsBulkLabelDialogOpen(true);
+  };
+
+  const handleBulkDelete = async () => {
+    const selectedPhotos = getSelectedPhotos(photos);
+    if (selectedPhotos.length === 0) return;
+
+    const confirmed = confirm(`Tem certeza que deseja deletar ${selectedPhotos.length} foto${selectedPhotos.length !== 1 ? 's' : ''}?`);
+    if (!confirmed) return;
+
+    let successCount = 0;
+    for (const photo of selectedPhotos) {
+      const success = await deletePhoto(photo.id);
+      if (success) successCount++;
+    }
+
+    clearSelection();
+    
+    if (successCount === selectedPhotos.length) {
+      toast.success(`${successCount} foto${successCount !== 1 ? 's' : ''} deletada${successCount !== 1 ? 's' : ''} com sucesso!`);
+    } else {
+      toast.error(`Erro ao deletar algumas fotos. ${successCount} de ${selectedPhotos.length} foram deletadas.`);
+    }
+  };
+
+  const handleBulkApplyLabels = async (photoIds: string[], labelIds: string[]) => {
+    let successCount = 0;
+    for (const photoId of photoIds) {
+      const photo = photos.find(p => p.id === photoId);
+      if (photo) {
+        const currentLabels = photo.labels;
+        const newLabels = Array.from(new Set([...currentLabels, ...labelIds]));
+        const success = await updatePhotoLabels(photoId, newLabels);
+        if (success) successCount++;
+      }
+    }
+    
+    if (successCount === photoIds.length) {
+      toast.success(`Labels aplicadas em ${successCount} foto${successCount !== 1 ? 's' : ''}!`);
+    } else {
+      toast.error(`Erro ao aplicar labels em algumas fotos. ${successCount} de ${photoIds.length} foram atualizadas.`);
+    }
+  };
+
+  const handleBulkRemoveLabels = async (photoIds: string[], labelIds: string[]) => {
+    let successCount = 0;
+    for (const photoId of photoIds) {
+      const photo = photos.find(p => p.id === photoId);
+      if (photo) {
+        const currentLabels = photo.labels;
+        const newLabels = currentLabels.filter(id => !labelIds.includes(id));
+        const success = await updatePhotoLabels(photoId, newLabels);
+        if (success) successCount++;
+      }
+    }
+    
+    if (successCount === photoIds.length) {
+      toast.success(`Labels removidas de ${successCount} foto${successCount !== 1 ? 's' : ''}!`);
+    } else {
+      toast.error(`Erro ao remover labels de algumas fotos. ${successCount} de ${photoIds.length} foram atualizadas.`);
+    }
   };
 
   const handleUpload = () => {
@@ -68,17 +158,10 @@ const Index = () => {
     
     const success = await deletePhoto(selectedPhoto.id);
     if (success) {
-      toast({
-        title: "Foto excluída",
-        description: "Foto removida com sucesso!",
-      });
+      toast.success("Foto excluída com sucesso!");
       handleModalClose();
     } else {
-      toast({
-        title: "Erro",
-        description: "Falha ao excluir foto.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao excluir foto");
     }
   };
 
@@ -130,8 +213,18 @@ const Index = () => {
       <PhotoGallery
         photos={filteredPhotos}
         labels={labels}
+        selectedPhotoIds={selectedPhotoIds}
         onPhotoClick={handlePhotoClick}
         onLabelManage={handleLabelManage}
+        onSelectionToggle={handleSelectionToggle}
+      />
+
+      {/* Selection Panel */}
+      <SelectionPanel
+        selectedCount={selectedCount}
+        onManageLabels={handleBulkLabelManage}
+        onDeleteSelected={handleBulkDelete}
+        onClearSelection={clearSelection}
       />
 
       {/* Upload Dialog */}
@@ -155,15 +248,27 @@ const Index = () => {
         onUpdatePhotoLabels={updatePhotoLabels}
       />
 
-      {/* Photo Modal */}
-      <PhotoModal
-        photo={selectedPhoto}
+      {/* Bulk Label Dialog */}
+      <BulkLabelDialog
+        isOpen={isBulkLabelDialogOpen}
+        onClose={() => setIsBulkLabelDialogOpen(false)}
+        selectedPhotos={getSelectedPhotos(photos)}
         labels={labels}
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        onLabelManage={() => handleLabelManage(selectedPhoto || undefined)}
-        onDelete={handlePhotoDelete}
+        onApplyLabels={handleBulkApplyLabels}
+        onRemoveLabels={handleBulkRemoveLabels}
       />
+
+      {/* Photo Modal */}
+      {selectedPhoto && (
+        <PhotoModal
+          photo={selectedPhoto}
+          labels={labels}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onLabelManage={() => handleLabelManage(selectedPhoto)}
+          onDelete={handlePhotoDelete}
+        />
+      )}
     </div>
   );
 };

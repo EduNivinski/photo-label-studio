@@ -4,11 +4,20 @@ import type { Photo, Label } from '@/types/photo';
 interface PhotoGalleryProps {
   photos: Photo[];
   labels: Label[];
+  selectedPhotoIds: Set<string>;
   onPhotoClick: (photo: Photo) => void;
   onLabelManage: (photo: Photo) => void;
+  onSelectionToggle: (photoId: string, isShiftPressed: boolean) => void;
 }
 
-export function PhotoGallery({ photos, labels, onPhotoClick, onLabelManage }: PhotoGalleryProps) {
+export function PhotoGallery({ 
+  photos, 
+  labels, 
+  selectedPhotoIds,
+  onPhotoClick, 
+  onLabelManage,
+  onSelectionToggle
+}: PhotoGalleryProps) {
   if (photos.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gallery-background">
@@ -33,8 +42,10 @@ export function PhotoGallery({ photos, labels, onPhotoClick, onLabelManage }: Ph
             key={photo.id}
             photo={photo}
             labels={labels}
+            isSelected={selectedPhotoIds.has(photo.id)}
             onClick={() => onPhotoClick(photo)}
             onLabelManage={() => onLabelManage(photo)}
+            onSelectionToggle={(isShiftPressed) => onSelectionToggle(photo.id, isShiftPressed)}
           />
         ))}
       </div>

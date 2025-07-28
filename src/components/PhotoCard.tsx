@@ -1,33 +1,71 @@
 import { useState } from 'react';
-import { MoreHorizontal, Tag } from 'lucide-react';
+import { Tag } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { LabelChip } from './LabelChip';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoCardProps {
   photo: Photo;
   labels: Label[];
+  isSelected?: boolean;
   onClick: () => void;
   onLabelManage: () => void;
+  onSelectionToggle: (isShiftPressed: boolean) => void;
 }
 
-export function PhotoCard({ photo, labels, onClick, onLabelManage }: PhotoCardProps) {
+export function PhotoCard({ 
+  photo, 
+  labels, 
+  isSelected = false,
+  onClick, 
+  onLabelManage,
+  onSelectionToggle
+}: PhotoCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   
   const photoLabels = labels.filter(label => photo.labels.includes(label.id));
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (e.target instanceof HTMLInputElement) return; // Don't trigger on checkbox click
+    onClick();
+  };
+
+  const handleCheckboxChange = () => {
+    onSelectionToggle(false);
+  };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelectionToggle(e.shiftKey);
+  };
+
   return (
-    <Card className="group overflow-hidden border-photo-border hover:border-primary transition-all duration-200 hover:shadow-lg">
+    <Card 
+      className={`group overflow-hidden border-photo-border hover:border-primary transition-all duration-200 hover:shadow-lg cursor-pointer ${
+        isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
+      }`}
+      onClick={handleCardClick}
+    >
       <div className="relative aspect-square">
+        {/* Selection Checkbox */}
+        <div className="absolute top-2 left-2 z-10">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={handleCheckboxChange}
+            onClick={handleCheckboxClick}
+            className="bg-background/80 backdrop-blur-sm border-2"
+          />
+        </div>
+
         <img
           src={photo.url}
           alt={photo.name}
-          className={`w-full h-full object-cover cursor-pointer transition-all duration-300 ${
+          className={`w-full h-full object-cover transition-all duration-300 ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
           } group-hover:scale-105`}
           onLoad={() => setImageLoaded(true)}
-          onClick={onClick}
         />
         {!imageLoaded && (
           <div className="absolute inset-0 bg-photo-background animate-pulse" />
