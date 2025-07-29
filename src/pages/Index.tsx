@@ -12,6 +12,7 @@ import { UploadDialog } from '@/components/UploadDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { PhotoModal } from '@/components/PhotoModal';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
+import { LabelSuggestions } from '@/components/LabelSuggestions';
 import type { Photo } from '@/types/photo';
 
 const Index = () => {
@@ -23,7 +24,9 @@ const Index = () => {
     deleteLabel,
     updatePhotoLabels,
     deletePhoto,
-    uploadPhotos
+    uploadPhotos,
+    getSuggestedLabels,
+    applyLabelSuggestions
   } = useSupabaseData();
 
   const {
@@ -53,7 +56,13 @@ const Index = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isBulkLabelDialogOpen, setIsBulkLabelDialogOpen] = useState(false);
+  const [isLabelSuggestionsOpen, setIsLabelSuggestionsOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+  const [labelSuggestions, setLabelSuggestions] = useState<{
+    suggestions: string[];
+    source: 'ai' | 'mock';
+    photo: Photo | null;
+  }>({ suggestions: [], source: 'mock', photo: null });
 
   // Event handlers
   const handlePhotoClick = (photo: Photo) => {
@@ -149,7 +158,23 @@ const Index = () => {
   };
 
   const handleUploadFiles = async (files: File[]) => {
-    await uploadPhotos(files);
+    const uploadedPhotos = await uploadPhotos(files);
+    
+    // Get suggestions for the first uploaded photo
+    if (uploadedPhotos && uploadedPhotos.length > 0) {
+      const firstPhoto = uploadedPhotos[0];
+      try {
+        const suggestions = await getSuggestedLabels(firstPhoto.url);
+        setLabelSuggestions({
+          suggestions: suggestions.suggestions,
+          source: suggestions.source,
+          photo: firstPhoto
+        });
+        setIsLabelSuggestionsOpen(true);
+      } catch (error) {
+        console.error('Error getting label suggestions:', error);
+      }
+    }
   };
 
   const handleLabelManage = (photo?: Photo) => {
@@ -283,6 +308,22 @@ const Index = () => {
           onClose={handleModalClose}
           onLabelManage={() => handleLabelManage(selectedPhoto)}
           onDelete={handlePhotoDelete}
+        />
+      )}
+
+      {/* Label Suggestions Dialog */}
+      {labelSuggestions.photo && (
+        <LabelSuggestions
+          isOpen={isLabelSuggestionsOpen}
+          onClose={() => {
+            setIsLabelSuggestionsOpen(false);
+            setLabelSuggestions({ suggestions: [], source: 'mock', photo: null });
+          }}
+          photo={labelSuggestions.photo}
+          suggestions={labelSuggestions.suggestions}
+          source={labelSuggestions.source}
+          existingLabels={labels}
+          onApplyLabels={applyLabelSuggestions}
         />
       )}
 

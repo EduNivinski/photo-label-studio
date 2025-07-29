@@ -252,6 +252,67 @@ export function useSupabaseData() {
     updatePhotoLabels,
     deletePhoto,
     uploadPhotos,
+    getSuggestedLabels: async (imageUrl: string) => {
+      try {
+        const { data, error } = await supabase.functions.invoke('suggest-labels', {
+          body: { imageUrl }
+        });
+
+        if (error) {
+          console.error('Error getting suggestions:', error);
+          return {
+            suggestions: ['paisagem', 'natureza', 'pessoas'], // Fallback mock data
+            source: 'mock' as const
+          };
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error calling suggest-labels function:', error);
+        return {
+          suggestions: ['paisagem', 'natureza', 'pessoas'], // Fallback mock data
+          source: 'mock' as const
+        };
+      }
+    },
+    applyLabelSuggestions: async (photoId: string, labelNames: string[]) => {
+      try {
+        // Create labels that don't exist yet
+        const existingLabelNames = labels.map(l => l.name.toLowerCase());
+        const newLabelNames = labelNames.filter(name => 
+          !existingLabelNames.includes(name.toLowerCase())
+        );
+
+        // Create new labels
+        for (const labelName of newLabelNames) {
+          await createLabel(labelName);
+        }
+
+        // Get current labels including newly created ones by refetching
+        await fetchLabels();
+        
+        // Find all label IDs for the names we want to apply
+        const labelIdsToApply = labelNames.map(name => {
+          const existingLabel = labels.find(l => 
+            l.name.toLowerCase() === name.toLowerCase()
+          );
+          return existingLabel?.id;
+        }).filter(Boolean) as string[];
+
+        // Get current photo labels and add new ones
+        const photo = photos.find(p => p.id === photoId);
+        if (photo) {
+          const currentPhotoLabels = photo.labels;
+          const updatedLabels = Array.from(new Set([...currentPhotoLabels, ...labelIdsToApply]));
+          await updatePhotoLabels(photoId, updatedLabels);
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Error applying label suggestions:', error);
+        return false;
+      }
+    },
     refetch: () => Promise.all([fetchPhotos(), fetchLabels()])
   };
 }
