@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { SearchBar } from '@/components/SearchBar';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { SelectionPanel } from '@/components/SelectionPanel';
@@ -10,6 +11,7 @@ import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { UploadDialog } from '@/components/UploadDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { PhotoModal } from '@/components/PhotoModal';
+import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import type { Photo } from '@/types/photo';
 
 const Index = () => {
@@ -76,6 +78,10 @@ const Index = () => {
 
   const handleBulkLabelManage = () => {
     setIsBulkLabelDialogOpen(true);
+  };
+
+  const handleSelectAll = () => {
+    selectAll(filteredPhotos);
   };
 
   const handleBulkDelete = async () => {
@@ -164,6 +170,15 @@ const Index = () => {
       toast.error("Erro ao excluir foto");
     }
   };
+
+  // Setup keyboard shortcuts
+  useKeyboardShortcuts({
+    onSelectAll: handleSelectAll,
+    onDeleteSelected: handleBulkDelete,
+    onManageLabels: handleBulkLabelManage,
+    onClearSelection: clearSelection,
+    hasSelectedPhotos: selectedCount > 0
+  });
 
   if (loading) {
     return (
@@ -270,6 +285,9 @@ const Index = () => {
           onDelete={handlePhotoDelete}
         />
       )}
+
+      {/* Keyboard Shortcuts Tooltip */}
+      <KeyboardShortcuts />
     </div>
   );
 };
