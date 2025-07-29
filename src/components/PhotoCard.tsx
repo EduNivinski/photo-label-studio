@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Tag } from 'lucide-react';
+import { Tag, Plus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LabelChip } from './LabelChip';
+import { QuickLabelSelector } from './QuickLabelSelector';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoCardProps {
@@ -13,6 +14,7 @@ interface PhotoCardProps {
   onClick: () => void;
   onLabelManage: () => void;
   onSelectionToggle: (isShiftPressed: boolean) => void;
+  onUpdateLabels: (photoId: string, labelIds: string[]) => void;
 }
 
 export function PhotoCard({ 
@@ -21,7 +23,8 @@ export function PhotoCard({
   isSelected = false,
   onClick, 
   onLabelManage,
-  onSelectionToggle
+  onSelectionToggle,
+  onUpdateLabels
 }: PhotoCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   
@@ -39,6 +42,16 @@ export function PhotoCard({
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSelectionToggle(e.shiftKey);
+  };
+
+  const handleAddLabel = (labelId: string) => {
+    const newLabels = [...photo.labels, labelId];
+    onUpdateLabels(photo.id, newLabels);
+  };
+
+  const handleRemoveLabel = (labelId: string) => {
+    const newLabels = photo.labels.filter(id => id !== labelId);
+    onUpdateLabels(photo.id, newLabels);
   };
 
   return (
@@ -94,14 +107,30 @@ export function PhotoCard({
         </h3>
         
         <div className="flex flex-wrap gap-1 mb-2 min-h-[20px]">
-          {photoLabels.slice(0, 3).map((label) => (
-            <LabelChip key={label.id} label={label} variant="tag" />
+          {photoLabels.map((label) => (
+            <LabelChip 
+              key={label.id} 
+              label={label} 
+              variant="tag" 
+              onRemove={() => handleRemoveLabel(label.id)}
+            />
           ))}
-          {photoLabels.length > 3 && (
-            <span className="text-xs text-muted-foreground self-center">
-              +{photoLabels.length - 3}
-            </span>
-          )}
+          
+          {/* Botão para adicionar nova label */}
+          <QuickLabelSelector
+            labels={labels}
+            photoLabels={photo.labels}
+            onAddLabel={handleAddLabel}
+          >
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-5 w-5 p-0 rounded-full text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </QuickLabelSelector>
         </div>
         
         <div className="text-xs text-muted-foreground">

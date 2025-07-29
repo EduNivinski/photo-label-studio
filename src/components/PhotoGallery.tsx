@@ -8,6 +8,7 @@ interface PhotoGalleryProps {
   onPhotoClick: (photo: Photo) => void;
   onLabelManage: (photo: Photo) => void;
   onSelectionToggle: (photoId: string, isShiftPressed: boolean) => void;
+  onUpdateLabels: (photoId: string, labelIds: string[]) => void;
 }
 
 export function PhotoGallery({ 
@@ -16,7 +17,8 @@ export function PhotoGallery({
   selectedPhotoIds,
   onPhotoClick, 
   onLabelManage,
-  onSelectionToggle
+  onSelectionToggle,
+  onUpdateLabels
 }: PhotoGalleryProps) {
   if (photos.length === 0) {
     return (
@@ -46,6 +48,7 @@ export function PhotoGallery({
             onClick={() => onPhotoClick(photo)}
             onLabelManage={() => onLabelManage(photo)}
             onSelectionToggle={(isShiftPressed) => onSelectionToggle(photo.id, isShiftPressed)}
+            onUpdateLabels={onUpdateLabels}
           />
         ))}
       </div>

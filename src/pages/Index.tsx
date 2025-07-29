@@ -217,6 +217,7 @@ const Index = () => {
         onPhotoClick={handlePhotoClick}
         onLabelManage={handleLabelManage}
         onSelectionToggle={handleSelectionToggle}
+        onUpdateLabels={updatePhotoLabels}
       />
 
       {/* Selection Panel */}
