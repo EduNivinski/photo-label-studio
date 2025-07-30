@@ -1,7 +1,7 @@
 import { Search, Upload, Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AdvancedFilters } from './AdvancedFilters';
+import { SmartLabelSearch } from './SmartLabelSearch';
 import type { Label } from '@/types/photo';
 
 interface SearchBarProps {
@@ -10,10 +10,8 @@ interface SearchBarProps {
   onUpload: () => void;
   labels: Label[];
   selectedLabels: string[];
-  filterMode: 'AND' | 'OR';
   showUnlabeled: boolean;
   onLabelToggle: (labelId: string) => void;
-  onFilterModeChange: (mode: 'AND' | 'OR') => void;
   onToggleUnlabeled: () => void;
   onClearFilters: () => void;
   onManageLabels: () => void;
@@ -25,10 +23,8 @@ export function SearchBar({
   onUpload,
   labels,
   selectedLabels,
-  filterMode,
   showUnlabeled,
   onLabelToggle,
-  onFilterModeChange,
   onToggleUnlabeled,
   onClearFilters,
   onManageLabels
@@ -46,17 +42,22 @@ export function SearchBar({
         />
       </div>
       
+      <SmartLabelSearch
+        labels={labels}
+        selectedLabels={selectedLabels}
+        onLabelToggle={onLabelToggle}
+        onClearFilters={onClearFilters}
+      />
+      
       <div className="flex gap-2">
-        <AdvancedFilters
-          labels={labels}
-          selectedLabels={selectedLabels}
-          filterMode={filterMode}
-          showUnlabeled={showUnlabeled}
-          onLabelToggle={onLabelToggle}
-          onFilterModeChange={onFilterModeChange}
-          onToggleUnlabeled={onToggleUnlabeled}
-          onClearFilters={onClearFilters}
-        />
+        <Button 
+          variant={showUnlabeled ? "default" : "outline"} 
+          size="sm"
+          onClick={onToggleUnlabeled}
+          className={showUnlabeled ? "" : ""}
+        >
+          Sem Labels
+        </Button>
         
         <Button variant="outline" onClick={onManageLabels} className="flex items-center gap-2">
           <Settings className="h-4 w-4" />

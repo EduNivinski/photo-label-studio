@@ -5,6 +5,7 @@ import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { SearchBar } from '@/components/SearchBar';
+import { LabelSuggestionsBar } from '@/components/LabelSuggestionsBar';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { SelectionPanel } from '@/components/SelectionPanel';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
@@ -32,12 +33,10 @@ const Index = () => {
   const {
     filters,
     filteredPhotos,
-    filterMode,
     updateSearchTerm,
     toggleLabel,
     toggleUnlabeled,
-    clearFilters,
-    setFilterMode
+    clearFilters
   } = usePhotoFilters(photos);
 
   // Photo selection state
@@ -240,13 +239,19 @@ const Index = () => {
         onUpload={handleUpload}
         labels={labels}
         selectedLabels={filters.labels}
-        filterMode={filterMode}
         showUnlabeled={filters.showUnlabeled}
         onLabelToggle={toggleLabel}
-        onFilterModeChange={setFilterMode}
         onToggleUnlabeled={toggleUnlabeled}
         onClearFilters={clearFilters}
         onManageLabels={() => handleLabelManage()}
+      />
+
+      {/* Label Suggestions */}
+      <LabelSuggestionsBar
+        labels={labels}
+        photos={photos}
+        onLabelToggle={toggleLabel}
+        selectedLabels={filters.labels}
       />
 
       {/* Gallery */}

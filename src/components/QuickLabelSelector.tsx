@@ -37,7 +37,7 @@ export function QuickLabelSelector({
       <PopoverTrigger asChild>
         {children}
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-3" align="start" side="top">
+      <PopoverContent className="w-64 p-3 bg-popover border border-border shadow-lg" align="start" side="top">
         <div className="space-y-3">
           <div className="text-xs font-medium text-muted-foreground">
             Adicionar Label:

@@ -8,6 +8,7 @@ interface LabelChipProps {
   onClick?: () => void;
   onRemove?: () => void;
   variant?: 'filter' | 'tag';
+  showCount?: number;
 }
 
 export function LabelChip({ 
@@ -15,7 +16,8 @@ export function LabelChip({
   isSelected = false, 
   onClick, 
   onRemove, 
-  variant = 'filter' 
+  variant = 'filter',
+  showCount
 }: LabelChipProps) {
   const chipStyle = label.color ? { 
     backgroundColor: isSelected ? label.color : `${label.color}20`,
@@ -35,6 +37,7 @@ export function LabelChip({
       onClick={onClick}
     >
       {label.name}
+      {showCount && <span className="ml-1 opacity-75">({showCount})</span>}
       {variant === 'tag' && onRemove && (
         <X 
           className="ml-1 h-3 w-3 cursor-pointer hover:bg-black/20 rounded" 

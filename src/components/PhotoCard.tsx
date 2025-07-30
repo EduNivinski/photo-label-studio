@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Tag, Plus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
 import type { Photo, Label } from '@/types/photo';
@@ -31,7 +30,9 @@ export function PhotoCard({
   const photoLabels = labels.filter(label => photo.labels.includes(label.id));
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if (e.target instanceof HTMLInputElement) return; // Don't trigger on checkbox click
+    // Don't trigger on checkbox, buttons, or other interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, [role="button"]')) return;
     onClick();
   };
 
@@ -56,20 +57,30 @@ export function PhotoCard({
 
   return (
     <Card 
-      className={`group overflow-hidden border-photo-border hover:border-primary transition-all duration-200 hover:shadow-lg cursor-pointer ${
-        isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
+      className={`group overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer ${
+        isSelected 
+          ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-lg' 
+          : 'border-photo-border hover:border-primary'
       }`}
       onClick={handleCardClick}
     >
       <div className="relative aspect-square">
         {/* Selection Checkbox */}
         <div className="absolute top-2 left-2 z-10">
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={handleCheckboxChange}
+          <div 
+            className={`w-5 h-5 rounded border-2 cursor-pointer transition-all duration-200 flex items-center justify-center ${
+              isSelected 
+                ? 'bg-primary border-primary text-primary-foreground' 
+                : 'bg-background/80 backdrop-blur-sm border-white/60 hover:border-primary'
+            }`}
             onClick={handleCheckboxClick}
-            className="bg-background/80 backdrop-blur-sm border-2"
-          />
+          >
+            {isSelected && (
+              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            )}
+          </div>
         </div>
 
         <img

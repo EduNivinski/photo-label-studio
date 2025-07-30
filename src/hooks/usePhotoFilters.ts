@@ -15,16 +15,11 @@ export function usePhotoFilters(photos: Photo[]) {
       const matchesSearch = filters.searchTerm === '' || 
         photo.name.toLowerCase().includes(filters.searchTerm.toLowerCase());
 
-      // Filter by labels
+      // Filter by labels (always use AND logic - intersection)
       let matchesLabels = true;
       if (filters.labels.length > 0) {
-        if (filterMode === 'AND') {
-          // ALL selected labels must be present
-          matchesLabels = filters.labels.every(labelId => photo.labels.includes(labelId));
-        } else {
-          // ANY selected label must be present
-          matchesLabels = filters.labels.some(labelId => photo.labels.includes(labelId));
-        }
+        // ALL selected labels must be present
+        matchesLabels = filters.labels.every(labelId => photo.labels.includes(labelId));
       }
 
       // Filter by unlabeled
@@ -61,11 +56,9 @@ export function usePhotoFilters(photos: Photo[]) {
   return {
     filters,
     filteredPhotos,
-    filterMode,
     updateSearchTerm,
     toggleLabel,
     toggleUnlabeled,
-    clearFilters,
-    setFilterMode
+    clearFilters
   };
 }
