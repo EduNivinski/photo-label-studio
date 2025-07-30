@@ -97,19 +97,21 @@ export function PhotoCard({
         
         {/* Overlay com ações */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-8 w-8 p-0 bg-white/90 hover:bg-white"
-            onClick={(e) => {
-              e.stopPropagation();
-              onLabelManage();
-            }}
-          >
-            <Tag className="h-4 w-4" />
-          </Button>
-        </div>
+        {!isSelected && (
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-8 w-8 p-0 bg-white/90 hover:bg-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                onLabelManage();
+              }}
+            >
+              <Tag className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
       
       <div className="p-3">
@@ -127,21 +129,23 @@ export function PhotoCard({
             />
           ))}
           
-          {/* Botão para adicionar nova label */}
-          <QuickLabelSelector
-            labels={labels}
-            photoLabels={photo.labels}
-            onAddLabel={handleAddLabel}
-          >
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-5 w-5 p-0 rounded-full text-muted-foreground hover:text-foreground"
-              onClick={(e) => e.stopPropagation()}
+          {/* Botão para adicionar nova label - só mostrar se não estiver selecionado */}
+          {!isSelected && (
+            <QuickLabelSelector
+              labels={labels}
+              photoLabels={photo.labels}
+              onAddLabel={handleAddLabel}
             >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </QuickLabelSelector>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 w-5 p-0 rounded-full text-muted-foreground hover:text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </QuickLabelSelector>
+          )}
         </div>
         
         <div className="text-xs text-muted-foreground">

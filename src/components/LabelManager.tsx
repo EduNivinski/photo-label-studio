@@ -13,7 +13,7 @@ interface LabelManagerProps {
   onClose: () => void;
   labels: Label[];
   selectedPhoto?: Photo;
-  onCreateLabel: (name: string, color?: string) => Promise<Label | null>;
+  onCreateLabel: (name: string, color?: string) => Promise<void>;
   onDeleteLabel: (labelId: string) => Promise<boolean>;
   onUpdatePhotoLabels?: (photoId: string, labelIds: string[]) => Promise<boolean>;
 }
@@ -43,15 +43,14 @@ export function LabelManager({
     if (!newLabelName.trim()) return;
     
     setIsCreating(true);
-    const label = await onCreateLabel(newLabelName.trim(), selectedColor);
-    
-    if (label) {
+    try {
+      await onCreateLabel(newLabelName.trim(), selectedColor);
       setNewLabelName('');
       toast({
         title: "Label criada",
-        description: `Label "${label.name}" criada com sucesso!`
+        description: `Label "${newLabelName.trim()}" criada com sucesso!`
       });
-    } else {
+    } catch (error) {
       toast({
         title: "Erro",
         description: "Falha ao criar label. Verifique se o nome não está em uso.",

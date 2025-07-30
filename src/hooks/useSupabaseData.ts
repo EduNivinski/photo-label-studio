@@ -23,7 +23,8 @@ export function useSupabaseData() {
       url: photo.url,
       name: photo.name,
       uploadDate: photo.upload_date,
-      labels: photo.labels || []
+      labels: photo.labels || [],
+      alias: photo.alias || undefined
     }));
     
     setPhotos(formattedPhotos);
@@ -49,7 +50,7 @@ export function useSupabaseData() {
     setLabels(formattedLabels);
   };
 
-  const createLabel = async (name: string, color?: string) => {
+  const createLabel = async (name: string, color?: string): Promise<void> => {
     const { data, error } = await (supabase as any)
       .from('labels')
       .insert({ name, color })
@@ -58,10 +59,10 @@ export function useSupabaseData() {
     
     if (error) {
       console.error('Error creating label:', error);
-      return null;
+      return;
     }
     
-    if (!data) return null;
+    if (!data) return;
     
     const newLabel: Label = {
       id: data.id,
@@ -70,7 +71,6 @@ export function useSupabaseData() {
     };
     
     setLabels(prev => [...prev, newLabel]);
-    return newLabel;
   };
 
   const deleteLabel = async (labelId: string) => {
@@ -121,6 +121,24 @@ export function useSupabaseData() {
     ));
     
     return true;
+  };
+
+  const updatePhotoAlias = async (photoId: string, alias: string): Promise<void> => {
+    const { error } = await (supabase as any)
+      .from('photos')
+      .update({ alias })
+      .eq('id', photoId);
+    
+    if (error) {
+      console.error('Error updating photo alias:', error);
+      return;
+    }
+    
+    setPhotos(prev => prev.map(photo => 
+      photo.id === photoId 
+        ? { ...photo, alias }
+        : photo
+    ));
   };
 
   const deletePhoto = async (photoId: string) => {
@@ -200,7 +218,8 @@ export function useSupabaseData() {
         url: photoData.url,
         name: photoData.name,
         uploadDate: photoData.upload_date,
-        labels: photoData.labels || []
+        labels: photoData.labels || [],
+        alias: photoData.alias || undefined
       } as Photo;
     });
 
@@ -250,6 +269,7 @@ export function useSupabaseData() {
     createLabel,
     deleteLabel,
     updatePhotoLabels,
+    updatePhotoAlias,
     deletePhoto,
     uploadPhotos,
     getSuggestedLabels: async (imageUrl: string) => {

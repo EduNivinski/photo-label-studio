@@ -34,6 +34,7 @@ export type Database = {
       }
       photos: {
         Row: {
+          alias: string | null
           id: string
           labels: string[] | null
           name: string
@@ -41,6 +42,7 @@ export type Database = {
           url: string
         }
         Insert: {
+          alias?: string | null
           id?: string
           labels?: string[] | null
           name: string
@@ -48,6 +50,7 @@ export type Database = {
           url: string
         }
         Update: {
+          alias?: string | null
           id?: string
           labels?: string[] | null
           name?: string

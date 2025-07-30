@@ -4,6 +4,7 @@ export interface Photo {
   name: string;
   uploadDate: string;
   labels: string[];
+  alias?: string;
 }
 
 export interface Label {

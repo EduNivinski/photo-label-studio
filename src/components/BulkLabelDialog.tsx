@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Minus, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label as UILabel } from '@/components/ui/label';
 import { LabelChip } from './LabelChip';
@@ -13,6 +14,7 @@ interface BulkLabelDialogProps {
   labels: Label[];
   onApplyLabels: (photoIds: string[], labelIds: string[]) => Promise<void>;
   onRemoveLabels: (photoIds: string[], labelIds: string[]) => Promise<void>;
+  onCreateLabel?: (name: string, color?: string) => Promise<void>;
 }
 
 export function BulkLabelDialog({
@@ -21,10 +23,13 @@ export function BulkLabelDialog({
   selectedPhotos,
   labels,
   onApplyLabels,
-  onRemoveLabels
+  onRemoveLabels,
+  onCreateLabel
 }: BulkLabelDialogProps) {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [isApplying, setIsApplying] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false);
 
   const handleLabelToggle = (labelId: string) => {
     setSelectedLabels(prev => 
@@ -62,8 +67,21 @@ export function BulkLabelDialog({
     }
   };
 
+  const handleCreateLabel = async () => {
+    if (!newLabelName.trim() || !onCreateLabel) return;
+    
+    setIsCreatingLabel(true);
+    try {
+      await onCreateLabel(newLabelName.trim());
+      setNewLabelName('');
+    } finally {
+      setIsCreatingLabel(false);
+    }
+  };
+
   const handleClose = () => {
     setSelectedLabels([]);
+    setNewLabelName('');
     onClose();
   };
 
@@ -99,6 +117,30 @@ export function BulkLabelDialog({
                     variant="tag"
                   />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Create New Label */}
+          {onCreateLabel && (
+            <div className="space-y-3">
+              <UILabel className="text-sm font-medium">
+                Criar Nova Label:
+              </UILabel>
+              <div className="flex gap-2">
+                <Input
+                  value={newLabelName}
+                  onChange={(e) => setNewLabelName(e.target.value)}
+                  placeholder="Nome da nova label..."
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateLabel()}
+                />
+                <Button
+                  onClick={handleCreateLabel}
+                  disabled={!newLabelName.trim() || isCreatingLabel}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar
+                </Button>
               </div>
             </div>
           )}

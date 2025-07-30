@@ -24,6 +24,7 @@ const Index = () => {
     createLabel,
     deleteLabel,
     updatePhotoLabels,
+    updatePhotoAlias,
     deletePhoto,
     uploadPhotos,
     getSuggestedLabels,
@@ -302,6 +303,7 @@ const Index = () => {
         labels={labels}
         onApplyLabels={handleBulkApplyLabels}
         onRemoveLabels={handleBulkRemoveLabels}
+        onCreateLabel={createLabel}
       />
 
       {/* Photo Modal */}
@@ -313,6 +315,7 @@ const Index = () => {
           onClose={handleModalClose}
           onLabelManage={() => handleLabelManage(selectedPhoto)}
           onDelete={handlePhotoDelete}
+          onUpdateAlias={updatePhotoAlias}
         />
       )}
 
