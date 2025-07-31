@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      albums: {
+        Row: {
+          cover_photo_url: string | null
+          created_at: string
+          id: string
+          labels: string[]
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          cover_photo_url?: string | null
+          created_at?: string
+          id?: string
+          labels?: string[]
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          cover_photo_url?: string | null
+          created_at?: string
+          id?: string
+          labels?: string[]
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       labels: {
         Row: {
           color: string | null

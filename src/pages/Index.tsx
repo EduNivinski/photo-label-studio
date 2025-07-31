@@ -294,6 +294,8 @@ const Index = () => {
           photos={photos}
           labels={labels}
           onClusterClick={handleClusterClick}
+          selectedLabels={filters.labels}
+          filteredPhotos={filteredPhotos}
         />
       ) : (
         <PhotoGallery
