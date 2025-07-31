@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
@@ -6,6 +6,8 @@ import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { SearchBar } from '@/components/SearchBar';
 import { LabelSuggestionsBar } from '@/components/LabelSuggestionsBar';
+import { PhotoClusters } from '@/components/PhotoClusters';
+import { PhotoStats } from '@/components/PhotoStats';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { SelectionPanel } from '@/components/SelectionPanel';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
@@ -63,6 +65,16 @@ const Index = () => {
     source: 'ai' | 'mock';
     photo: Photo | null;
   }>({ suggestions: [], source: 'mock', photo: null });
+  
+  // Estado para controlar se deve mostrar clusters ou grid
+  const [showClusters, setShowClusters] = useState(true);
+
+  // Escutar evento de reset dos clusters
+  useEffect(() => {
+    const handleResetClusters = () => setShowClusters(true);
+    window.addEventListener('resetClusters', handleResetClusters);
+    return () => window.removeEventListener('resetClusters', handleResetClusters);
+  }, []);
 
   // Event handlers
   const handlePhotoClick = (photo: Photo) => {
@@ -184,6 +196,22 @@ const Index = () => {
     setIsLabelManagerOpen(true);
   };
 
+  const handleClusterClick = (labelIds: string[]) => {
+    // Aplicar filtros das labels do cluster
+    labelIds.forEach(labelId => {
+      if (!filters.labels.includes(labelId)) {
+        toggleLabel(labelId);
+      }
+    });
+    setShowClusters(false);
+  };
+
+  // Detectar quando filtros estão ativos
+  const hasActiveFilters = filters.labels.length > 0 || filters.showUnlabeled || filters.searchTerm.trim() !== '';
+  
+  // Atualizar showClusters baseado nos filtros
+  const shouldShowClusters = showClusters && !hasActiveFilters;
+
   const handlePhotoDelete = async () => {
     if (!selectedPhoto) return;
     
@@ -247,24 +275,37 @@ const Index = () => {
         onManageLabels={() => handleLabelManage()}
       />
 
+      {/* Stats */}
+      <PhotoStats photos={photos} />
+
       {/* Label Suggestions */}
       <LabelSuggestionsBar
         labels={labels}
         photos={photos}
         onLabelToggle={toggleLabel}
+        onToggleUnlabeled={toggleUnlabeled}
         selectedLabels={filters.labels}
+        showUnlabeled={filters.showUnlabeled}
       />
 
-      {/* Gallery */}
-      <PhotoGallery
-        photos={filteredPhotos}
-        labels={labels}
-        selectedPhotoIds={selectedPhotoIds}
-        onPhotoClick={handlePhotoClick}
-        onLabelManage={handleLabelManage}
-        onSelectionToggle={handleSelectionToggle}
-        onUpdateLabels={updatePhotoLabels}
-      />
+      {/* Clusters ou Gallery */}
+      {shouldShowClusters ? (
+        <PhotoClusters
+          photos={photos}
+          labels={labels}
+          onClusterClick={handleClusterClick}
+        />
+      ) : (
+        <PhotoGallery
+          photos={filteredPhotos}
+          labels={labels}
+          selectedPhotoIds={selectedPhotoIds}
+          onPhotoClick={handlePhotoClick}
+          onLabelManage={handleLabelManage}
+          onSelectionToggle={handleSelectionToggle}
+          onUpdateLabels={updatePhotoLabels}
+        />
+      )}
 
       {/* Selection Panel */}
       <SelectionPanel

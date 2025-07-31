@@ -36,7 +36,7 @@ export function LabelChip({
       style={chipStyle}
       onClick={onClick}
     >
-      {label.name}
+      🏷️ {label.name}
       {showCount && <span className="ml-1 opacity-75">({showCount})</span>}
       {variant === 'tag' && onRemove && (
         <X 

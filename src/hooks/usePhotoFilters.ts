@@ -51,6 +51,10 @@ export function usePhotoFilters(photos: Photo[]) {
 
   const clearFilters = () => {
     setFilters({ labels: [], searchTerm: '', showUnlabeled: false });
+    // Resetar para mostrar clusters novamente
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('resetClusters'));
+    }
   };
 
   return {

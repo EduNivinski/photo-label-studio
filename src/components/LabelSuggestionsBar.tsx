@@ -1,19 +1,24 @@
 import { useMemo } from 'react';
 import { LabelChip } from './LabelChip';
+import { Badge } from '@/components/ui/badge';
 import type { Label, Photo } from '@/types/photo';
 
 interface LabelSuggestionsBarProps {
   labels: Label[];
   photos: Photo[];
   onLabelToggle: (labelId: string) => void;
+  onToggleUnlabeled: () => void;
   selectedLabels: string[];
+  showUnlabeled: boolean;
 }
 
 export function LabelSuggestionsBar({ 
   labels, 
   photos, 
-  onLabelToggle, 
-  selectedLabels 
+  onLabelToggle,
+  onToggleUnlabeled,
+  selectedLabels,
+  showUnlabeled 
 }: LabelSuggestionsBarProps) {
   // Calcular labels mais usadas
   const popularLabels = useMemo(() => {
@@ -53,6 +58,15 @@ export function LabelSuggestionsBar({
             showCount={label.count}
           />
         ))}
+        
+        {/* Chip "Sem Labels" */}
+        <Badge
+          variant={showUnlabeled ? "default" : "outline"}
+          className="cursor-pointer hover:bg-muted-foreground/10 transition-colors"
+          onClick={onToggleUnlabeled}
+        >
+          🏷️ Sem Labels ({photos.filter(p => p.labels.length === 0).length})
+        </Badge>
       </div>
     </div>
   );
