@@ -230,6 +230,40 @@ export function useSupabaseData() {
     return successfulUploads;
   };
 
+  const applyLabelsToPhotos = async (photoIds: string[], labelIds: string[]) => {
+    try {
+      const updatePromises = photoIds.map(async (photoId) => {
+        const { error } = await (supabase as any)
+          .from('photos')
+          .update({ labels: labelIds })
+          .eq('id', photoId);
+        
+        if (error) {
+          console.error('Error updating photo labels:', error);
+          return false;
+        }
+        return true;
+      });
+
+      const results = await Promise.all(updatePromises);
+      const allSuccessful = results.every(Boolean);
+
+      if (allSuccessful) {
+        // Update local state
+        setPhotos(prev => prev.map(photo => 
+          photoIds.includes(photo.id) 
+            ? { ...photo, labels: labelIds }
+            : photo
+        ));
+      }
+
+      return allSuccessful;
+    } catch (error) {
+      console.error('Error applying labels to photos:', error);
+      return false;
+    }
+  };
+
   useEffect(() => {
     const initializeData = async () => {
       setLoading(true);
@@ -272,6 +306,7 @@ export function useSupabaseData() {
     updatePhotoAlias,
     deletePhoto,
     uploadPhotos,
+    applyLabelsToPhotos,
     getSuggestedLabels: async (imageUrl: string) => {
       try {
         const { data, error } = await supabase.functions.invoke('suggest-labels', {

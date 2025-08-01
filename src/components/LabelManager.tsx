@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Plus, Edit, Trash2, Palette } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label as UILabel } from '@/components/ui/label';
+import { StandardLabelCreator } from './StandardLabelCreator';
 import { LabelChip } from './LabelChip';
 import { useToast } from '@/hooks/use-toast';
 import type { Label, Photo } from '@/types/photo';
@@ -18,12 +17,6 @@ interface LabelManagerProps {
   onUpdatePhotoLabels?: (photoId: string, labelIds: string[]) => Promise<boolean>;
 }
 
-const PRESET_COLORS = [
-  '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', 
-  '#06B6D4', '#84CC16', '#6B7280', '#EC4899',
-  '#F97316', '#3B82F6', '#8B5A2B', '#059669'
-];
-
 export function LabelManager({ 
   isOpen, 
   onClose, 
@@ -33,32 +26,9 @@ export function LabelManager({
   onDeleteLabel,
   onUpdatePhotoLabels 
 }: LabelManagerProps) {
-  const [newLabelName, setNewLabelName] = useState('');
-  const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0]);
-  const [isCreating, setIsCreating] = useState(false);
   const [photoLabels, setPhotoLabels] = useState<string[]>(selectedPhoto?.labels || []);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const { toast } = useToast();
-
-  const handleCreateLabel = async () => {
-    if (!newLabelName.trim()) return;
-    
-    setIsCreating(true);
-    try {
-      await onCreateLabel(newLabelName.trim(), selectedColor);
-      setNewLabelName('');
-      toast({
-        title: "Label criada",
-        description: `Label "${newLabelName.trim()}" criada com sucesso!`
-      });
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Falha ao criar label. Verifique se o nome não está em uso.",
-        variant: "destructive"
-      });
-    }
-    setIsCreating(false);
-  };
 
   const handleDeleteLabel = async (labelId: string) => {
     const label = labels.find(l => l.id === labelId);
@@ -121,41 +91,17 @@ export function LabelManager({
           {/* Create New Label */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Criar Nova Label</h3>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <UILabel htmlFor="label-name">Nome da Label</UILabel>
-                <Input
-                  id="label-name"
-                  placeholder="Ex: Família, Trabalho, Viagem..."
-                  value={newLabelName}
-                  onChange={(e) => setNewLabelName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateLabel()}
-                />
-              </div>
-              <div>
-                <UILabel>Cor</UILabel>
-                <div className="flex gap-1 mt-1">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        selectedColor === color ? 'border-foreground scale-110' : 'border-border'
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setSelectedColor(color)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <Button 
-              onClick={handleCreateLabel} 
-              disabled={!newLabelName.trim() || isCreating}
-              className="w-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {isCreating ? 'Criando...' : 'Criar Label'}
-            </Button>
+            <StandardLabelCreator
+              trigger={
+                <Button variant="outline" className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Nova Label
+                </Button>
+              }
+              onCreateLabel={onCreateLabel}
+              isOpen={showCreateDialog}
+              onOpenChange={setShowCreateDialog}
+            />
           </div>
 
           {/* Photo Labels (if editing a specific photo) */}

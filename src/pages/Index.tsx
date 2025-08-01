@@ -29,6 +29,7 @@ const Index = () => {
     updatePhotoAlias,
     deletePhoto,
     uploadPhotos,
+    applyLabelsToPhotos,
     getSuggestedLabels,
     applyLabelSuggestions
   } = useSupabaseData();
@@ -321,7 +322,10 @@ const Index = () => {
       <UploadDialog
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onUpload={handleUploadFiles}
+        onUpload={uploadPhotos}
+        labels={labels}
+        onCreateLabel={createLabel}
+        onApplyLabelsToPhotos={applyLabelsToPhotos}
       />
 
       {/* Label Manager */}

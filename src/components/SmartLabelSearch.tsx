@@ -35,9 +35,12 @@ export function SmartLabelSearch({
     setShowSuggestions(true);
   };
 
-  const handleInputBlur = () => {
-    // Delay to allow click on suggestions
-    setTimeout(() => setShowSuggestions(false), 200);
+  const handleInputBlur = (e: React.FocusEvent) => {
+    // Only hide if not clicking on the dropdown
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    if (!relatedTarget || !relatedTarget.closest('[data-dropdown="suggestions"]')) {
+      setTimeout(() => setShowSuggestions(false), 200);
+    }
   };
 
   const handleLabelAdd = (labelId: string) => {
@@ -105,12 +108,16 @@ export function SmartLabelSearch({
 
       {/* Suggestions Dropdown */}
       {showSuggestions && filteredLabels.length > 0 && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+        <div 
+          className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+          data-dropdown="suggestions"
+        >
           <div className="p-2 space-y-1">
             {filteredLabels.slice(0, 8).map((label) => (
               <div
                 key={label.id}
                 onClick={() => handleLabelAdd(label.id)}
+                onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
                 className="flex items-center px-2 py-2 rounded cursor-pointer hover:bg-accent hover:text-accent-foreground"
               >
                 <div 
