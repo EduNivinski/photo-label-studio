@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { LabelChip } from './LabelChip';
+import { getFileType } from '@/lib/fileUtils';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoModalProps {
@@ -29,6 +30,7 @@ export function PhotoModal({
   const [aliasValue, setAliasValue] = useState(photo.alias || '');
 
   const photoLabels = labels.filter(label => photo.labels.includes(label.id));
+  const isVideo = getFileType(photo.url) === 'video';
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -78,7 +80,7 @@ export function PhotoModal({
                     <Input
                       value={aliasValue}
                       onChange={(e) => setAliasValue(e.target.value)}
-                      placeholder="Digite um alias para a foto..."
+                      placeholder={`Digite um alias para ${isVideo ? 'o vídeo' : 'a foto'}...`}
                       className="h-6 text-sm"
                       autoFocus
                     />
@@ -120,13 +122,24 @@ export function PhotoModal({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 overflow-hidden">
-          {/* Photo Display */}
+          {/* Media Display */}
           <div className="flex-1 flex items-center justify-center overflow-hidden">
-            <img
-              src={photo.url}
-              alt={photo.name}
-              className="max-w-full max-h-[60vh] object-contain rounded-lg"
-            />
+            {isVideo ? (
+              <video
+                src={photo.url}
+                controls
+                className="max-w-full max-h-[60vh] object-contain rounded-lg"
+                preload="metadata"
+              >
+                Seu navegador não suporta a reprodução de vídeos.
+              </video>
+            ) : (
+              <img
+                src={photo.url}
+                alt={photo.name}
+                className="max-w-full max-h-[60vh] object-contain rounded-lg"
+              />
+            )}
           </div>
 
           {/* Photo Info */}

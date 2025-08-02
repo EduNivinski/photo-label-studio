@@ -26,10 +26,10 @@ export function PhotoGallery({
         <div className="text-center">
           <div className="text-4xl mb-4">📷</div>
           <h3 className="text-lg font-medium text-foreground mb-2">
-            Nenhuma foto encontrada
+            Nenhum arquivo encontrado
           </h3>
           <p className="text-muted-foreground">
-            Tente ajustar os filtros ou faça upload de novas fotos
+            Tente ajustar os filtros ou faça upload de novos arquivos
           </p>
         </div>
       </div>

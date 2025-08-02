@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Tag, Plus } from 'lucide-react';
+import { Tag, Plus, Play } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
+import { getFileType } from '@/lib/fileUtils';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoCardProps {
@@ -25,9 +26,11 @@ export function PhotoCard({
   onSelectionToggle,
   onUpdateLabels
 }: PhotoCardProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
   
   const photoLabels = labels.filter(label => photo.labels.includes(label.id));
+  const isVideo = getFileType(photo.url) === 'video';
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger on checkbox, buttons, or other interactive elements
@@ -83,16 +86,48 @@ export function PhotoCard({
           </div>
         </div>
 
-        <img
-          src={photo.url}
-          alt={photo.name}
-          className={`w-full h-full object-cover transition-all duration-300 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          } group-hover:scale-105`}
-          onLoad={() => setImageLoaded(true)}
-        />
-        {!imageLoaded && (
+        {isVideo ? (
+          <>
+            <video
+              src={photo.url}
+              className={`w-full h-full object-cover transition-all duration-300 ${
+                mediaLoaded ? 'opacity-100' : 'opacity-0'
+              } group-hover:scale-105`}
+              onLoadedData={() => setMediaLoaded(true)}
+              onError={() => setMediaError(true)}
+              muted
+              preload="metadata"
+            />
+            {/* Play button overlay for videos */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/60 rounded-full p-3 backdrop-blur-sm">
+                <Play className="h-6 w-6 text-white fill-white" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <img
+            src={photo.url}
+            alt={photo.name}
+            className={`w-full h-full object-cover transition-all duration-300 ${
+              mediaLoaded ? 'opacity-100' : 'opacity-0'
+            } group-hover:scale-105`}
+            onLoad={() => setMediaLoaded(true)}
+            onError={() => setMediaError(true)}
+          />
+        )}
+        
+        {!mediaLoaded && !mediaError && (
           <div className="absolute inset-0 bg-photo-background animate-pulse" />
+        )}
+        
+        {mediaError && (
+          <div className="absolute inset-0 bg-photo-background flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-2xl mb-2">⚠️</div>
+              <p className="text-sm text-muted-foreground">Erro ao carregar</p>
+            </div>
+          </div>
         )}
         
         {/* Overlay com ações */}
