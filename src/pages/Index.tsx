@@ -4,10 +4,11 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useAlbums } from '@/hooks/useAlbums';
 import { SearchBar } from '@/components/SearchBar';
-import { LabelSuggestionsBar } from '@/components/LabelSuggestionsBar';
-import { PhotoClusters } from '@/components/PhotoClusters';
-import { PhotoStats } from '@/components/PhotoStats';
+import { MyAlbumsSection } from '@/components/MyAlbumsSection';
+import { UnlabeledPhotosSection } from '@/components/UnlabeledPhotosSection';
+import { SmartSuggestionsSection } from '@/components/SmartSuggestionsSection';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { SelectionPanel } from '@/components/SelectionPanel';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
@@ -16,7 +17,10 @@ import { LabelManager } from '@/components/LabelManager';
 import { PhotoModal } from '@/components/PhotoModal';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { LabelSuggestions } from '@/components/LabelSuggestions';
+import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
+import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import type { Photo } from '@/types/photo';
+import type { Album } from '@/types/album';
 
 const Index = () => {
   const {
@@ -33,6 +37,14 @@ const Index = () => {
     getSuggestedLabels,
     applyLabelSuggestions
   } = useSupabaseData();
+
+  const {
+    albums,
+    loading: albumsLoading,
+    createAlbum,
+    updateAlbum,
+    deleteAlbum
+  } = useAlbums();
 
   const {
     filters,
@@ -60,22 +72,55 @@ const Index = () => {
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isBulkLabelDialogOpen, setIsBulkLabelDialogOpen] = useState(false);
   const [isLabelSuggestionsOpen, setIsLabelSuggestionsOpen] = useState(false);
+  const [isCreateAlbumOpen, setIsCreateAlbumOpen] = useState(false);
+  const [isEditAlbumOpen, setIsEditAlbumOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [labelSuggestions, setLabelSuggestions] = useState<{
     suggestions: string[];
     source: 'ai' | 'mock';
     photo: Photo | null;
   }>({ suggestions: [], source: 'mock', photo: null });
   
-  // Estado para controlar se deve mostrar clusters ou grid
-  const [showClusters, setShowClusters] = useState(true);
+  // Estado para controlar qual view mostrar
+  const [currentView, setCurrentView] = useState<'home' | 'gallery'>('home');
 
-  // Escutar evento de reset dos clusters
-  useEffect(() => {
-    const handleResetClusters = () => setShowClusters(true);
-    window.addEventListener('resetClusters', handleResetClusters);
-    return () => window.removeEventListener('resetClusters', handleResetClusters);
-  }, []);
+  // New event handlers for reorganized interface
+  const handleViewUnlabeledPhotos = () => {
+    toggleUnlabeled();
+    setCurrentView('gallery');
+  };
+
+  const handleCreateAlbum = async () => {
+    setIsCreateAlbumOpen(true);
+  };
+
+  const handleEditAlbum = (album: Album) => {
+    setSelectedAlbum(album);
+    setIsEditAlbumOpen(true);
+  };
+
+  const handleDeleteAlbum = async (albumId: string) => {
+    const confirmed = confirm('Tem certeza que deseja deletar este álbum?');
+    if (confirmed) {
+      const success = await deleteAlbum(albumId);
+      if (success) {
+        toast.success('Álbum deletado com sucesso!');
+      } else {
+        toast.error('Erro ao deletar álbum');
+      }
+    }
+  };
+
+  const handleAlbumClick = (album: Album) => {
+    // Apply album filters (labels associated with the album)
+    album.labels.forEach(labelId => {
+      if (!filters.labels.includes(labelId)) {
+        toggleLabel(labelId);
+      }
+    });
+    setCurrentView('gallery');
+  };
 
   // Event handlers
   const handlePhotoClick = (photo: Photo) => {
@@ -204,14 +249,16 @@ const Index = () => {
         toggleLabel(labelId);
       }
     });
-    setShowClusters(false);
+    setCurrentView('gallery');
+  };
+
+  const handleBackToHome = () => {
+    clearFilters();
+    setCurrentView('home');
   };
 
   // Detectar quando filtros estão ativos
   const hasActiveFilters = filters.labels.length > 0 || filters.showUnlabeled || filters.searchTerm.trim() !== '';
-  
-  // Atualizar showClusters baseado nos filtros
-  const shouldShowClusters = showClusters && !hasActiveFilters;
 
   const handlePhotoDelete = async () => {
     if (!selectedPhoto) return;
@@ -262,52 +309,61 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Search */}
-      <SearchBar
-        searchTerm={filters.searchTerm}
-        onSearchChange={updateSearchTerm}
-        onUpload={handleUpload}
-        labels={labels}
-        selectedLabels={filters.labels}
-        showUnlabeled={filters.showUnlabeled}
-        onLabelToggle={toggleLabel}
-        onToggleUnlabeled={toggleUnlabeled}
-        onClearFilters={clearFilters}
-        onManageLabels={() => handleLabelManage()}
-      />
+      {/* Content */}
+      {currentView === 'home' && !hasActiveFilters ? (
+        <div className="flex-1 overflow-y-auto">
+          {/* My Albums Section */}
+          <MyAlbumsSection
+            albums={albums}
+            labels={labels}
+            onCreateAlbum={handleCreateAlbum}
+            onEditAlbum={handleEditAlbum}
+            onDeleteAlbum={handleDeleteAlbum}
+            onAlbumClick={handleAlbumClick}
+          />
 
-      {/* Stats */}
-      <PhotoStats photos={photos} />
+          {/* Unlabeled Photos Section */}
+          <UnlabeledPhotosSection
+            photos={photos}
+            onViewAll={handleViewUnlabeledPhotos}
+          />
 
-      {/* Label Suggestions */}
-      <LabelSuggestionsBar
-        labels={labels}
-        photos={photos}
-        onLabelToggle={toggleLabel}
-        onToggleUnlabeled={toggleUnlabeled}
-        selectedLabels={filters.labels}
-        showUnlabeled={filters.showUnlabeled}
-      />
-
-      {/* Clusters ou Gallery */}
-      {shouldShowClusters ? (
-        <PhotoClusters
-          photos={photos}
-          labels={labels}
-          onClusterClick={handleClusterClick}
-          selectedLabels={filters.labels}
-          filteredPhotos={filteredPhotos}
-        />
+          {/* Smart Suggestions Section */}
+          <SmartSuggestionsSection
+            photos={photos}
+            labels={labels}
+            onClusterClick={handleClusterClick}
+          />
+        </div>
       ) : (
-        <PhotoGallery
-          photos={filteredPhotos}
-          labels={labels}
-          selectedPhotoIds={selectedPhotoIds}
-          onPhotoClick={handlePhotoClick}
-          onLabelManage={handleLabelManage}
-          onSelectionToggle={handleSelectionToggle}
-          onUpdateLabels={updatePhotoLabels}
-        />
+        <>
+          {/* Search Bar when in gallery mode */}
+          {(currentView === 'gallery' || hasActiveFilters) && (
+            <SearchBar
+              searchTerm={filters.searchTerm}
+              onSearchChange={updateSearchTerm}
+              onUpload={handleUpload}
+              labels={labels}
+              selectedLabels={filters.labels}
+              showUnlabeled={filters.showUnlabeled}
+              onLabelToggle={toggleLabel}
+              onToggleUnlabeled={toggleUnlabeled}
+              onClearFilters={handleBackToHome}
+              onManageLabels={() => handleLabelManage()}
+            />
+          )}
+
+          {/* Photo Gallery */}
+          <PhotoGallery
+            photos={filteredPhotos}
+            labels={labels}
+            selectedPhotoIds={selectedPhotoIds}
+            onPhotoClick={handlePhotoClick}
+            onLabelManage={handleLabelManage}
+            onSelectionToggle={handleSelectionToggle}
+            onUpdateLabels={updatePhotoLabels}
+          />
+        </>
       )}
 
       {/* Selection Panel */}
@@ -363,6 +419,48 @@ const Index = () => {
           onLabelManage={() => handleLabelManage(selectedPhoto)}
           onDelete={handlePhotoDelete}
           onUpdateAlias={updatePhotoAlias}
+        />
+      )}
+
+      {/* Create Album Dialog */}
+      <CreateAlbumDialog
+        isOpen={isCreateAlbumOpen}
+        onClose={() => setIsCreateAlbumOpen(false)}
+        labels={labels}
+        selectedLabels={filters.labels}
+        filteredPhotos={filteredPhotos}
+        onCreateAlbum={async (name, labels, coverPhotoUrl) => {
+          const album = await createAlbum(name, labels, coverPhotoUrl);
+          if (album) {
+            toast.success('Álbum criado com sucesso!');
+            setIsCreateAlbumOpen(false);
+          } else {
+            toast.error('Erro ao criar álbum');
+          }
+        }}
+      />
+
+      {/* Edit Album Dialog */}
+      {selectedAlbum && (
+        <EditAlbumDialog
+          isOpen={isEditAlbumOpen}
+          onClose={() => {
+            setIsEditAlbumOpen(false);
+            setSelectedAlbum(null);
+          }}
+          album={selectedAlbum}
+          labels={labels}
+          photos={photos}
+          onUpdateAlbum={async (id, updates) => {
+            const success = await updateAlbum(id, updates);
+            if (success) {
+              toast.success('Álbum atualizado com sucesso!');
+              setIsEditAlbumOpen(false);
+              setSelectedAlbum(null);
+            } else {
+              toast.error('Erro ao atualizar álbum');
+            }
+          }}
         />
       )}
 
