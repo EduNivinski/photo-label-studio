@@ -44,6 +44,11 @@ All colors MUST be HSL.
     --label-foreground: 215 85% 30%;
     --search-background: 0 0% 100%;
     --gallery-background: 215 5% 99%;
+    
+    /* Success colors */
+    --success: 142 76% 36%;
+    --success-light: 142 76% 96%;
+    --success-border: 142 76% 86%;
 
     --radius: 0.5rem;
 
@@ -110,5 +115,32 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Animation utilities */
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in 0.5s ease-out forwards;
+  }
+  
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

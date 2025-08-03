@@ -16,18 +16,30 @@ export function UnlabeledPhotosSection({ photos, onViewAll }: UnlabeledPhotosSec
 
   if (unlabeledPhotos.length === 0) {
     return (
-      <section className="p-6 border-b border-border">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="h-5 w-5 text-green-500" />
-          <h2 className="text-lg font-semibold text-foreground">Fotos para Organizar</h2>
-          <Badge variant="secondary" className="bg-green-100 text-green-700">
-            ✓ Todas organizadas
-          </Badge>
+      <section className="p-6 border-b border-border animate-fade-in">
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <AlertTriangle className="h-6 w-6 text-green-600" />
+            <h2 className="text-xl font-bold text-foreground">Fotos para Organizar</h2>
+            <Badge className="bg-success-light text-success border-success-border">
+              ✓ Todas organizadas
+            </Badge>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Veja rapidamente o que ainda precisa de labels
+          </p>
         </div>
         
-        <Card className="p-6 text-center">
-          <div className="text-4xl mb-3">🎉</div>
-          <h3 className="text-lg font-medium text-foreground mb-2">
+        <Card className="p-8 text-center bg-success-light border-success-border">
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <div className="text-6xl">🎉</div>
+            <div className="w-12 h-12 bg-success text-white rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+          <h3 className="text-xl font-semibold text-foreground mb-2">
             Parabéns! Todas as fotos estão organizadas
           </h3>
           <p className="text-muted-foreground">
@@ -39,17 +51,22 @@ export function UnlabeledPhotosSection({ photos, onViewAll }: UnlabeledPhotosSec
   }
 
   return (
-    <section className="p-6 border-b border-border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-orange-500" />
-          <h2 className="text-lg font-semibold text-foreground">Fotos para Organizar</h2>
-          <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-            {unlabeledPhotos.length} pendente{unlabeledPhotos.length !== 1 ? 's' : ''}
-          </Badge>
+    <section className="p-6 border-b border-border animate-fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <AlertTriangle className="h-6 w-6 text-orange-500" />
+            <h2 className="text-xl font-bold text-foreground">Fotos para Organizar</h2>
+            <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+              {unlabeledPhotos.length} pendente{unlabeledPhotos.length !== 1 ? 's' : ''}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Veja rapidamente o que ainda precisa de labels
+          </p>
         </div>
         
-        <Button variant="outline" size="sm" onClick={onViewAll} className="gap-2">
+        <Button variant="outline" size="sm" onClick={onViewAll} className="gap-2 hover:bg-primary hover:text-primary-foreground transition-colors">
           Ver todas
           <ArrowRight className="h-4 w-4" />
         </Button>

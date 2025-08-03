@@ -52,6 +52,11 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					light: 'hsl(var(--success-light))',
+					border: 'hsl(var(--success-border))'
+				},
 				// PhotoLabel specific colors
 				'photo-background': 'hsl(var(--photo-background))',
 				'photo-border': 'hsl(var(--photo-border))',

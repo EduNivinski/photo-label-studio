@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
@@ -302,10 +304,31 @@ const Index = () => {
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="px-6 py-4">
-          <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
-          <p className="text-sm text-muted-foreground">
-            Organize suas fotos com labels inteligentes
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
+              <p className="text-sm text-muted-foreground">
+                Organize suas fotos com labels inteligentes
+              </p>
+            </div>
+            
+            {/* Upload Button - only show in home view */}
+            {currentView === 'home' && !hasActiveFilters && (
+              <div className="text-right">
+                <Button 
+                  onClick={handleUpload}
+                  size="lg"
+                  className="gap-2 px-6 shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Upload className="h-5 w-5" />
+                  Upload
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Adicione novas fotos e vídeos facilmente
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
