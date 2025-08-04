@@ -1,20 +1,19 @@
 import { useState, useMemo } from 'react';
-import { ArrowLeft, Save, Plus } from 'lucide-react';
+import { Save, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { SelectionPanel } from '@/components/SelectionPanel';
-import { SmartLabelSearch } from '@/components/SmartLabelSearch';
 import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { StandardLabelCreator } from '@/components/StandardLabelCreator';
+import { AppSidebar } from '@/components/AppSidebar';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { useAlbums } from '@/hooks/useAlbums';
 import { useToast } from '@/hooks/use-toast';
-import { Link } from 'react-router-dom';
 
 export default function LibraryExplorer() {
   const { 
@@ -163,114 +162,90 @@ export default function LibraryExplorer() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  Voltar à Home
-                </Button>
-              </Link>
+    <>
+      <AppSidebar 
+        labels={labels}
+        selectedLabels={filters.labels}
+        onLabelToggle={toggleLabel}
+        onClearFilters={clearFilters}
+        onUpload={() => {/* TODO: implement upload */}}
+        onManageLabels={() => setShowLabelManager(true)}
+        onManageCollections={() => {/* TODO: implement collections */}}
+        showSearch={true}
+      />
+      
+      <div className="flex-1 min-h-screen bg-background">
+        {/* Header */}
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Explorar Biblioteca</h1>
                 <p className="text-sm text-muted-foreground">
-                  Organize e gerencie todas as suas fotos
+                  {filteredPhotos.length} foto{filteredPhotos.length !== 1 ? 's' : ''} encontrada{filteredPhotos.length !== 1 ? 's' : ''}
                 </p>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLabelCreator(true)}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Nova Label
-              </Button>
-
-              {hasActiveFilters && (
+              <div className="flex items-center gap-2">
                 <Button
-                  onClick={() => setShowCreateAlbum(true)}
-                  className="gap-2 bg-primary hover:bg-primary/90"
-                >
-                  <Save className="h-4 w-4" />
-                  Salvar como Álbum
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Filters Section */}
-      <section className="border-b border-border bg-card/30">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-            <div className="flex-1 max-w-md">
-              <SmartLabelSearch
-                labels={labels}
-                selectedLabels={filters.labels}
-                onLabelToggle={toggleLabel}
-                onClearFilters={clearFilters}
-              />
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>
-                {filteredPhotos.length} foto{filteredPhotos.length !== 1 ? 's' : ''} encontrada{filteredPhotos.length !== 1 ? 's' : ''}
-              </span>
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={clearFilters}
-                  className="text-xs"
+                  onClick={() => setShowLabelCreator(true)}
+                  className="gap-2"
                 >
-                  Limpar filtros
+                  <Plus className="h-4 w-4" />
+                  Nova Label
                 </Button>
-              )}
+
+                {hasActiveFilters && (
+                  <Button
+                    onClick={() => setShowCreateAlbum(true)}
+                    className="gap-2 bg-primary hover:bg-primary/90"
+                  >
+                    <Save className="h-4 w-4" />
+                    Salvar como Álbum
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
+        </header>
 
-          {/* Active Filters Summary */}
-          {hasActiveFilters && (
-            <Card className="mt-4 p-4 bg-primary/5 border-primary/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    Filtros ativos:
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {filters.labels.length} label{filters.labels.length !== 1 ? 's' : ''} selecionada{filters.labels.length !== 1 ? 's' : ''}
+        {/* Active Filters Summary */}
+        {hasActiveFilters && (
+          <section className="border-b border-border bg-card/30">
+            <div className="px-6 py-4">
+              <Card className="p-4 bg-primary/5 border-primary/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">
+                      Filtros ativos:
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {filters.labels.length} label{filters.labels.length !== 1 ? 's' : ''} selecionada{filters.labels.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {photosForAlbum.length} foto{photosForAlbum.length !== 1 ? 's' : ''} no resultado
                   </span>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {photosForAlbum.length} foto{photosForAlbum.length !== 1 ? 's' : ''} no resultado
-                </span>
-              </div>
-            </Card>
-          )}
-        </div>
-      </section>
+              </Card>
+            </div>
+          </section>
+        )}
 
-      {/* Photos Grid */}
-      <main className="container mx-auto">
-        <PhotoGallery
-          photos={filteredPhotos}
-          labels={labels}
-          selectedPhotoIds={selectedPhotoIds}
-          onPhotoClick={handlePhotoClick}
-          onLabelManage={handleLabelManage}
-          onSelectionToggle={handleSelectionToggle}
-          onUpdateLabels={handleUpdateLabels}
-        />
-      </main>
+        {/* Photos Grid */}
+        <main className="flex-1">
+          <PhotoGallery
+            photos={filteredPhotos}
+            labels={labels}
+            selectedPhotoIds={selectedPhotoIds}
+            onPhotoClick={handlePhotoClick}
+            onLabelManage={handleLabelManage}
+            onSelectionToggle={handleSelectionToggle}
+            onUpdateLabels={handleUpdateLabels}
+          />
+        </main>
 
       {/* Selection Panel */}
       <SelectionPanel
@@ -332,6 +307,7 @@ export default function LibraryExplorer() {
         onOpenChange={setShowLabelCreator}
         onCreateLabel={handleCreateLabel}
       />
-    </div>
+      </div>
+    </>
   );
 }

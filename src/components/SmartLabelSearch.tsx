@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Search, X, Tag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { LabelChip } from './LabelChip';
+import { Badge } from '@/components/ui/badge';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Label } from '@/types/photo';
 
 interface SmartLabelSearchProps {
@@ -10,124 +12,120 @@ interface SmartLabelSearchProps {
   selectedLabels: string[];
   onLabelToggle: (labelId: string) => void;
   onClearFilters: () => void;
+  compact?: boolean;
 }
 
-export function SmartLabelSearch({ 
-  labels, 
-  selectedLabels, 
-  onLabelToggle, 
-  onClearFilters 
+export function SmartLabelSearch({
+  labels,
+  selectedLabels,
+  onLabelToggle,
+  onClearFilters,
+  compact = false
 }: SmartLabelSearchProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const filteredLabels = labels.filter(label => 
-    label.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+  const filteredLabels = useMemo(() => {
+    if (!searchTerm) return labels;
+    return labels.filter(label => 
+      label.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [labels, searchTerm]);
+
+  const unselectedLabels = filteredLabels.filter(label => 
     !selectedLabels.includes(label.id)
   );
 
-  const selectedLabelObjects = labels.filter(label => 
-    selectedLabels.includes(label.id)
-  );
-
-  const handleInputFocus = () => {
-    setShowSuggestions(true);
-  };
-
-  const handleInputBlur = (e: React.FocusEvent) => {
-    // Only hide if not clicking on the dropdown
-    const relatedTarget = e.relatedTarget as HTMLElement;
-    if (!relatedTarget || !relatedTarget.closest('[data-dropdown="suggestions"]')) {
-      setTimeout(() => setShowSuggestions(false), 200);
-    }
-  };
-
-  const handleLabelAdd = (labelId: string) => {
-    onLabelToggle(labelId);
-    setSearchTerm('');
-    inputRef.current?.focus();
-  };
-
-  const handleLabelRemove = (labelId: string) => {
-    onLabelToggle(labelId);
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowSuggestions(false);
-        inputRef.current?.blur();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   return (
-    <div className="relative max-w-md">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <Input
-          ref={inputRef}
-          type="text"
-          placeholder="Pesquisar labels..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={handleInputFocus}
-          onBlur={handleInputBlur}
-          className="pl-10 pr-10"
-        />
-        {selectedLabels.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClearFilters}
-            className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        )}
-      </div>
-
-      {/* Selected Labels Chips */}
-      {selectedLabelObjects.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {selectedLabelObjects.map((label) => (
-            <LabelChip
-              key={label.id}
-              label={label}
-              variant="filter"
-              isSelected={true}
-              onRemove={() => handleLabelRemove(label.id)}
+    <div className="space-y-3">
+      {/* Search Input */}
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar labels..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={() => setIsOpen(true)}
+              className={`pl-10 ${compact ? 'h-8 text-sm' : ''}`}
             />
-          ))}
+          </div>
+        </PopoverTrigger>
+        
+        <PopoverContent 
+          className="p-0 w-80" 
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <Command>
+            <CommandInput placeholder="Buscar labels..." />
+            <CommandList>
+              <CommandEmpty>Nenhuma label encontrada.</CommandEmpty>
+              <CommandGroup heading="Labels disponíveis">
+                {unselectedLabels.map((label) => (
+                  <CommandItem
+                    key={label.id}
+                    onSelect={() => {
+                      onLabelToggle(label.id);
+                      setSearchTerm('');
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Tag className="h-4 w-4" style={{ color: label.color }} />
+                    <span>{label.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {/* Selected Labels */}
+      {!compact && selectedLabels.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-foreground">
+              Labels selecionadas ({selectedLabels.length})
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearFilters}
+              className="text-xs h-6"
+            >
+              Limpar todas
+            </Button>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {selectedLabels.map((labelId) => {
+              const label = labels.find(l => l.id === labelId);
+              if (!label) return null;
+              
+              return (
+                <Badge
+                  key={labelId}
+                  variant="secondary"
+                  className="flex items-center gap-1 cursor-pointer hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                  onClick={() => onLabelToggle(labelId)}
+                >
+                  <Tag className="h-3 w-3" style={{ color: label.color }} />
+                  {label.name}
+                  <X className="h-3 w-3" />
+                </Badge>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Suggestions Dropdown */}
-      {showSuggestions && filteredLabels.length > 0 && (
-        <div 
-          className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
-          data-dropdown="suggestions"
-        >
-          <div className="p-2 space-y-1">
-            {filteredLabels.slice(0, 8).map((label) => (
-              <div
-                key={label.id}
-                onClick={() => handleLabelAdd(label.id)}
-                onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
-                className="flex items-center px-2 py-2 rounded cursor-pointer hover:bg-accent hover:text-accent-foreground"
-              >
-                <div 
-                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
-                  style={{ backgroundColor: label.color || '#8B5CF6' }}
-                />
-                <span className="text-sm">{label.name}</span>
-              </div>
-            ))}
-          </div>
+      {/* Quick Stats */}
+      {!compact && (
+        <div className="text-xs text-muted-foreground">
+          {labels.length} label{labels.length !== 1 ? 's' : ''} disponível{labels.length !== 1 ? 'is' : ''} • {selectedLabels.length} selecionada{selectedLabels.length !== 1 ? 's' : ''}
         </div>
       )}
     </div>

@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Upload, Library } from 'lucide-react';
+import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { AppSidebar } from '@/components/AppSidebar';
+import { HorizontalCarousel } from '@/components/HorizontalCarousel';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAlbums } from '@/hooks/useAlbums';
 import { SearchBar } from '@/components/SearchBar';
-import { MyAlbumsSection } from '@/components/MyAlbumsSection';
 import { UnlabeledPhotosSection } from '@/components/UnlabeledPhotosSection';
 import { SmartSuggestionsSection } from '@/components/SmartSuggestionsSection';
 import { PhotoGallery } from '@/components/PhotoGallery';
@@ -301,29 +303,52 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Link to="/" className="hover:opacity-80 transition-opacity">
-                <h1 className="text-2xl font-bold text-foreground cursor-pointer">📷 PhotoLabel</h1>
-              </Link>
-              <p className="text-sm text-muted-foreground">
-                Organize suas fotos com labels inteligentes
-              </p>
+    <>
+      <AppSidebar 
+        onUpload={handleUpload}
+        onManageLabels={() => handleLabelManage()}
+        onManageCollections={() => {/* TODO: implement collections view */}}
+      />
+      
+      <div className="flex-1 flex flex-col min-h-screen bg-background">
+        {/* Header */}
+        {(currentView === 'gallery' || hasActiveFilters) && (
+          <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+            <div className="px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-bold text-foreground">Galeria de Fotos</h1>
+                  <p className="text-sm text-muted-foreground">
+                    {filteredPhotos.length} foto{filteredPhotos.length !== 1 ? 's' : ''} encontrada{filteredPhotos.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                
+                <Button 
+                  onClick={handleBackToHome}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  Voltar à Home
+                </Button>
+              </div>
             </div>
-            
-            {/* Action Buttons - only show in home view */}
-            {currentView === 'home' && !hasActiveFilters && (
-              <div className="text-right space-y-2">
-                <div className="flex gap-3">
+          </header>
+        )}
+
+        {/* Content */}
+        {currentView === 'home' && !hasActiveFilters ? (
+          <div className="flex-1 overflow-y-auto">
+            {/* Hero Section */}
+            <section className="p-6 bg-gradient-to-br from-primary/5 to-background border-b border-border">
+              <div className="text-center max-w-2xl mx-auto">
+                <h1 className="text-3xl font-bold text-foreground mb-2">📷 PhotoLabel</h1>
+                <p className="text-muted-foreground mb-6">
+                  Organize suas fotos com labels inteligentes e crie coleções memoráveis
+                </p>
+                <div className="flex gap-3 justify-center">
                   <Link to="/library">
-                    <Button 
-                      size="lg"
-                      className="gap-2 px-6 shadow-lg hover:shadow-xl transition-all bg-primary hover:bg-primary/90"
-                    >
+                    <Button size="lg" className="gap-2 px-6 shadow-lg hover:shadow-xl transition-all">
                       <Library className="h-5 w-5" />
                       Explorar Biblioteca
                     </Button>
@@ -338,71 +363,176 @@ const Index = () => {
                     Upload
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mt-3">
                   Adicione novas fotos e vídeos facilmente
                 </p>
               </div>
-            )}
-          </div>
-        </div>
-      </header>
+            </section>
 
-      {/* Content */}
-      {currentView === 'home' && !hasActiveFilters ? (
-        <div className="flex-1 overflow-y-auto">
-          {/* My Albums Section */}
-          <MyAlbumsSection
-            albums={albums}
-            labels={labels}
-            onCreateAlbum={handleCreateAlbum}
-            onEditAlbum={handleEditAlbum}
-            onDeleteAlbum={handleDeleteAlbum}
-            onAlbumClick={handleAlbumClick}
-          />
+            {/* My Collections Section - Renamed from Albums */}
+            <section className="p-6 border-b border-border animate-fade-in">
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <FolderOpen className="h-6 w-6 text-primary" />
+                  <h2 className="text-xl font-bold text-foreground">Minhas Coleções</h2>
+                  <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    {albums.length}
+                  </span>
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Agrupe suas memórias em coleções temáticas
+                </p>
+              </div>
 
-          {/* Unlabeled Photos Section */}
-          <UnlabeledPhotosSection
-            photos={photos}
-            onViewAll={handleViewUnlabeledPhotos}
-          />
+              {albums.length === 0 ? (
+                <Card className="p-12 text-center bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                  <div className="text-7xl mb-6 opacity-80">📁</div>
+                  <h3 className="text-xl font-semibold text-foreground mb-3">
+                    Nenhuma coleção criada
+                  </h3>
+                  <p className="text-muted-foreground mb-6 text-base">
+                    Comece criando coleções para organizar melhor suas memórias
+                  </p>
+                  <Button onClick={handleCreateAlbum} size="lg" className="gap-2 px-8 py-3 text-base shadow-lg hover:shadow-xl transition-all">
+                    <FolderPlus className="h-5 w-5" />
+                    Criar primeira coleção
+                  </Button>
+                </Card>
+              ) : (
+                <HorizontalCarousel>
+                  {albums.map((album, index) => (
+                    <div 
+                      key={album.id} 
+                      className="flex-shrink-0 animate-fade-in" 
+                      style={{ animationDelay: `${index * 0.1}s` }}
+                    >
+                      <div className="group cursor-pointer hover:scale-105 transition-transform duration-200">
+                        <Card 
+                          className="w-64 h-48 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border hover:border-primary/40"
+                          onClick={() => handleAlbumClick(album)}
+                        >
+                          {/* Cover Photo with Overlay */}
+                          {album.cover_photo_url ? (
+                            <div className="relative w-full h-full">
+                              <img 
+                                src={album.cover_photo_url} 
+                                alt={album.name}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                              <div className="absolute bottom-4 left-4 right-4">
+                                <h3 className="text-white font-bold text-lg drop-shadow-lg">
+                                  {album.name}
+                                </h3>
+                                <p className="text-white/80 text-sm drop-shadow">
+                                  {album.labels.length} label{album.labels.length !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-muted to-muted/50 text-center p-4">
+                              <FolderOpen className="h-8 w-8 text-muted-foreground mb-2" />
+                              <h3 className="font-semibold text-foreground">
+                                {album.name}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">
+                                {album.labels.length} label{album.labels.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Action Buttons Overlay */}
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditAlbum(album);
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteAlbum(album.id);
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Create Collection Button */}
+                  <div className="flex-shrink-0">
+                    <Card 
+                      className="w-64 h-48 border-2 border-dashed border-primary/30 hover:border-primary/60 hover:scale-105 transition-all duration-200 cursor-pointer group shadow-md hover:shadow-lg"
+                      onClick={handleCreateAlbum}
+                    >
+                      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <FolderPlus className="h-8 w-8 text-primary group-hover:scale-110 transition-transform mb-2" />
+                        <span className="text-sm font-medium text-foreground">Criar Coleção</span>
+                        <span className="text-xs text-muted-foreground">Organize suas fotos</span>
+                      </div>
+                    </Card>
+                  </div>
+                </HorizontalCarousel>
+              )}
+            </section>
 
-          {/* Smart Suggestions Section */}
-          <SmartSuggestionsSection
-            photos={photos}
-            labels={labels}
-            onClusterClick={handleClusterClick}
-          />
-        </div>
-      ) : (
-        <>
-          {/* Search Bar when in gallery mode */}
-          {(currentView === 'gallery' || hasActiveFilters) && (
-            <SearchBar
-              searchTerm={filters.searchTerm}
-              onSearchChange={updateSearchTerm}
-              onUpload={handleUpload}
-              labels={labels}
-              selectedLabels={filters.labels}
-              showUnlabeled={filters.showUnlabeled}
-              onLabelToggle={toggleLabel}
-              onToggleUnlabeled={toggleUnlabeled}
-              onClearFilters={handleBackToHome}
-              onManageLabels={() => handleLabelManage()}
+            {/* Unlabeled Photos Section */}
+            <UnlabeledPhotosSection
+              photos={photos}
+              onViewAll={handleViewUnlabeledPhotos}
             />
-          )}
 
-          {/* Photo Gallery */}
-          <PhotoGallery
-            photos={filteredPhotos}
-            labels={labels}
-            selectedPhotoIds={selectedPhotoIds}
-            onPhotoClick={handlePhotoClick}
-            onLabelManage={handleLabelManage}
-            onSelectionToggle={handleSelectionToggle}
-            onUpdateLabels={updatePhotoLabels}
-          />
-        </>
-      )}
+            {/* Smart Suggestions Section */}
+            <SmartSuggestionsSection
+              photos={photos}
+              labels={labels}
+              onClusterClick={handleClusterClick}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Search Bar when in gallery mode */}
+            {(currentView === 'gallery' || hasActiveFilters) && (
+              <SearchBar
+                searchTerm={filters.searchTerm}
+                onSearchChange={updateSearchTerm}
+                onUpload={handleUpload}
+                labels={labels}
+                selectedLabels={filters.labels}
+                showUnlabeled={filters.showUnlabeled}
+                onLabelToggle={toggleLabel}
+                onToggleUnlabeled={toggleUnlabeled}
+                onClearFilters={handleBackToHome}
+                onManageLabels={() => handleLabelManage()}
+              />
+            )}
+
+            {/* Photo Gallery */}
+            <PhotoGallery
+              photos={filteredPhotos}
+              labels={labels}
+              selectedPhotoIds={selectedPhotoIds}
+              onPhotoClick={handlePhotoClick}
+              onLabelManage={handleLabelManage}
+              onSelectionToggle={handleSelectionToggle}
+              onUpdateLabels={updatePhotoLabels}
+            />
+          </>
+        )}
 
       {/* Selection Panel */}
       <SelectionPanel
@@ -521,7 +651,8 @@ const Index = () => {
 
       {/* Keyboard Shortcuts Tooltip */}
       <KeyboardShortcuts />
-    </div>
+      </div>
+    </>
   );
 };
 
