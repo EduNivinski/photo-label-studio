@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
+import { Upload, Library } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
@@ -306,24 +307,38 @@ const Index = () => {
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
+              <Link to="/" className="hover:opacity-80 transition-opacity">
+                <h1 className="text-2xl font-bold text-foreground cursor-pointer">📷 PhotoLabel</h1>
+              </Link>
               <p className="text-sm text-muted-foreground">
                 Organize suas fotos com labels inteligentes
               </p>
             </div>
             
-            {/* Upload Button - only show in home view */}
+            {/* Action Buttons - only show in home view */}
             {currentView === 'home' && !hasActiveFilters && (
-              <div className="text-right">
-                <Button 
-                  onClick={handleUpload}
-                  size="lg"
-                  className="gap-2 px-6 shadow-lg hover:shadow-xl transition-all"
-                >
-                  <Upload className="h-5 w-5" />
-                  Upload
-                </Button>
-                <p className="text-xs text-muted-foreground mt-1">
+              <div className="text-right space-y-2">
+                <div className="flex gap-3">
+                  <Link to="/library">
+                    <Button 
+                      size="lg"
+                      className="gap-2 px-6 shadow-lg hover:shadow-xl transition-all bg-primary hover:bg-primary/90"
+                    >
+                      <Library className="h-5 w-5" />
+                      Explorar Biblioteca
+                    </Button>
+                  </Link>
+                  <Button 
+                    onClick={handleUpload}
+                    size="lg"
+                    variant="outline"
+                    className="gap-2 px-6 shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <Upload className="h-5 w-5" />
+                    Upload
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
                   Adicione novas fotos e vídeos facilmente
                 </p>
               </div>
@@ -452,6 +467,7 @@ const Index = () => {
         labels={labels}
         selectedLabels={filters.labels}
         filteredPhotos={filteredPhotos}
+        onCreateLabel={createLabel}
         onCreateAlbum={async (name, labels, coverPhotoUrl) => {
           const album = await createAlbum(name, labels, coverPhotoUrl);
           if (album) {
