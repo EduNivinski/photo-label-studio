@@ -102,27 +102,29 @@ export function AppSidebar({
             <SidebarMenu>
               {navigation.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild={!item.action}
-                    className={`${
-                      isActive(item.url) 
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                    } transition-colors`}
-                    onClick={item.action ? () => handleActionClick(item.action!) : undefined}
-                  >
-                    {item.action ? (
-                      <button className="flex w-full items-center gap-3">
-                        <item.icon className="h-4 w-4" />
-                        {open && <span>{item.title}</span>}
-                      </button>
-                    ) : (
-                      <NavLink to={item.url} className="flex items-center gap-3">
-                        <item.icon className="h-4 w-4" />
-                        {open && <span>{item.title}</span>}
-                      </NavLink>
-                    )}
-                  </SidebarMenuButton>
+                <SidebarMenuButton 
+                  asChild
+                  className={`${
+                    isActive(item.url) 
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  } transition-colors`}
+                >
+                  {item.action ? (
+                    <button 
+                      className="flex w-full items-center gap-3"
+                      onClick={() => handleActionClick(item.action!)}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {open && <span>{item.title}</span>}
+                    </button>
+                  ) : (
+                    <NavLink to={item.url} className="flex items-center gap-3">
+                      <item.icon className="h-4 w-4" />
+                      {open && <span>{item.title}</span>}
+                    </NavLink>
+                  )}
+                </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
