@@ -1,4 +1,4 @@
-export interface Album {
+export interface Collection {
   id: string;
   name: string;
   labels: string[];
@@ -6,3 +6,6 @@ export interface Album {
   created_at: string;
   updated_at: string;
 }
+
+// Keep Album as alias for backward compatibility
+export type Album = Collection;

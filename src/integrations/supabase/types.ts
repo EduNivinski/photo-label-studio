@@ -14,7 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      albums: {
+      collections: {
         Row: {
           cover_photo_url: string | null
           created_at: string

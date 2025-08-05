@@ -1,4 +1,4 @@
-import { Tag, Trash2, X } from 'lucide-react';
+import { Tag, Trash2, X, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -7,13 +7,15 @@ interface SelectionPanelProps {
   onManageLabels: () => void;
   onDeleteSelected: () => void;
   onClearSelection: () => void;
+  onCreateCollection?: () => void;
 }
 
 export function SelectionPanel({
   selectedCount,
   onManageLabels,
   onDeleteSelected,
-  onClearSelection
+  onClearSelection,
+  onCreateCollection
 }: SelectionPanelProps) {
   if (selectedCount === 0) return null;
 
@@ -25,13 +27,25 @@ export function SelectionPanel({
             {selectedCount}
           </div>
           <span className="text-sm font-medium">
-            {selectedCount} foto{selectedCount !== 1 ? 's' : ''} selecionada{selectedCount !== 1 ? 's' : ''}
+            {selectedCount} arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
+          {onCreateCollection && (
+            <Button
+              size="sm"
+              onClick={onCreateCollection}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90"
+            >
+              <Archive className="h-4 w-4" />
+              Criar Coleção
+            </Button>
+          )}
+
           <Button
             size="sm"
+            variant="outline"
             onClick={onManageLabels}
             className="flex items-center gap-2"
           >

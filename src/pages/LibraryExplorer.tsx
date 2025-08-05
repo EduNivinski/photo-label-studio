@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Save, Plus } from 'lucide-react';
+import { Save, Plus, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PhotoGallery } from '@/components/PhotoGallery';
@@ -9,9 +9,12 @@ import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { StandardLabelCreator } from '@/components/StandardLabelCreator';
 import { AppSidebar } from '@/components/AppSidebar';
+import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
-import { usePhotoFilters } from '@/hooks/usePhotoFilters';
+import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
+import { usePagination } from '@/hooks/usePagination';
 import { useAlbums } from '@/hooks/useAlbums';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,10 +42,23 @@ export default function LibraryExplorer() {
   const { 
     filters, 
     filteredPhotos, 
+    updateFilters,
     updateSearchTerm, 
-    toggleLabel, 
+    toggleLabel,
+    toggleFileType,
+    toggleMediaType,
     clearFilters 
-  } = usePhotoFilters(photos);
+  } = useAdvancedFilters(photos);
+
+  const {
+    paginatedItems: paginatedPhotos,
+    hasMoreItems,
+    loadMore,
+    changeItemsPerPage,
+    itemsPerPage,
+    currentlyShowing,
+    totalItems
+  } = usePagination(filteredPhotos, 30);
 
   const { createAlbum } = useAlbums();
   const { toast } = useToast();
@@ -73,7 +89,7 @@ export default function LibraryExplorer() {
   };
 
   const handleSelectionToggle = (photoId: string, isShiftPressed: boolean) => {
-    toggleSelection(photoId, isShiftPressed, photos);
+    toggleSelection(photoId, isShiftPressed, paginatedPhotos);
   };
 
   const handleUpdateLabels = (photoId: string, labelIds: string[]) => {
@@ -104,14 +120,14 @@ export default function LibraryExplorer() {
     try {
       await createAlbum(name, labels, coverPhotoUrl);
       toast({
-        title: "Álbum criado com sucesso! 🎉",
-        description: `O álbum "${name}" foi criado e está disponível na sua Home.`,
+        title: "Coleção criada com sucesso! 🎉",
+        description: `A coleção "${name}" foi criada e está disponível na sua Home.`,
       });
       setShowCreateAlbum(false);
     } catch (error) {
       toast({
-        title: "Erro ao criar álbum",
-        description: "Ocorreu um erro ao criar o álbum. Tente novamente.",
+        title: "Erro ao criar coleção",
+        description: "Ocorreu um erro ao criar a coleção. Tente novamente.",
         variant: "destructive",
       });
     }
@@ -172,6 +188,10 @@ export default function LibraryExplorer() {
         onManageLabels={() => setShowLabelManager(true)}
         onManageCollections={() => {/* TODO: implement collections */}}
         showSearch={true}
+        filters={filters}
+        onUpdateFilters={updateFilters}
+        onToggleFileType={toggleFileType}
+        onToggleMediaType={toggleMediaType}
       />
       
       <div className="flex-1 min-h-screen bg-background">
@@ -182,11 +202,22 @@ export default function LibraryExplorer() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Explorar Biblioteca</h1>
                 <p className="text-sm text-muted-foreground">
-                  {filteredPhotos.length} foto{filteredPhotos.length !== 1 ? 's' : ''} encontrada{filteredPhotos.length !== 1 ? 's' : ''}
+                  {currentlyShowing} de {totalItems} arquivo{totalItems !== 1 ? 's' : ''} exibido{totalItems !== 1 ? 's' : ''}
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
+                <Select value={itemsPerPage.toString()} onValueChange={(value) => changeItemsPerPage(parseInt(value))}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 por página</SelectItem>
+                    <SelectItem value="60">60 por página</SelectItem>
+                    <SelectItem value="100">100 por página</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -202,8 +233,8 @@ export default function LibraryExplorer() {
                     onClick={() => setShowCreateAlbum(true)}
                     className="gap-2 bg-primary hover:bg-primary/90"
                   >
-                    <Save className="h-4 w-4" />
-                    Salvar como Álbum
+                    <Archive className="h-4 w-4" />
+                    Salvar como Coleção
                   </Button>
                 )}
               </div>
@@ -226,7 +257,7 @@ export default function LibraryExplorer() {
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {photosForAlbum.length} foto{photosForAlbum.length !== 1 ? 's' : ''} no resultado
+                    {totalItems} arquivo{totalItems !== 1 ? 's' : ''} no resultado
                   </span>
                 </div>
               </Card>
@@ -237,7 +268,7 @@ export default function LibraryExplorer() {
         {/* Photos Grid */}
         <main className="flex-1">
           <PhotoGallery
-            photos={filteredPhotos}
+            photos={paginatedPhotos}
             labels={labels}
             selectedPhotoIds={selectedPhotoIds}
             onPhotoClick={handlePhotoClick}
@@ -245,6 +276,21 @@ export default function LibraryExplorer() {
             onSelectionToggle={handleSelectionToggle}
             onUpdateLabels={handleUpdateLabels}
           />
+          
+          {/* Load More Button */}
+          {hasMoreItems && (
+            <div className="flex justify-center py-8">
+              <Button 
+                onClick={loadMore} 
+                variant="outline" 
+                size="lg"
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Mostrar Mais Arquivos (+30)
+              </Button>
+            </div>
+          )}
         </main>
 
       {/* Selection Panel */}
@@ -253,6 +299,7 @@ export default function LibraryExplorer() {
         onManageLabels={handleBulkLabelManage}
         onDeleteSelected={handleDeleteSelected}
         onClearSelection={clearSelection}
+        onCreateCollection={() => setShowCreateAlbum(true)}
       />
 
       {/* Dialogs */}

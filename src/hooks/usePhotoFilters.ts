@@ -5,7 +5,10 @@ export function usePhotoFilters(photos: Photo[]) {
   const [filters, setFilters] = useState<PhotoFilters>({
     labels: [],
     searchTerm: '',
-    showUnlabeled: false
+    showUnlabeled: false,
+    fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
+    mediaTypes: ['photo', 'video'],
+    sortBy: 'date-desc'
   });
   const [filterMode, setFilterMode] = useState<'AND' | 'OR'>('AND');
 
@@ -50,7 +53,14 @@ export function usePhotoFilters(photos: Photo[]) {
   };
 
   const clearFilters = () => {
-    setFilters({ labels: [], searchTerm: '', showUnlabeled: false });
+    setFilters({ 
+      labels: [], 
+      searchTerm: '', 
+      showUnlabeled: false,
+      fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
+      mediaTypes: ['photo', 'video'],
+      sortBy: 'date-desc'
+    });
     // Resetar para mostrar clusters novamente
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('resetClusters'));

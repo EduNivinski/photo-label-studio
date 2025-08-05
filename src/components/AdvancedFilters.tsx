@@ -1,168 +1,98 @@
 import { useState } from 'react';
-import { Filter, X } from 'lucide-react';
+import { Calendar, Filter, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label as UILabel } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { LabelChip } from './LabelChip';
-import type { Label } from '@/types/photo';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import type { PhotoFilters } from '@/types/photo';
 
 interface AdvancedFiltersProps {
-  labels: Label[];
-  selectedLabels: string[];
-  filterMode: 'AND' | 'OR';
-  showUnlabeled: boolean;
-  onLabelToggle: (labelId: string) => void;
-  onFilterModeChange: (mode: 'AND' | 'OR') => void;
-  onToggleUnlabeled: () => void;
-  onClearFilters: () => void;
+  filters: PhotoFilters;
+  onUpdateFilters: (updates: Partial<PhotoFilters>) => void;
+  onToggleFileType: (fileType: string) => void;
+  onToggleMediaType: (mediaType: string) => void;
 }
 
-export function AdvancedFilters({
-  labels,
-  selectedLabels,
-  filterMode,
-  showUnlabeled,
-  onLabelToggle,
-  onFilterModeChange,
-  onToggleUnlabeled,
-  onClearFilters
+const fileTypes = ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'];
+const mediaTypes = [
+  { id: 'photo', label: 'Fotos' },
+  { id: 'video', label: 'Vídeos' }
+];
+
+const sortOptions = [
+  { value: 'date-desc', label: 'Data (mais recentes)' },
+  { value: 'date-asc', label: 'Data (mais antigas)' },
+  { value: 'name-asc', label: 'Nome (A → Z)' },
+  { value: 'name-desc', label: 'Nome (Z → A)' }
+];
+
+export function AdvancedFilters({ 
+  filters, 
+  onUpdateFilters, 
+  onToggleFileType, 
+  onToggleMediaType 
 }: AdvancedFiltersProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
+
+  const hasActiveFilters = 
+    filters.year || 
+    filters.dateRange?.start || 
+    filters.dateRange?.end ||
+    filters.fileTypes.length < 6 ||
+    filters.mediaTypes.length < 2;
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm"
-          className={(selectedLabels.length > 0 || showUnlabeled) ? 'border-primary' : ''}
-        >
-          <Filter className="h-4 w-4 mr-2" />
-          Filtros
-          {(selectedLabels.length > 0 || showUnlabeled) && (
-            <span className="ml-1 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
-              {selectedLabels.length + (showUnlabeled ? 1 : 0)}
-            </span>
-          )}
-        </Button>
-      </DialogTrigger>
-      
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Filtros Avançados</DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-6">
-          {/* Special Filters */}
-          <div className="space-y-3">
-            <UILabel className="text-sm font-medium">Filtros Especiais</UILabel>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant={showUnlabeled ? "default" : "outline"}
-                size="sm"
-                onClick={onToggleUnlabeled}
-                className="text-sm"
-              >
-                {showUnlabeled ? '✓ ' : ''}Sem Labels
-              </Button>
-              <UILabel className="text-xs text-muted-foreground">
-                Mostrar apenas fotos que não têm nenhuma label
-              </UILabel>
-            </div>
-          </div>
-
-          {/* Filter Mode */}
-          <div className="space-y-3">
-            <UILabel className="text-sm font-medium">Modo de Filtro para Labels</UILabel>
-            <RadioGroup 
-              value={filterMode} 
-              onValueChange={(value: 'AND' | 'OR') => onFilterModeChange(value)}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="AND" id="and" />
-                <UILabel htmlFor="and" className="text-sm">
-                  <strong>E (AND)</strong> - Mostrar fotos que têm TODAS as labels selecionadas
-                </UILabel>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="OR" id="or" />
-                <UILabel htmlFor="or" className="text-sm">
-                  <strong>OU (OR)</strong> - Mostrar fotos que têm QUALQUER uma das labels selecionadas
-                </UILabel>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Labels Selection */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <UILabel className="text-sm font-medium">
-                Selecionar Labels ({selectedLabels.length} de {labels.length})
-              </UILabel>
-              {(selectedLabels.length > 0 || showUnlabeled) && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={onClearFilters}
-                  className="text-xs"
-                >
-                  <X className="h-3 w-3 mr-1" />
-                  Limpar
-                </Button>
-              )}
-            </div>
-            
-            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-2 border rounded-lg">
-              {labels.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center w-full py-4">
-                  Nenhuma label disponível. Crie labels primeiro!
-                </p>
-              ) : (
-                labels.map((label) => (
-                  <LabelChip
-                    key={label.id}
-                    label={label}
-                    isSelected={selectedLabels.includes(label.id)}
-                    onClick={() => onLabelToggle(label.id)}
-                    variant="filter"
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Active Filters Summary */}
-          {(selectedLabels.length > 0 || showUnlabeled) && (
-            <div className="space-y-2 p-3 bg-muted rounded-lg">
-              <UILabel className="text-xs font-medium text-muted-foreground">
-                Filtros Ativos:
-              </UILabel>
-              {showUnlabeled && (
-                <p className="text-sm">
-                  • Mostrar apenas fotos <strong>sem labels</strong>
-                </p>
-              )}
-              {selectedLabels.length > 0 && (
-                <p className="text-sm">
-                  • Mostrar fotos que têm{' '}
-                  <strong>
-                    {filterMode === 'AND' ? 'TODAS' : 'QUALQUER UMA'}
-                  </strong>{' '}
-                  das {selectedLabels.length} label{selectedLabels.length !== 1 ? 's' : ''} selecionada{selectedLabels.length !== 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-          )}
-
+    <div className="space-y-4">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
           <Button 
-            onClick={() => setIsOpen(false)} 
-            className="w-full"
+            variant="ghost" 
+            size="sm" 
+            className="w-full justify-between text-sidebar-foreground/60 hover:text-sidebar-foreground"
           >
-            Aplicar Filtros
+            <div className="flex items-center gap-2">
+              <Filter className="h-3 w-3" />
+              Filtros Avançados
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="text-xs">
+                  Ativos
+                </Badge>
+              )}
+            </div>
+            <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
           </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent className="space-y-4 pt-2">
+          {/* Sort Order */}
+          <div className="space-y-2">
+            <label className="text-xs text-sidebar-foreground/60">Ordenar por</label>
+            <Select 
+              value={filters.sortBy} 
+              onValueChange={(value) => onUpdateFilters({ sortBy: value as PhotoFilters['sortBy'] })}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sortOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 }

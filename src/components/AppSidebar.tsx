@@ -23,9 +23,10 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { SmartLabelSearch } from '@/components/SmartLabelSearch';
+import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Label } from '@/types/photo';
+import type { Label, PhotoFilters } from '@/types/photo';
 
 const navigation = [
   { title: 'Início', url: '/', icon: Home },
@@ -44,6 +45,11 @@ interface AppSidebarProps {
   onManageLabels?: () => void;
   onManageCollections?: () => void;
   showSearch?: boolean;
+  // Advanced filters props
+  filters?: PhotoFilters;
+  onUpdateFilters?: (updates: Partial<PhotoFilters>) => void;
+  onToggleFileType?: (fileType: string) => void;
+  onToggleMediaType?: (mediaType: string) => void;
 }
 
 export function AppSidebar({
@@ -54,7 +60,11 @@ export function AppSidebar({
   onUpload,
   onManageLabels,
   onManageCollections,
-  showSearch = false
+  showSearch = false,
+  filters,
+  onUpdateFilters,
+  onToggleFileType,
+  onToggleMediaType
 }: AppSidebarProps) {
   const { open, setOpen } = useSidebar();
   const location = useLocation();
@@ -131,7 +141,7 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Smart Label Search - only show on library page and when not collapsed */}
+        {/* Smart Label Search and Advanced Filters - only show on library page and when not collapsed */}
         {showSearch && open && (
           <SidebarGroup className="mt-6">
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs flex items-center gap-2">
@@ -182,6 +192,18 @@ export function AppSidebar({
                       Limpar todos
                     </Button>
                   )}
+                </div>
+              )}
+
+              {/* Advanced Filters */}
+              {filters && onUpdateFilters && onToggleFileType && onToggleMediaType && (
+                <div className="px-1">
+                  <AdvancedFilters
+                    filters={filters}
+                    onUpdateFilters={onUpdateFilters}
+                    onToggleFileType={onToggleFileType}
+                    onToggleMediaType={onToggleMediaType}
+                  />
                 </div>
               )}
             </SidebarGroupContent>

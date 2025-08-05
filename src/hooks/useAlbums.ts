@@ -10,7 +10,7 @@ export function useAlbums() {
   const fetchAlbums = async () => {
     try {
       const { data, error } = await supabase
-        .from('albums')
+        .from('collections')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -18,7 +18,7 @@ export function useAlbums() {
       setAlbums(data || []);
     } catch (error) {
       console.error('Error fetching albums:', error);
-      toast.error('Erro ao carregar álbuns');
+      toast.error('Erro ao carregar coleções');
     } finally {
       setLoading(false);
     }
@@ -27,7 +27,7 @@ export function useAlbums() {
   const createAlbum = async (name: string, labels: string[], coverPhotoUrl?: string): Promise<Album | null> => {
     try {
       const { data, error } = await supabase
-        .from('albums')
+        .from('collections')
         .insert({
           name,
           labels,
@@ -39,11 +39,11 @@ export function useAlbums() {
       if (error) throw error;
       
       setAlbums(prev => [data, ...prev]);
-      toast.success('Álbum criado com sucesso!');
+      toast.success('Coleção criada com sucesso!');
       return data;
     } catch (error) {
       console.error('Error creating album:', error);
-      toast.error('Erro ao criar álbum');
+      toast.error('Erro ao criar coleção');
       return null;
     }
   };
@@ -51,7 +51,7 @@ export function useAlbums() {
   const updateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'labels' | 'cover_photo_url'>>): Promise<boolean> => {
     try {
       const { error } = await supabase
-        .from('albums')
+        .from('collections')
         .update(updates)
         .eq('id', id);
 
@@ -72,7 +72,7 @@ export function useAlbums() {
   const deleteAlbum = async (id: string): Promise<boolean> => {
     try {
       const { error } = await supabase
-        .from('albums')
+        .from('collections')
         .delete()
         .eq('id', id);
 
@@ -93,11 +93,11 @@ export function useAlbums() {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel('albums_changes')
+      .channel('collections_changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'albums'
+        table: 'collections'
       }, () => {
         fetchAlbums();
       })
