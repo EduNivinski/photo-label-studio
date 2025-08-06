@@ -1,0 +1,238 @@
+import { useState } from 'react';
+import { Tag, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useToast } from '@/hooks/use-toast';
+import { StandardLabelCreator } from '@/components/StandardLabelCreator';
+import { LabelManager } from '@/components/LabelManager';
+
+export default function Labels() {
+  const { labels, photos, createLabel, deleteLabel } = useSupabaseData();
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCreateLabel, setShowCreateLabel] = useState(false);
+  const [showEditLabel, setShowEditLabel] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+
+  // Filter labels based on search term
+  const filteredLabels = labels.filter(label =>
+    label.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Get photo count for each label
+  const getLabelPhotoCount = (labelId: string) => {
+    return photos.filter(photo => photo.labels.includes(labelId)).length;
+  };
+
+  const handleCreateLabel = async (name: string, color?: string) => {
+    await createLabel(name, color);
+    toast({
+      title: "Label criada",
+      description: `A label "${name}" foi criada com sucesso.`,
+    });
+  };
+
+  const handleDeleteLabel = async (labelId: string): Promise<boolean> => {
+    const label = labels.find(l => l.id === labelId);
+    if (!label) return false;
+
+    const photoCount = getLabelPhotoCount(labelId);
+    
+    if (photoCount > 0) {
+      const confirmed = confirm(
+        `A label "${label.name}" está sendo usada em ${photoCount} foto(s). ` +
+        `Ao deletá-la, ela será removida de todas as fotos. Deseja continuar?`
+      );
+      if (!confirmed) return false;
+    }
+
+    const success = await deleteLabel(labelId);
+    if (success) {
+      toast({
+        title: "Label deletada",
+        description: `A label "${label.name}" foi deletada com sucesso.`,
+      });
+      return true;
+    } else {
+      toast({
+        title: "Erro ao deletar label",
+        description: "Ocorreu um erro ao deletar a label. Tente novamente.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const handleEditLabel = (labelId: string) => {
+    setSelectedLabel(labelId);
+    setShowEditLabel(true);
+  };
+
+  const getContrastColor = (hexColor: string) => {
+    // Remove # if present
+    const color = hexColor.replace('#', '');
+    
+    // Convert to RGB
+    const r = parseInt(color.substr(0, 2), 16);
+    const g = parseInt(color.substr(2, 2), 16);
+    const b = parseInt(color.substr(4, 2), 16);
+    
+    // Calculate luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    return luminance > 0.5 ? '#000000' : '#ffffff';
+  };
+
+  return (
+    <div className="flex-1 min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Tag className="h-6 w-6 text-primary" />
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Gestão de Labels</h1>
+                <p className="text-sm text-muted-foreground">
+                  {labels.length} label{labels.length !== 1 ? 's' : ''} criada{labels.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            <Button onClick={() => setShowCreateLabel(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Criar Label
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-6 space-y-6">
+        {/* Search Bar */}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar labels..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          <Badge variant="secondary" className="text-sm">
+            {filteredLabels.length} de {labels.length}
+          </Badge>
+        </div>
+
+        {/* Labels Grid */}
+        {filteredLabels.length === 0 ? (
+          <Card className="p-12 text-center">
+            {labels.length === 0 ? (
+              <>
+                <div className="text-7xl mb-6 opacity-80">🏷️</div>
+                <h3 className="text-xl font-semibold text-foreground mb-3">
+                  Nenhuma label criada
+                </h3>
+                <p className="text-muted-foreground mb-6 text-base">
+                  Comece criando labels para organizar suas fotos
+                </p>
+                <Button onClick={() => setShowCreateLabel(true)} size="lg" className="gap-2">
+                  <Plus className="h-5 w-5" />
+                  Criar primeira label
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="text-7xl mb-6 opacity-80">🔍</div>
+                <h3 className="text-xl font-semibold text-foreground mb-3">
+                  Nenhuma label encontrada
+                </h3>
+                <p className="text-muted-foreground text-base">
+                  Tente buscar por outro termo
+                </p>
+              </>
+            )}
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredLabels.map((label, index) => {
+              const photoCount = getLabelPhotoCount(label.id);
+              
+              return (
+                <Card 
+                  key={label.id} 
+                  className="p-4 hover:shadow-lg transition-all duration-200 animate-fade-in group"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div
+                      className="px-3 py-1.5 rounded-full text-sm font-medium flex-1 text-center"
+                      style={{
+                        backgroundColor: label.color || '#6b7280',
+                        color: getContrastColor(label.color || '#6b7280')
+                      }}
+                    >
+                      {label.name}
+                    </div>
+                    
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 ml-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditLabel(label.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteLabel(label.id)}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{photoCount} foto{photoCount !== 1 ? 's' : ''}</span>
+                    <div 
+                      className="w-3 h-3 rounded-full border border-border"
+                      style={{ backgroundColor: label.color || '#6b7280' }}
+                    />
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Dialogs */}
+      <StandardLabelCreator
+        trigger={<></>}
+        isOpen={showCreateLabel}
+        onOpenChange={setShowCreateLabel}
+        onCreateLabel={handleCreateLabel}
+      />
+
+      <LabelManager
+        isOpen={showEditLabel}
+        onClose={() => {
+          setShowEditLabel(false);
+          setSelectedLabel(null);
+        }}
+        labels={labels}
+        selectedPhoto={undefined}
+        onCreateLabel={handleCreateLabel}
+        onDeleteLabel={handleDeleteLabel}
+        onUpdatePhotoLabels={async () => true}
+      />
+    </div>
+  );
+}

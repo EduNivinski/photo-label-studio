@@ -30,10 +30,10 @@ import type { Label, PhotoFilters } from '@/types/photo';
 
 const navigation = [
   { title: 'Início', url: '/', icon: Home },
-  { title: 'Explorar Biblioteca', url: '/library', icon: Library },
-  { title: 'Upload de Fotos', url: '#', icon: Upload, action: 'upload' },
-  { title: 'Gestão de Labels', url: '#', icon: Tag, action: 'labels' },
-  { title: 'Minhas Coleções', url: '#', icon: FolderOpen, action: 'collections' },
+  { title: 'Upload de Fotos', url: '/upload', icon: Upload },
+  { title: 'Gestão de Labels', url: '/labels', icon: Tag },
+  { title: 'Minhas Coleções', url: '/collections', icon: FolderOpen },
+  { title: 'Explorar Biblioteca', url: '/explore', icon: Library },
 ];
 
 interface AppSidebarProps {
@@ -120,20 +120,10 @@ export function AppSidebar({
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   } transition-colors`}
                 >
-                  {item.action ? (
-                    <button 
-                      className="flex w-full items-center gap-3"
-                      onClick={() => handleActionClick(item.action!)}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {open && <span>{item.title}</span>}
-                    </button>
-                  ) : (
-                    <NavLink to={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      {open && <span>{item.title}</span>}
-                    </NavLink>
-                  )}
+                  <NavLink to={item.url} className="flex items-center gap-3">
+                    <item.icon className="h-4 w-4" />
+                    {open && <span>{item.title}</span>}
+                  </NavLink>
                 </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -141,8 +131,8 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Smart Label Search and Advanced Filters - only show on library page and when not collapsed */}
-        {showSearch && open && (
+        {/* Smart Label Search and Advanced Filters - only show on explore page and when not collapsed */}
+        {showSearch && open && currentPath === '/explore' && (
           <SidebarGroup className="mt-6">
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs flex items-center gap-2">
               <Search className="h-3 w-3" />
