@@ -91,13 +91,13 @@ export function CreateAlbumDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Criar Álbum Inteligente</DialogTitle>
+          <DialogTitle>Criar Coleção Inteligente</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Album Name */}
+          {/* Collection Name */}
           <div className="space-y-2">
-            <Label htmlFor="album-name">Nome do Álbum</Label>
+            <Label htmlFor="album-name">Nome da Coleção</Label>
             <Input
               id="album-name"
               value={albumName}
@@ -181,7 +181,7 @@ export function CreateAlbumDialog({
           {previewPhotos.length > 0 && (
             <div className="space-y-4">
               <div>
-                <Label>Pré-visualização do Álbum</Label>
+                <Label>Pré-visualização da Coleção</Label>
                 <p className="text-sm text-muted-foreground">
                   {previewPhotos.length} foto{previewPhotos.length !== 1 ? 's' : ''} {previewPhotos.length !== 1 ? 'correspondem' : 'corresponde'} às labels selecionadas
                 </p>
@@ -230,7 +230,7 @@ export function CreateAlbumDialog({
               onClick={handleCreate} 
               disabled={!albumName.trim() || selectedLabels.length === 0 || isCreating}
             >
-              {isCreating ? 'Criando...' : 'Criar Álbum'}
+              {isCreating ? 'Criando...' : 'Criar Coleção'}
             </Button>
           </div>
         </div>

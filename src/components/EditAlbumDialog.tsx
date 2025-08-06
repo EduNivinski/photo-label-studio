@@ -79,14 +79,14 @@ export function EditAlbumDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Editar Álbum</DialogTitle>
+          <DialogTitle>Editar Coleção</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="flex-1 pr-4">
           <div className="space-y-6">
-            {/* Album Name */}
+            {/* Collection Name */}
             <div className="space-y-2">
-              <Label htmlFor="album-name">Nome do Álbum</Label>
+              <Label htmlFor="album-name">Nome da Coleção</Label>
               <Input
                 id="album-name"
                 value={albumName}

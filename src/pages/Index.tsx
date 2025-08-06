@@ -106,13 +106,13 @@ const Index = () => {
   };
 
   const handleDeleteAlbum = async (albumId: string) => {
-    const confirmed = confirm('Tem certeza que deseja deletar este álbum?');
+    const confirmed = confirm('Tem certeza que deseja deletar esta coleção?');
     if (confirmed) {
       const success = await deleteAlbum(albumId);
       if (success) {
-        toast.success('Álbum deletado com sucesso!');
+        toast.success('Coleção deletada com sucesso!');
       } else {
-        toast.error('Erro ao deletar álbum');
+        toast.error('Erro ao deletar coleção');
       }
     }
   };
@@ -601,10 +601,10 @@ const Index = () => {
         onCreateAlbum={async (name, labels, coverPhotoUrl) => {
           const album = await createAlbum(name, labels, coverPhotoUrl);
           if (album) {
-            toast.success('Álbum criado com sucesso!');
+            toast.success('Coleção criada com sucesso!');
             setIsCreateAlbumOpen(false);
           } else {
-            toast.error('Erro ao criar álbum');
+            toast.error('Erro ao criar coleção');
           }
         }}
       />
@@ -623,11 +623,11 @@ const Index = () => {
           onUpdateAlbum={async (id, updates) => {
             const success = await updateAlbum(id, updates);
             if (success) {
-              toast.success('Álbum atualizado com sucesso!');
+              toast.success('Coleção atualizada com sucesso!');
               setIsEditAlbumOpen(false);
               setSelectedAlbum(null);
             } else {
-              toast.error('Erro ao atualizar álbum');
+              toast.error('Erro ao atualizar coleção');
             }
           }}
         />
