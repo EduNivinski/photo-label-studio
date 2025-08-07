@@ -28,33 +28,48 @@ export function BulkLabelDialog({
   onRemoveLabels,
   onCreateLabel
 }: BulkLabelDialogProps) {
-  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [labelsToAdd, setLabelsToAdd] = useState<string[]>([]);
+  const [labelsToRemove, setLabelsToRemove] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Filter available labels (not already selected)
+  // Get common labels across all selected photos
+  const commonLabels = labels.filter(label => 
+    selectedPhotos.every(photo => photo.labels.includes(label.id))
+  );
+
+  // Filter available labels (not in common labels and not already selected to add)
   const availableLabels = useMemo(() => {
+    const excludedIds = [...commonLabels.map(l => l.id), ...labelsToAdd];
     return labels.filter(label => 
-      !selectedLabels.includes(label.id) &&
+      !excludedIds.includes(label.id) &&
       label.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [labels, selectedLabels, searchQuery]);
+  }, [labels, commonLabels, labelsToAdd, searchQuery]);
 
-  // Get applied labels
-  const appliedLabels = useMemo(() => {
-    return labels.filter(label => selectedLabels.includes(label.id));
-  }, [labels, selectedLabels]);
+  // Get labels to add
+  const labelsToAddObjects = useMemo(() => {
+    return labels.filter(label => labelsToAdd.includes(label.id));
+  }, [labels, labelsToAdd]);
 
   const handleAddLabel = (labelId: string) => {
-    setSelectedLabels(prev => [...prev, labelId]);
+    setLabelsToAdd(prev => [...prev, labelId]);
     setSearchQuery('');
     setIsComboboxOpen(false);
   };
 
-  const handleRemoveLabel = (labelId: string) => {
-    setSelectedLabels(prev => prev.filter(id => id !== labelId));
+  const handleRemoveFromAdd = (labelId: string) => {
+    setLabelsToAdd(prev => prev.filter(id => id !== labelId));
+  };
+
+  const handleMarkForRemoval = (labelId: string) => {
+    setLabelsToRemove(prev => 
+      prev.includes(labelId) 
+        ? prev.filter(id => id !== labelId)
+        : [...prev, labelId]
+    );
   };
 
   const handleCreateNewLabel = async (name: string, color?: string) => {
@@ -64,14 +79,25 @@ export function BulkLabelDialog({
     setShowCreateDialog(false);
   };
 
-  const handleApplyLabels = async () => {
-    if (selectedLabels.length === 0) return;
+  const handleApplyChanges = async () => {
+    if (labelsToAdd.length === 0 && labelsToRemove.length === 0) return;
     
     setIsApplying(true);
     try {
       const photoIds = selectedPhotos.map(p => p.id);
-      await onApplyLabels(photoIds, selectedLabels);
-      setSelectedLabels([]);
+      
+      // Apply new labels
+      if (labelsToAdd.length > 0) {
+        await onApplyLabels(photoIds, labelsToAdd);
+      }
+      
+      // Remove marked labels
+      if (labelsToRemove.length > 0) {
+        await onRemoveLabels(photoIds, labelsToRemove);
+      }
+      
+      setLabelsToAdd([]);
+      setLabelsToRemove([]);
       onClose();
     } finally {
       setIsApplying(false);
@@ -79,15 +105,11 @@ export function BulkLabelDialog({
   };
 
   const handleClose = () => {
-    setSelectedLabels([]);
+    setLabelsToAdd([]);
+    setLabelsToRemove([]);
     setSearchQuery('');
     onClose();
   };
-
-  // Get common labels across all selected photos
-  const commonLabels = labels.filter(label => 
-    selectedPhotos.every(photo => photo.labels.includes(label.id))
-  );
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -103,44 +125,26 @@ export function BulkLabelDialog({
         </DialogHeader>
         
         <div className="space-y-6">
-          {/* Common Labels */}
+          {/* Common Labels - with option to remove */}
           {commonLabels.length > 0 && (
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-foreground">
-                Labels comuns ({commonLabels.length})
+                Labels existentes ({commonLabels.length})
               </h4>
               <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border">
                 {commonLabels.map(label => (
                   <Badge 
                     key={label.id}
                     variant="secondary"
-                    className="flex items-center gap-1 py-1 px-2"
-                    style={{ backgroundColor: `${label.color}20`, borderColor: label.color }}
-                  >
-                    <span 
-                      className="w-2 h-2 rounded-full" 
-                      style={{ backgroundColor: label.color }}
-                    />
-                    <span>{label.name}</span>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Applied Labels */}
-          {appliedLabels.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-foreground">
-                Labels a aplicar ({appliedLabels.length})
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {appliedLabels.map((label) => (
-                  <Badge 
-                    key={label.id}
-                    variant="secondary"
-                    className="flex items-center gap-1 py-1 px-2"
-                    style={{ backgroundColor: `${label.color}20`, borderColor: label.color }}
+                    className={`flex items-center gap-1 py-1 px-2 transition-all ${
+                      labelsToRemove.includes(label.id) 
+                        ? 'bg-destructive/20 border-destructive line-through opacity-60' 
+                        : ''
+                    }`}
+                    style={labelsToRemove.includes(label.id) ? {} : { 
+                      backgroundColor: `${label.color}20`, 
+                      borderColor: label.color 
+                    }}
                   >
                     <span 
                       className="w-2 h-2 rounded-full" 
@@ -148,7 +152,43 @@ export function BulkLabelDialog({
                     />
                     <span>{label.name}</span>
                     <button
-                      onClick={() => handleRemoveLabel(label.id)}
+                      onClick={() => handleMarkForRemoval(label.id)}
+                      className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                      title={labelsToRemove.includes(label.id) ? 'Cancelar remoção' : 'Marcar para remoção'}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              {labelsToRemove.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {labelsToRemove.length} label{labelsToRemove.length !== 1 ? 's' : ''} marcada{labelsToRemove.length !== 1 ? 's' : ''} para remoção
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Labels to Add */}
+          {labelsToAddObjects.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-foreground">
+                Labels a adicionar ({labelsToAddObjects.length})
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {labelsToAddObjects.map((label) => (
+                  <Badge 
+                    key={label.id}
+                    variant="secondary"
+                    className="flex items-center gap-1 py-1 px-2 bg-success-light border-success"
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: label.color }}
+                    />
+                    <span>{label.name}</span>
+                    <button
+                      onClick={() => handleRemoveFromAdd(label.id)}
                       className="ml-1 hover:bg-background/20 rounded-full p-0.5"
                     >
                       <X className="h-3 w-3" />
@@ -232,11 +272,16 @@ export function BulkLabelDialog({
           {/* Actions */}
           <div className="flex gap-2 pt-4 border-t">
             <Button 
-              onClick={handleApplyLabels}
-              disabled={selectedLabels.length === 0 || isApplying}
+              onClick={handleApplyChanges}
+              disabled={(labelsToAdd.length === 0 && labelsToRemove.length === 0) || isApplying}
               className="flex-1"
             >
               Aplicar alterações
+              {(labelsToAdd.length > 0 || labelsToRemove.length > 0) && (
+                <span className="ml-1">
+                  ({labelsToAdd.length > 0 ? `+${labelsToAdd.length}` : ''}{labelsToAdd.length > 0 && labelsToRemove.length > 0 ? ', ' : ''}{labelsToRemove.length > 0 ? `-${labelsToRemove.length}` : ''})
+                </span>
+              )}
             </Button>
             <Button 
               variant="outline" 
