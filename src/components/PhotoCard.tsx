@@ -186,13 +186,17 @@ export function PhotoCard({
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20"
+            className="h-8 w-8 p-0 rounded-full text-white hover:text-white hover:bg-black/30 bg-black/20 backdrop-blur-sm"
             onClick={(e) => {
               e.stopPropagation();
               handleToggleFavorite();
             }}
           >
-            <Heart className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+            <Heart className={`h-5 w-5 transition-colors ${
+              isFavorite 
+                ? 'fill-red-500 text-red-500 drop-shadow-lg' 
+                : 'text-white/90 hover:text-red-400'
+            }`} />
           </Button>
         </div>
       </div>
