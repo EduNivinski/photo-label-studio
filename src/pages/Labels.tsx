@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useToast } from '@/hooks/use-toast';
+import { getFileType } from '@/lib/fileUtils';
 import { StandardLabelCreator } from '@/components/StandardLabelCreator';
 import { LabelManager } from '@/components/LabelManager';
 import { EditLabelDialog } from '@/components/EditLabelDialog';
@@ -23,9 +24,13 @@ export default function Labels() {
     label.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Get photo count for each label
-  const getLabelPhotoCount = (labelId: string) => {
-    return photos.filter(photo => photo.labels.includes(labelId)).length;
+  // Get photo and video count for each label
+  const getLabelMediaCount = (labelId: string) => {
+    const labelPhotos = photos.filter(photo => photo.labels.includes(labelId));
+    const photoCount = labelPhotos.filter(photo => getFileType(photo.url) !== 'video').length;
+    const videoCount = labelPhotos.filter(photo => getFileType(photo.url) === 'video').length;
+    
+    return { photoCount, videoCount, totalCount: photoCount + videoCount };
   };
 
   const handleCreateLabel = async (name: string, color?: string) => {
@@ -40,12 +45,12 @@ export default function Labels() {
     const label = labels.find(l => l.id === labelId);
     if (!label) return false;
 
-    const photoCount = getLabelPhotoCount(labelId);
+    const { totalCount } = getLabelMediaCount(labelId);
     
-    if (photoCount > 0) {
+    if (totalCount > 0) {
       const confirmed = confirm(
-        `A label "${label.name}" está sendo usada em ${photoCount} foto(s). ` +
-        `Ao deletá-la, ela será removida de todas as fotos. Deseja continuar?`
+        `A label "${label.name}" está sendo usada em ${totalCount} arquivo(s). ` +
+        `Ao deletá-la, ela será removida de todos os arquivos. Deseja continuar?`
       );
       if (!confirmed) return false;
     }
@@ -181,7 +186,7 @@ export default function Labels() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredLabels.map((label, index) => {
-              const photoCount = getLabelPhotoCount(label.id);
+              const { photoCount, videoCount } = getLabelMediaCount(label.id);
               
               return (
                 <Card 
@@ -220,7 +225,17 @@ export default function Labels() {
                   </div>
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>{photoCount} foto{photoCount !== 1 ? 's' : ''}</span>
+                    <div className="flex gap-3">
+                      {photoCount > 0 && (
+                        <span>{photoCount} foto{photoCount !== 1 ? 's' : ''}</span>
+                      )}
+                      {videoCount > 0 && (
+                        <span>{videoCount} vídeo{videoCount !== 1 ? 's' : ''}</span>
+                      )}
+                      {photoCount === 0 && videoCount === 0 && (
+                        <span>Nenhum arquivo</span>
+                      )}
+                    </div>
                     <div 
                       className="w-3 h-3 rounded-full border border-border"
                       style={{ backgroundColor: label.color || '#6b7280' }}
