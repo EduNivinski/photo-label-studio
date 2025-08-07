@@ -8,7 +8,7 @@ import { getFileType } from '@/lib/fileUtils';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoModalProps {
-  photo: Photo;
+  photo: Photo | null;
   labels: Label[];
   isOpen: boolean;
   onClose: () => void;
@@ -27,7 +27,12 @@ export function PhotoModal({
   onUpdateAlias
 }: PhotoModalProps) {
   const [isEditingAlias, setIsEditingAlias] = useState(false);
-  const [aliasValue, setAliasValue] = useState(photo.alias || '');
+  const [aliasValue, setAliasValue] = useState(photo?.alias || '');
+
+  // Early return if photo is null
+  if (!photo) {
+    return null;
+  }
 
   const photoLabels = labels.filter(label => photo.labels.includes(label.id));
   const isVideo = getFileType(photo.url) === 'video';
