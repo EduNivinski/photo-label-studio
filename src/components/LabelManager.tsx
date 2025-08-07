@@ -153,8 +153,12 @@ export function LabelManager({
                   <Input
                     placeholder="Buscar ou criar nova label..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setIsComboboxOpen(true)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (e.target.value && !isComboboxOpen) {
+                        setIsComboboxOpen(true);
+                      }
+                    }}
                     className="pl-10 bg-background border-border"
                   />
                 </div>
