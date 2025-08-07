@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { Plus, Minus, Tag } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, X, Search, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label as UILabel } from '@/components/ui/label';
-import { LabelChip } from './LabelChip';
+import { StandardLabelCreator } from './StandardLabelCreator';
 import type { Photo, Label } from '@/types/photo';
 
 interface BulkLabelDialogProps {
@@ -27,16 +29,39 @@ export function BulkLabelDialog({
   onCreateLabel
 }: BulkLabelDialogProps) {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
-  const [newLabelName, setNewLabelName] = useState('');
-  const [isCreatingLabel, setIsCreatingLabel] = useState(false);
 
-  const handleLabelToggle = (labelId: string) => {
-    setSelectedLabels(prev => 
-      prev.includes(labelId)
-        ? prev.filter(id => id !== labelId)
-        : [...prev, labelId]
+  // Filter available labels (not already selected)
+  const availableLabels = useMemo(() => {
+    return labels.filter(label => 
+      !selectedLabels.includes(label.id) &&
+      label.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+  }, [labels, selectedLabels, searchQuery]);
+
+  // Get applied labels
+  const appliedLabels = useMemo(() => {
+    return labels.filter(label => selectedLabels.includes(label.id));
+  }, [labels, selectedLabels]);
+
+  const handleAddLabel = (labelId: string) => {
+    setSelectedLabels(prev => [...prev, labelId]);
+    setSearchQuery('');
+    setIsComboboxOpen(false);
+  };
+
+  const handleRemoveLabel = (labelId: string) => {
+    setSelectedLabels(prev => prev.filter(id => id !== labelId));
+  };
+
+  const handleCreateNewLabel = async (name: string, color?: string) => {
+    if (onCreateLabel) {
+      await onCreateLabel(name, color);
+    }
+    setShowCreateDialog(false);
   };
 
   const handleApplyLabels = async () => {
@@ -53,35 +78,9 @@ export function BulkLabelDialog({
     }
   };
 
-  const handleRemoveLabels = async () => {
-    if (selectedLabels.length === 0) return;
-    
-    setIsApplying(true);
-    try {
-      const photoIds = selectedPhotos.map(p => p.id);
-      await onRemoveLabels(photoIds, selectedLabels);
-      setSelectedLabels([]);
-      onClose();
-    } finally {
-      setIsApplying(false);
-    }
-  };
-
-  const handleCreateLabel = async () => {
-    if (!newLabelName.trim() || !onCreateLabel) return;
-    
-    setIsCreatingLabel(true);
-    try {
-      await onCreateLabel(newLabelName.trim());
-      setNewLabelName('');
-    } finally {
-      setIsCreatingLabel(false);
-    }
-  };
-
   const handleClose = () => {
     setSelectedLabels([]);
-    setNewLabelName('');
+    setSearchQuery('');
     onClose();
   };
 
@@ -95,107 +94,167 @@ export function BulkLabelDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5" />
-            Gerenciar Labels - {selectedPhotos.length} foto{selectedPhotos.length !== 1 ? 's' : ''}
+            <Search className="h-5 w-5 text-primary" />
+            Gerenciar Labels
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {selectedPhotos.length} arquivo{selectedPhotos.length !== 1 ? 's' : ''} selecionado{selectedPhotos.length !== 1 ? 's' : ''}
+          </p>
         </DialogHeader>
-
+        
         <div className="space-y-6">
           {/* Common Labels */}
           {commonLabels.length > 0 && (
             <div className="space-y-3">
-              <UILabel className="text-sm font-medium text-muted-foreground">
-                Labels comuns a todas as fotos selecionadas:
-              </UILabel>
-              <div className="flex flex-wrap gap-2 p-3 bg-muted rounded-lg">
+              <h4 className="text-sm font-medium text-foreground">
+                Labels comuns ({commonLabels.length})
+              </h4>
+              <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border">
                 {commonLabels.map(label => (
-                  <LabelChip
+                  <Badge 
                     key={label.id}
-                    label={label}
-                    isSelected={false}
-                    onClick={() => {}}
-                    variant="tag"
-                  />
+                    variant="secondary"
+                    className="flex items-center gap-1 py-1 px-2"
+                    style={{ backgroundColor: `${label.color}20`, borderColor: label.color }}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: label.color }}
+                    />
+                    <span>{label.name}</span>
+                  </Badge>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Create New Label */}
-          {onCreateLabel && (
+          {/* Applied Labels */}
+          {appliedLabels.length > 0 && (
             <div className="space-y-3">
-              <UILabel className="text-sm font-medium">
-                Criar Nova Label:
-              </UILabel>
-              <div className="flex gap-2">
-                <Input
-                  value={newLabelName}
-                  onChange={(e) => setNewLabelName(e.target.value)}
-                  placeholder="Nome da nova label..."
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateLabel()}
-                />
-                <Button
-                  onClick={handleCreateLabel}
-                  disabled={!newLabelName.trim() || isCreatingLabel}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar
-                </Button>
+              <h4 className="text-sm font-medium text-foreground">
+                Labels a aplicar ({appliedLabels.length})
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {appliedLabels.map((label) => (
+                  <Badge 
+                    key={label.id}
+                    variant="secondary"
+                    className="flex items-center gap-1 py-1 px-2"
+                    style={{ backgroundColor: `${label.color}20`, borderColor: label.color }}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: label.color }}
+                    />
+                    <span>{label.name}</span>
+                    <button
+                      onClick={() => handleRemoveLabel(label.id)}
+                      className="ml-1 hover:bg-background/20 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Label Selection */}
+          {/* Search and Add Labels */}
           <div className="space-y-3">
-            <UILabel className="text-sm font-medium">
-              Selecionar Labels ({selectedLabels.length} selecionada{selectedLabels.length !== 1 ? 's' : ''}):
-            </UILabel>
+            <h4 className="text-sm font-medium text-foreground">
+              Adicionar labels
+            </h4>
             
-            <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-2 border rounded-lg">
-              {labels.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center w-full py-4">
-                  Nenhuma label disponível. Crie labels primeiro!
-                </p>
-              ) : (
-                labels.map((label) => (
-                  <LabelChip
-                    key={label.id}
-                    label={label}
-                    isSelected={selectedLabels.includes(label.id)}
-                    onClick={() => handleLabelToggle(label.id)}
-                    variant="filter"
+            <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar ou criar nova label..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (e.target.value && !isComboboxOpen) {
+                        setIsComboboxOpen(true);
+                      }
+                    }}
+                    className="pl-10 bg-background border-border"
                   />
-                ))
-              )}
-            </div>
+                </div>
+              </PopoverTrigger>
+              
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-50" align="start">
+                <Command>
+                  <CommandList className="max-h-48">
+                    {availableLabels.length > 0 && (
+                      <CommandGroup heading="Labels disponíveis">
+                        {availableLabels.map((label) => (
+                          <CommandItem
+                            key={label.id}
+                            onSelect={() => handleAddLabel(label.id)}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <span 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: label.color }}
+                            />
+                            <span>{label.name}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    
+                    {searchQuery && !availableLabels.some(label => 
+                      label.name.toLowerCase() === searchQuery.toLowerCase()
+                    ) && (
+                      <CommandGroup heading="Criar nova">
+                        <CommandItem
+                          onSelect={() => setShowCreateDialog(true)}
+                          className="flex items-center gap-2 cursor-pointer text-primary"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Criar "{searchQuery}"</span>
+                        </CommandItem>
+                      </CommandGroup>
+                    )}
+                    
+                    {!searchQuery && availableLabels.length === 0 && (
+                      <CommandEmpty>
+                        Todas as labels já foram selecionadas.
+                      </CommandEmpty>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Button
+          {/* Actions */}
+          <div className="flex gap-2 pt-4 border-t">
+            <Button 
               onClick={handleApplyLabels}
               disabled={selectedLabels.length === 0 || isApplying}
               className="flex-1"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Aplicar Labels
+              Aplicar alterações
             </Button>
-            
-            <Button
-              variant="outline"
-              onClick={handleRemoveLabels}
-              disabled={selectedLabels.length === 0 || isApplying}
+            <Button 
+              variant="outline" 
+              onClick={handleClose}
               className="flex-1"
             >
-              <Minus className="h-4 w-4 mr-2" />
-              Remover Labels
+              Cancelar
             </Button>
           </div>
-
-          <Button variant="ghost" onClick={handleClose} className="w-full">
-            Cancelar
-          </Button>
         </div>
+
+        {/* Create Label Dialog */}
+        <StandardLabelCreator
+          trigger={<></>}
+          isOpen={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onCreateLabel={handleCreateNewLabel}
+        />
       </DialogContent>
     </Dialog>
   );
