@@ -73,6 +73,26 @@ export function useSupabaseData() {
     setLabels(prev => [...prev, newLabel]);
   };
 
+  const updateLabel = async (labelId: string, name: string, color: string) => {
+    const { error } = await (supabase as any)
+      .from('labels')
+      .update({ name, color })
+      .eq('id', labelId);
+    
+    if (error) {
+      console.error('Error updating label:', error);
+      return false;
+    }
+    
+    setLabels(prev => prev.map(label => 
+      label.id === labelId 
+        ? { ...label, name, color }
+        : label
+    ));
+    
+    return true;
+  };
+
   const deleteLabel = async (labelId: string) => {
     const { error } = await (supabase as any)
       .from('labels')
@@ -303,6 +323,7 @@ export function useSupabaseData() {
     labels,
     loading,
     createLabel,
+    updateLabel,
     deleteLabel,
     updatePhotoLabels,
     updatePhotoAlias,

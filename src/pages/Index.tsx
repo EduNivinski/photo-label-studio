@@ -340,10 +340,10 @@ const Index = () => {
         {currentView === 'home' && !hasActiveFilters ? (
           <div className="flex-1 overflow-y-auto">
             {/* Hero Section */}
-            <section className="p-6 bg-gradient-to-br from-primary/5 to-background border-b border-border">
+            <section className="p-4 bg-gradient-to-br from-primary/5 to-background border-b border-border">
               <div className="text-center max-w-2xl mx-auto">
                 <h1 className="text-3xl font-bold text-foreground mb-2">📷 PhotoLabel</h1>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-muted-foreground mb-4">
                   Organize suas fotos com labels inteligentes e crie coleções memoráveis
                 </p>
                 <div className="flex gap-3 justify-center">
@@ -363,15 +363,15 @@ const Index = () => {
                     Upload
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-3">
+                <p className="text-xs text-muted-foreground mt-2">
                   Adicione novas fotos e vídeos facilmente
                 </p>
               </div>
             </section>
 
             {/* My Collections Section - Renamed from Albums */}
-            <section className="p-6 border-b border-border animate-fade-in">
-              <div className="mb-6">
+            <section className="p-4 border-b border-border animate-fade-in">
+              <div className="mb-4">
                 <div className="flex items-center gap-3 mb-2">
                   <FolderOpen className="h-6 w-6 text-primary" />
                   <h2 className="text-xl font-bold text-foreground">Minhas Coleções</h2>

@@ -8,9 +8,10 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useToast } from '@/hooks/use-toast';
 import { StandardLabelCreator } from '@/components/StandardLabelCreator';
 import { LabelManager } from '@/components/LabelManager';
+import { EditLabelDialog } from '@/components/EditLabelDialog';
 
 export default function Labels() {
-  const { labels, photos, createLabel, deleteLabel } = useSupabaseData();
+  const { labels, photos, createLabel, deleteLabel, updateLabel } = useSupabaseData();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateLabel, setShowCreateLabel] = useState(false);
@@ -71,6 +72,26 @@ export default function Labels() {
     setShowEditLabel(true);
   };
 
+  const handleUpdateLabel = async (labelId: string, name: string, color: string): Promise<boolean> => {
+    const success = await updateLabel(labelId, name, color);
+    if (success) {
+      toast({
+        title: "Label atualizada",
+        description: `A label foi atualizada com sucesso.`,
+      });
+      setShowEditLabel(false);
+      setSelectedLabel(null);
+      return true;
+    } else {
+      toast({
+        title: "Erro ao atualizar label",
+        description: "Ocorreu um erro ao atualizar a label. Tente novamente.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const getContrastColor = (hexColor: string) => {
     // Remove # if present
     const color = hexColor.replace('#', '');
@@ -90,7 +111,7 @@ export default function Labels() {
     <div className="flex-1 min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="px-6 py-4">
+        <div className="px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Tag className="h-6 w-6 text-primary" />
@@ -110,7 +131,7 @@ export default function Labels() {
         </div>
       </header>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
         {/* Search Bar */}
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
@@ -221,17 +242,15 @@ export default function Labels() {
         onCreateLabel={handleCreateLabel}
       />
 
-      <LabelManager
+      {/* Remove LabelManager from edit workflow - using EditLabelDialog instead */}
+      <EditLabelDialog
         isOpen={showEditLabel}
         onClose={() => {
           setShowEditLabel(false);
           setSelectedLabel(null);
         }}
-        labels={labels}
-        selectedPhoto={undefined}
-        onCreateLabel={handleCreateLabel}
-        onDeleteLabel={handleDeleteLabel}
-        onUpdatePhotoLabels={async () => true}
+        label={selectedLabel ? labels.find(l => l.id === selectedLabel) || null : null}
+        onUpdateLabel={handleUpdateLabel}
       />
     </div>
   );

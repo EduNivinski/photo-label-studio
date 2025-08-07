@@ -60,14 +60,14 @@ export function PhotoCard({
 
   return (
     <Card 
-      className={`group overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer ${
+      className={`group overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer w-[200px] h-[250px] ${
         isSelected 
           ? 'ring-2 ring-primary ring-offset-2 border-primary shadow-lg' 
           : 'border-photo-border hover:border-primary'
       }`}
       onClick={handleCardClick}
     >
-      <div className="relative aspect-square">
+      <div className="relative h-[180px]">
         {/* Selection Checkbox */}
         <div className="absolute top-2 left-2 z-10">
           <div 
@@ -100,8 +100,8 @@ export function PhotoCard({
             />
             {/* Play button overlay for videos */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-black/60 rounded-full p-3 backdrop-blur-sm">
-                <Play className="h-6 w-6 text-white fill-white" />
+              <div className="bg-black/70 rounded-full p-4 backdrop-blur-sm">
+                <Play className="h-8 w-8 text-white fill-white" />
               </div>
             </div>
           </>
@@ -131,27 +131,29 @@ export function PhotoCard({
         )}
         
         {/* Gradient overlay for content integration */}
-        <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-t from-black/80 via-black/40 to-transparent group-hover:from-black/90 group-hover:via-black/50 transition-all duration-300" />
+        <div className="absolute bottom-0 left-0 right-0 h-[40%] bg-gradient-to-t from-black/80 via-black/40 to-transparent group-hover:from-black/90 group-hover:via-black/50 transition-all duration-300" />
         
         {/* Content overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-          <h3 className="font-medium text-sm truncate mb-2 drop-shadow-sm">
-            {photo.name}
-          </h3>
-          
-          <div className="flex flex-wrap gap-1 mb-1">
-            {photoLabels.map((label) => (
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <div className="flex flex-wrap gap-1 mb-2">
+            {photoLabels.slice(0, 2).map((label) => (
               <LabelChip 
                 key={label.id} 
                 label={label} 
                 variant="tag" 
                 onRemove={() => handleRemoveLabel(label.id)}
-                className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30"
+                className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs"
+                size="sm"
               />
             ))}
+            {photoLabels.length > 2 && (
+              <span className="text-xs text-white/80 bg-white/20 px-2 py-1 rounded-full">
+                +{photoLabels.length - 2}
+              </span>
+            )}
             
             {/* Botão para adicionar nova label */}
-            {!isSelected && (
+            {!isSelected && photoLabels.length < 3 && (
               <QuickLabelSelector
                 labels={labels}
                 photoLabels={photo.labels}
@@ -160,7 +162,7 @@ export function PhotoCard({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-5 w-5 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20"
+                  className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Plus className="h-3 w-3" />
@@ -169,8 +171,10 @@ export function PhotoCard({
             )}
           </div>
           
-          <div className="text-xs text-white/80 drop-shadow-sm">
-            {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+          <div className="text-center">
+            <div className="text-xs text-white/90 drop-shadow-sm font-medium">
+              {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+            </div>
           </div>
         </div>
 
