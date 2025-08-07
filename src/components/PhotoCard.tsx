@@ -129,7 +129,7 @@ export function PhotoCard({
             <LabelChip 
               key={label.id} 
               label={label} 
-              variant="tag" 
+              variant="card" 
               onRemove={() => handleRemoveLabel(label.id)}
               className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs"
               size="sm"

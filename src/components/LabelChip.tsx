@@ -7,7 +7,7 @@ interface LabelChipProps {
   isSelected?: boolean;
   onClick?: () => void;
   onRemove?: () => void;
-  variant?: 'filter' | 'tag';
+  variant?: 'filter' | 'tag' | 'card';
   showCount?: number;
   size?: 'sm' | 'default';
   className?: string;
@@ -24,9 +24,13 @@ export function LabelChip({
   className = ''
 }: LabelChipProps) {
   const chipStyle = label.color ? { 
-    backgroundColor: isSelected ? label.color : `${label.color}20`,
+    backgroundColor: variant === 'card' 
+      ? 'transparent' 
+      : isSelected ? label.color : `${label.color}20`,
     borderColor: label.color,
-    color: isSelected ? '#ffffff' : label.color
+    color: variant === 'card' 
+      ? '#ffffff' 
+      : isSelected ? '#ffffff' : label.color
   } : undefined;
 
   return (
