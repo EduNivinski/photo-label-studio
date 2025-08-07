@@ -11,6 +11,7 @@ interface PhotoCardProps {
   photo: Photo;
   labels: Label[];
   isSelected?: boolean;
+  hasActiveSelections?: boolean; // NEW: indica se há itens selecionados (modo seleção múltipla)
   onClick: () => void;
   onLabelManage: () => void;
   onSelectionToggle: (isShiftPressed: boolean) => void;
@@ -21,6 +22,7 @@ export function PhotoCard({
   photo, 
   labels, 
   isSelected = false,
+  hasActiveSelections = false,
   onClick, 
   onLabelManage,
   onSelectionToggle,
@@ -36,7 +38,14 @@ export function PhotoCard({
     // Don't trigger on checkbox, buttons, or other interactive elements
     const target = e.target as HTMLElement;
     if (target.closest('input, button, [role="button"]')) return;
-    onClick();
+    
+    // Se há seleções ativas (modo seleção múltipla), clicar na foto alterna a seleção
+    if (hasActiveSelections) {
+      onSelectionToggle(e.shiftKey);
+    } else {
+      // Caso contrário, abre o modal da foto
+      onClick();
+    }
   };
 
   const handleCheckboxChange = () => {

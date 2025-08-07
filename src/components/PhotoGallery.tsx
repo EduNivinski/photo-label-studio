@@ -20,6 +20,8 @@ export function PhotoGallery({
   onSelectionToggle,
   onUpdateLabels
 }: PhotoGalleryProps) {
+  const hasActiveSelections = selectedPhotoIds.size > 0;
+  
   if (photos.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gallery-background">
@@ -45,6 +47,7 @@ export function PhotoGallery({
             photo={photo}
             labels={labels}
             isSelected={selectedPhotoIds.has(photo.id)}
+            hasActiveSelections={hasActiveSelections}
             onClick={() => onPhotoClick(photo)}
             onLabelManage={() => onLabelManage(photo)}
             onSelectionToggle={(isShiftPressed) => onSelectionToggle(photo.id, isShiftPressed)}
