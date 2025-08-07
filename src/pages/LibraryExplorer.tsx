@@ -45,11 +45,13 @@ export default function LibraryExplorer() {
   const { 
     filters, 
     filteredPhotos, 
+    showFavorites,
     updateFilters,
     updateSearchTerm, 
     toggleLabel,
     toggleFileType,
     toggleMediaType,
+    toggleFavorites,
     clearFilters 
   } = useAdvancedFilters(photos);
 

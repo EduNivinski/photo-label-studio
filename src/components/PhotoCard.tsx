@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Tag, Plus, Play } from 'lucide-react';
+import { Tag, Plus, Play, Heart } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LabelChip } from './LabelChip';
@@ -31,8 +31,9 @@ export function PhotoCard({
   const [mediaLoaded, setMediaLoaded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   
-  const photoLabels = labels.filter(label => photo.labels.includes(label.id));
+  const photoLabels = labels.filter(label => photo.labels.includes(label.id) && label.name !== 'favorites');
   const isVideo = getFileType(photo.url) === 'video';
+  const isFavorite = photo.labels.includes('favorites');
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger on checkbox, buttons, or other interactive elements
@@ -64,6 +65,13 @@ export function PhotoCard({
 
   const handleRemoveLabel = (labelId: string) => {
     const newLabels = photo.labels.filter(id => id !== labelId);
+    onUpdateLabels(photo.id, newLabels);
+  };
+
+  const handleToggleFavorite = () => {
+    const newLabels = isFavorite 
+      ? photo.labels.filter(id => id !== 'favorites')
+      : [...photo.labels, 'favorites'];
     onUpdateLabels(photo.id, newLabels);
   };
 
@@ -169,8 +177,23 @@ export function PhotoCard({
           )}
         </div>
         
-        <div className="date text-center text-xs text-white/90 drop-shadow-sm font-medium">
-          {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+        <div className="flex items-center justify-between">
+          <div className="date text-xs text-white/90 drop-shadow-sm font-medium">
+            {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+          </div>
+          
+          {/* Favorite button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleFavorite();
+            }}
+          >
+            <Heart className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+          </Button>
         </div>
       </div>
 

@@ -10,6 +10,7 @@ export function useAdvancedFilters(photos: Photo[]) {
     mediaTypes: ['photo', 'video'],
     sortBy: 'date-desc'
   });
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const filteredPhotos = useMemo(() => {
     let filtered = photos.filter((photo) => {
@@ -26,7 +27,13 @@ export function useAdvancedFilters(photos: Photo[]) {
       // Filter by unlabeled
       let matchesUnlabeled = true;
       if (filters.showUnlabeled) {
-        matchesUnlabeled = photo.labels.length === 0;
+        matchesUnlabeled = photo.labels.filter(label => label !== 'favorites').length === 0;
+      }
+
+      // Filter by favorites
+      let matchesFavorites = true;
+      if (showFavorites) {
+        matchesFavorites = photo.labels.includes('favorites');
       }
 
       // Filter by file types
@@ -69,7 +76,7 @@ export function useAdvancedFilters(photos: Photo[]) {
         matchesYear = photoYear === filters.year;
       }
 
-      return matchesSearch && matchesLabels && matchesUnlabeled && 
+      return matchesSearch && matchesLabels && matchesUnlabeled && matchesFavorites &&
              matchesFileType && matchesMediaType && matchesDateRange && matchesYear;
     });
 
@@ -127,6 +134,10 @@ export function useAdvancedFilters(photos: Photo[]) {
     }));
   };
 
+  const toggleFavorites = () => {
+    setShowFavorites(prev => !prev);
+  };
+
   const clearFilters = () => {
     setFilters({
       labels: [],
@@ -136,16 +147,19 @@ export function useAdvancedFilters(photos: Photo[]) {
       mediaTypes: ['photo', 'video'],
       sortBy: 'date-desc'
     });
+    setShowFavorites(false);
   };
 
   return {
     filters,
     filteredPhotos,
+    showFavorites,
     updateFilters,
     updateSearchTerm,
     toggleLabel,
     toggleFileType,
     toggleMediaType,
+    toggleFavorites,
     clearFilters
   };
 }

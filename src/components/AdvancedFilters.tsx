@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Filter, ChevronDown } from 'lucide-react';
+import { Calendar, Filter, ChevronDown, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,9 +13,11 @@ import type { PhotoFilters } from '@/types/photo';
 
 interface AdvancedFiltersProps {
   filters: PhotoFilters;
+  showFavorites?: boolean;
   onUpdateFilters: (updates: Partial<PhotoFilters>) => void;
   onToggleFileType: (fileType: string) => void;
   onToggleMediaType: (mediaType: string) => void;
+  onToggleFavorites?: () => void;
 }
 
 const fileTypes = ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'];
@@ -33,9 +35,11 @@ const sortOptions = [
 
 export function AdvancedFilters({ 
   filters, 
+  showFavorites = false,
   onUpdateFilters, 
   onToggleFileType, 
-  onToggleMediaType 
+  onToggleMediaType,
+  onToggleFavorites
 }: AdvancedFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -47,7 +51,8 @@ export function AdvancedFilters({
     filters.dateRange?.start || 
     filters.dateRange?.end ||
     filters.fileTypes.length < 6 ||
-    filters.mediaTypes.length < 2;
+    filters.mediaTypes.length < 2 ||
+    showFavorites;
 
   return (
     <div className="space-y-4">
@@ -72,6 +77,21 @@ export function AdvancedFilters({
         </CollapsibleTrigger>
         
         <CollapsibleContent className="space-y-4 pt-2">
+          {/* Favorites Filter */}
+          {onToggleFavorites && (
+            <div className="space-y-2">
+              <Button
+                variant={showFavorites ? "default" : "outline"}
+                size="sm"
+                onClick={onToggleFavorites}
+                className="w-full justify-start gap-2 h-8 text-xs"
+              >
+                <Heart className={`h-3 w-3 ${showFavorites ? 'fill-current' : ''}`} />
+                {showFavorites ? 'Mostrando Favoritos' : 'Mostrar Favoritos'}
+              </Button>
+            </div>
+          )}
+
           {/* Sort Order */}
           <div className="space-y-2">
             <label className="text-xs text-sidebar-foreground/60">Ordenar por</label>

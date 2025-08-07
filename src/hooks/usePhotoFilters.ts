@@ -10,6 +10,7 @@ export function usePhotoFilters(photos: Photo[]) {
     mediaTypes: ['photo', 'video'],
     sortBy: 'date-desc'
   });
+  const [showFavorites, setShowFavorites] = useState(false);
   const [filterMode, setFilterMode] = useState<'AND' | 'OR'>('AND');
 
   const filteredPhotos = useMemo(() => {
@@ -28,10 +29,16 @@ export function usePhotoFilters(photos: Photo[]) {
       // Filter by unlabeled
       let matchesUnlabeled = true;
       if (filters.showUnlabeled) {
-        matchesUnlabeled = photo.labels.length === 0;
+        matchesUnlabeled = photo.labels.filter(label => label !== 'favorites').length === 0;
       }
 
-      return matchesSearch && matchesLabels && matchesUnlabeled;
+      // Filter by favorites
+      let matchesFavorites = true;
+      if (showFavorites) {
+        matchesFavorites = photo.labels.includes('favorites');
+      }
+
+      return matchesSearch && matchesLabels && matchesUnlabeled && matchesFavorites;
     });
   }, [photos, filters, filterMode]);
 
@@ -52,6 +59,10 @@ export function usePhotoFilters(photos: Photo[]) {
     setFilters(prev => ({ ...prev, showUnlabeled: !prev.showUnlabeled }));
   };
 
+  const toggleFavorites = () => {
+    setShowFavorites(prev => !prev);
+  };
+
   const clearFilters = () => {
     setFilters({ 
       labels: [], 
@@ -61,6 +72,7 @@ export function usePhotoFilters(photos: Photo[]) {
       mediaTypes: ['photo', 'video'],
       sortBy: 'date-desc'
     });
+    setShowFavorites(false);
     // Resetar para mostrar clusters novamente
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('resetClusters'));
@@ -70,9 +82,11 @@ export function usePhotoFilters(photos: Photo[]) {
   return {
     filters,
     filteredPhotos,
+    showFavorites,
     updateSearchTerm,
     toggleLabel,
     toggleUnlabeled,
+    toggleFavorites,
     clearFilters
   };
 }

@@ -47,9 +47,11 @@ interface AppSidebarProps {
   showSearch?: boolean;
   // Advanced filters props
   filters?: PhotoFilters;
+  showFavorites?: boolean;
   onUpdateFilters?: (updates: Partial<PhotoFilters>) => void;
   onToggleFileType?: (fileType: string) => void;
   onToggleMediaType?: (mediaType: string) => void;
+  onToggleFavorites?: () => void;
 }
 
 export function AppSidebar({
@@ -62,9 +64,11 @@ export function AppSidebar({
   onManageCollections,
   showSearch = false,
   filters,
+  showFavorites = false,
   onUpdateFilters,
   onToggleFileType,
-  onToggleMediaType
+  onToggleMediaType,
+  onToggleFavorites
 }: AppSidebarProps) {
   const { open, setOpen } = useSidebar();
   const location = useLocation();
@@ -190,9 +194,11 @@ export function AppSidebar({
                 <div className="px-1">
                   <AdvancedFilters
                     filters={filters}
+                    showFavorites={showFavorites}
                     onUpdateFilters={onUpdateFilters}
                     onToggleFileType={onToggleFileType}
                     onToggleMediaType={onToggleMediaType}
+                    onToggleFavorites={onToggleFavorites}
                   />
                 </div>
               )}

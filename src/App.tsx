@@ -22,10 +22,12 @@ function AppContent() {
   const { photos, labels } = useSupabaseData();
   const { 
     filters, 
+    showFavorites,
     updateFilters,
     toggleLabel,
     toggleFileType,
     toggleMediaType,
+    toggleFavorites,
     clearFilters 
   } = useAdvancedFilters(photos);
 
@@ -44,9 +46,11 @@ function AppContent() {
           onManageCollections={() => {}}
           showSearch={showAdvancedSidebar}
           filters={showAdvancedSidebar ? filters : undefined}
+          showFavorites={showAdvancedSidebar ? showFavorites : undefined}
           onUpdateFilters={showAdvancedSidebar ? updateFilters : undefined}
           onToggleFileType={showAdvancedSidebar ? toggleFileType : undefined}
           onToggleMediaType={showAdvancedSidebar ? toggleMediaType : undefined}
+          onToggleFavorites={showAdvancedSidebar ? toggleFavorites : undefined}
         />
         <Routes>
           <Route path="/" element={<Index />} />
