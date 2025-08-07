@@ -10,6 +10,7 @@ import { getFileType } from '@/lib/fileUtils';
 import { StandardLabelCreator } from '@/components/StandardLabelCreator';
 import { LabelManager } from '@/components/LabelManager';
 import { EditLabelDialog } from '@/components/EditLabelDialog';
+import { DeleteLabelDialog } from '@/components/DeleteLabelDialog';
 
 export default function Labels() {
   const { labels, photos, createLabel, deleteLabel, updateLabel } = useSupabaseData();
@@ -17,7 +18,9 @@ export default function Labels() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateLabel, setShowCreateLabel] = useState(false);
   const [showEditLabel, setShowEditLabel] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const [labelToDelete, setLabelToDelete] = useState<string | null>(null);
 
   // Filter labels based on search term
   const filteredLabels = labels.filter(label =>
@@ -45,15 +48,23 @@ export default function Labels() {
     const label = labels.find(l => l.id === labelId);
     if (!label) return false;
 
-    const { totalCount } = getLabelMediaCount(labelId);
+    // Check if user has disabled confirmation dialogs
+    const skipConfirmation = localStorage.getItem('photolabel-skip-delete-confirmation') === 'true';
     
-    if (totalCount > 0) {
-      const confirmed = confirm(
-        `A label "${label.name}" está sendo usada em ${totalCount} arquivo(s). ` +
-        `Ao deletá-la, ela será removida de todos os arquivos. Deseja continuar?`
-      );
-      if (!confirmed) return false;
+    if (skipConfirmation) {
+      // Delete directly without confirmation
+      return await performDelete(labelId);
+    } else {
+      // Show confirmation dialog
+      setLabelToDelete(labelId);
+      setShowDeleteDialog(true);
+      return false; // Will be handled by the dialog
     }
+  };
+
+  const performDelete = async (labelId: string): Promise<boolean> => {
+    const label = labels.find(l => l.id === labelId);
+    if (!label) return false;
 
     const success = await deleteLabel(labelId);
     if (success) {
@@ -69,6 +80,13 @@ export default function Labels() {
         variant: "destructive",
       });
       return false;
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (labelToDelete) {
+      await performDelete(labelToDelete);
+      setLabelToDelete(null);
     }
   };
 
@@ -256,7 +274,19 @@ export default function Labels() {
         onCreateLabel={handleCreateLabel}
       />
 
-      {/* Remove LabelManager from edit workflow - using EditLabelDialog instead */}
+      {/* Delete Confirmation Dialog */}
+      <DeleteLabelDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setLabelToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        label={labelToDelete ? labels.find(l => l.id === labelToDelete) || null : null}
+        mediaCount={labelToDelete ? getLabelMediaCount(labelToDelete) : { photoCount: 0, videoCount: 0, totalCount: 0 }}
+      />
+
+      {/* Edit Label Dialog */}
       <EditLabelDialog
         isOpen={showEditLabel}
         onClose={() => {
