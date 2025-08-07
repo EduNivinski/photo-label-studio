@@ -189,7 +189,6 @@ All colors MUST be HSL.
       height: 300px;
     }
   }
-  }
 
   .media-card:hover {
     transform: translateY(-4px);
