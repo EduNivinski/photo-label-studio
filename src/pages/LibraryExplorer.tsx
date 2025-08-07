@@ -59,6 +59,10 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   // Check if we're receiving global filters from App.tsx
   const isUsingGlobalFilters = !!props.filteredPhotos;
   
+  console.log('LibraryExplorer: isUsingGlobalFilters =', isUsingGlobalFilters);
+  console.log('LibraryExplorer: props.showFavorites =', props.showFavorites);
+  console.log('LibraryExplorer: props.filteredPhotos length =', props.filteredPhotos?.length);
+  
   // Use local filters only if no global filters provided
   const localFiltersHook = !isUsingGlobalFilters ? useAdvancedFilters(photos) : null;
   
@@ -72,6 +76,9 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   const toggleMediaType = isUsingGlobalFilters ? props.toggleMediaType : localFiltersHook?.toggleMediaType;
   const toggleFavorites = isUsingGlobalFilters ? props.toggleFavorites : localFiltersHook?.toggleFavorites;
   const clearFilters = isUsingGlobalFilters ? props.clearFilters : localFiltersHook?.clearFilters;
+  
+  console.log('LibraryExplorer: final showFavorites =', showFavorites);
+  console.log('LibraryExplorer: final filteredPhotos length =', filteredPhotos?.length);
 
   const {
     paginatedItems: paginatedPhotos,

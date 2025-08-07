@@ -13,6 +13,7 @@ export function useAdvancedFilters(photos: Photo[]) {
   const [showFavorites, setShowFavorites] = useState(false);
 
   const filteredPhotos = useMemo(() => {
+    console.log('useAdvancedFilters: showFavorites =', showFavorites, 'photos count =', photos.length);
     let filtered = photos.filter((photo) => {
       // Filter by search term
       const matchesSearch = filters.searchTerm === '' || 
@@ -79,6 +80,8 @@ export function useAdvancedFilters(photos: Photo[]) {
       return matchesSearch && matchesLabels && matchesUnlabeled && matchesFavorites &&
              matchesFileType && matchesMediaType && matchesDateRange && matchesYear;
     });
+    
+    console.log('useAdvancedFilters: filtered photos count =', filtered.length, 'showFavorites =', showFavorites);
 
     // Sort photos
     filtered.sort((a, b) => {
