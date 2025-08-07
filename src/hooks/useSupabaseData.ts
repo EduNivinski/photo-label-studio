@@ -300,7 +300,11 @@ export function useSupabaseData() {
     const photosChannel = supabase
       .channel('photos-changes')
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'photos' },
+        { event: 'INSERT', schema: 'public', table: 'photos' },
+        () => fetchPhotos()
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'photos' },
         () => fetchPhotos()
       )
       .subscribe();
