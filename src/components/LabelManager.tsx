@@ -1,9 +1,12 @@
-import { useState } from 'react';
-import { Plus, Edit, Trash2, Palette } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, X, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { StandardLabelCreator } from './StandardLabelCreator';
-import { LabelChip } from './LabelChip';
 import { useToast } from '@/hooks/use-toast';
 import type { Label, Photo } from '@/types/photo';
 
@@ -27,45 +30,51 @@ export function LabelManager({
   onUpdatePhotoLabels 
 }: LabelManagerProps) {
   const [photoLabels, setPhotoLabels] = useState<string[]>(selectedPhoto?.labels || []);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const { toast } = useToast();
 
-  const handleDeleteLabel = async (labelId: string) => {
-    const label = labels.find(l => l.id === labelId);
-    if (!label) return;
-
-    const success = await onDeleteLabel(labelId);
-    if (success) {
-      toast({
-        title: "Label excluída",
-        description: `Label "${label.name}" foi removida de todas as fotos.`
-      });
-      // Remove from current photo labels if present
-      setPhotoLabels(prev => prev.filter(id => id !== labelId));
-    } else {
-      toast({
-        title: "Erro",
-        description: "Falha ao excluir label.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handlePhotoLabelToggle = (labelId: string) => {
-    setPhotoLabels(prev => 
-      prev.includes(labelId)
-        ? prev.filter(id => id !== labelId)
-        : [...prev, labelId]
+  // Filter available labels (not already applied to photo)
+  const availableLabels = useMemo(() => {
+    return labels.filter(label => 
+      !photoLabels.includes(label.id) &&
+      label.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+  }, [labels, photoLabels, searchQuery]);
+
+  // Get applied labels
+  const appliedLabels = useMemo(() => {
+    return labels.filter(label => photoLabels.includes(label.id));
+  }, [labels, photoLabels]);
+
+  const handleAddLabel = (labelId: string) => {
+    setPhotoLabels(prev => [...prev, labelId]);
+    setSearchQuery('');
+    setIsComboboxOpen(false);
   };
 
-  const handleSavePhotoLabels = async () => {
+  const handleRemoveLabel = (labelId: string) => {
+    setPhotoLabels(prev => prev.filter(id => id !== labelId));
+  };
+
+  const handleCreateNewLabel = async (name: string, color?: string) => {
+    await onCreateLabel(name, color);
+    // The new label will be available after the component re-renders with updated labels
+    toast({
+      title: "Label criada",
+      description: `Label "${name}" foi criada com sucesso.`
+    });
+    setShowCreateDialog(false);
+  };
+
+  const handleSaveChanges = async () => {
     if (!selectedPhoto || !onUpdatePhotoLabels) return;
     
     const success = await onUpdatePhotoLabels(selectedPhoto.id, photoLabels);
     if (success) {
       toast({
-        title: "Labels atualizadas",
+        title: "Alterações salvas",
         description: "Labels da foto foram atualizadas com sucesso!"
       });
       onClose();
@@ -78,81 +87,152 @@ export function LabelManager({
     }
   };
 
+  // Reset state when photo changes
+  React.useEffect(() => {
+    setPhotoLabels(selectedPhoto?.labels || []);
+    setSearchQuery('');
+  }, [selectedPhoto]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {selectedPhoto ? `Gerenciar Labels - ${selectedPhoto.name}` : 'Gerenciar Labels'}
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5 text-primary" />
+            Gerenciar Labels
           </DialogTitle>
+          {selectedPhoto && (
+            <p className="text-sm text-muted-foreground">
+              {selectedPhoto.name}
+            </p>
+          )}
         </DialogHeader>
         
         <div className="space-y-6">
-          {/* Create New Label */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Criar Nova Label</h3>
-            <StandardLabelCreator
-              trigger={
-                <Button variant="outline" className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Nova Label
-                </Button>
-              }
-              onCreateLabel={onCreateLabel}
-              isOpen={showCreateDialog}
-              onOpenChange={setShowCreateDialog}
-            />
-          </div>
-
-          {/* Photo Labels (if editing a specific photo) */}
-          {selectedPhoto && (
-            <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium">Labels desta Foto</h3>
+          {/* Applied Labels */}
+          {appliedLabels.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-foreground">
+                Labels aplicadas ({appliedLabels.length})
+              </h4>
               <div className="flex flex-wrap gap-2">
-                {labels.map((label) => (
-                  <LabelChip
+                {appliedLabels.map((label) => (
+                  <Badge 
                     key={label.id}
-                    label={label}
-                    isSelected={photoLabels.includes(label.id)}
-                    onClick={() => handlePhotoLabelToggle(label.id)}
-                    variant="filter"
-                  />
+                    variant="secondary"
+                    className="flex items-center gap-1 py-1 px-2"
+                    style={{ backgroundColor: `${label.color}20`, borderColor: label.color }}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: label.color }}
+                    />
+                    <span>{label.name}</span>
+                    <button
+                      onClick={() => handleRemoveLabel(label.id)}
+                      className="ml-1 hover:bg-background/20 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
                 ))}
               </div>
-              <Button onClick={handleSavePhotoLabels} className="w-full">
-                Salvar Labels da Foto
-              </Button>
             </div>
           )}
 
-          {/* Existing Labels */}
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="text-lg font-medium">Todas as Labels ({labels.length})</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-              {labels.map((label) => (
-                <div 
-                  key={label.id} 
-                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                >
-                  <LabelChip label={label} variant="tag" />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteLabel(label.id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+          {/* Search and Add Labels */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-foreground">
+              Adicionar labels
+            </h4>
+            
+            <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar ou criar nova label..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => setIsComboboxOpen(true)}
+                    className="pl-10 bg-background border-border"
+                  />
                 </div>
-              ))}
-            </div>
-            {labels.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhuma label criada ainda. Crie sua primeira label acima!
-              </div>
-            )}
+              </PopoverTrigger>
+              
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandList className="max-h-48">
+                    {availableLabels.length > 0 && (
+                      <CommandGroup heading="Labels disponíveis">
+                        {availableLabels.map((label) => (
+                          <CommandItem
+                            key={label.id}
+                            onSelect={() => handleAddLabel(label.id)}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <span 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: label.color }}
+                            />
+                            <span>{label.name}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    
+                    {searchQuery && !availableLabels.some(label => 
+                      label.name.toLowerCase() === searchQuery.toLowerCase()
+                    ) && (
+                      <CommandGroup heading="Criar nova">
+                        <CommandItem
+                          onSelect={() => setShowCreateDialog(true)}
+                          className="flex items-center gap-2 cursor-pointer text-primary"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Criar "{searchQuery}"</span>
+                        </CommandItem>
+                      </CommandGroup>
+                    )}
+                    
+                    {!searchQuery && availableLabels.length === 0 && (
+                      <CommandEmpty>
+                        Todas as labels já foram aplicadas.
+                      </CommandEmpty>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
+
+          {/* Actions */}
+          {selectedPhoto && (
+            <div className="flex gap-2 pt-4 border-t">
+              <Button 
+                onClick={handleSaveChanges}
+                className="flex-1"
+              >
+                Salvar alterações
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={onClose}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+            </div>
+          )}
         </div>
+
+        {/* Create Label Dialog */}
+        <StandardLabelCreator
+          trigger={<></>}
+          isOpen={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onCreateLabel={handleCreateNewLabel}
+        />
       </DialogContent>
     </Dialog>
   );
