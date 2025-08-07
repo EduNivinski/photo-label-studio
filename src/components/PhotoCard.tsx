@@ -186,7 +186,7 @@ export function PhotoCard({
           <Button
             size="sm"
             variant="ghost"
-            className="h-8 w-8 p-0 rounded-full text-white hover:text-white hover:bg-black/30 bg-black/20 backdrop-blur-sm"
+            className="h-8 w-8 p-0 rounded-full text-white hover:text-white hover:bg-black/30 bg-black/20 backdrop-blur-sm relative z-10"
             onClick={(e) => {
               e.stopPropagation();
               handleToggleFavorite();
