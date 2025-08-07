@@ -124,6 +124,13 @@ export function useSupabaseData() {
   };
 
   const updatePhotoLabels = async (photoId: string, labelIds: string[]) => {
+    // Optimistic update - update UI immediately
+    setPhotos(prev => prev.map(photo => 
+      photo.id === photoId 
+        ? { ...photo, labels: labelIds }
+        : photo
+    ));
+
     const { error } = await (supabase as any)
       .from('photos')
       .update({ labels: labelIds })
@@ -131,14 +138,10 @@ export function useSupabaseData() {
     
     if (error) {
       console.error('Error updating photo labels:', error);
+      // Revert optimistic update on error
+      await fetchPhotos();
       return false;
     }
-    
-    setPhotos(prev => prev.map(photo => 
-      photo.id === photoId 
-        ? { ...photo, labels: labelIds }
-        : photo
-    ));
     
     return true;
   };

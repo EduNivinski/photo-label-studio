@@ -68,14 +68,13 @@ export function PhotoCard({
     onUpdateLabels(photo.id, newLabels);
   };
 
-  const handleToggleFavorite = () => {
-    console.log('Toggling favorite for photo:', photo.id, 'Current favorite status:', isFavorite);
-    console.log('Current photo labels:', photo.labels);
+  const handleToggleFavorite = async () => {
     const newLabels = isFavorite 
       ? photo.labels.filter(id => id !== 'favorites')
       : [...photo.labels, 'favorites'];
-    console.log('New labels array:', newLabels);
-    onUpdateLabels(photo.id, newLabels);
+    
+    // Update immediately for visual feedback
+    await onUpdateLabels(photo.id, newLabels);
   };
 
   return (

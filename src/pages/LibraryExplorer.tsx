@@ -142,15 +142,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   };
 
   const handleUpdateLabels = async (photoId: string, labelIds: string[]) => {
-    console.log('handleUpdateLabels called with:', photoId, labelIds);
     const result = await updatePhotoLabels(photoId, labelIds);
-    console.log('updatePhotoLabels result:', result);
-    
-    // Force refresh of photos to update the UI immediately
-    if (result) {
-      console.log('Refreshing photos data...');
-      // The useSupabaseData hook should automatically refresh photos after update
-    }
+    return result;
   };
 
   const handleBulkLabelManage = () => {
