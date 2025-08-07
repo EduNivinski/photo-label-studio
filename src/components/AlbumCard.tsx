@@ -75,15 +75,29 @@ export function AlbumCard({ album, labels, onClick, onEdit, onDelete, isUserCrea
           )}
         </div>
 
-        {/* Cover Image */}
-        <div className="aspect-video bg-muted rounded-lg mb-3 overflow-hidden">
+        {/* Cover Image with Gradient Overlay */}
+        <div className="relative aspect-video bg-muted rounded-lg mb-3 overflow-hidden">
           {album.cover_photo_url && !imageError ? (
-            <img
-              src={album.cover_photo_url}
-              alt={album.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={() => setImageError(true)}
-            />
+            <>
+              <img
+                src={album.cover_photo_url}
+                alt={album.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={() => setImageError(true)}
+              />
+              {/* Gradient overlay */}
+              <div className="absolute bottom-0 left-0 right-0 h-[40%] bg-gradient-to-t from-black/70 via-black/30 to-transparent group-hover:from-black/80 group-hover:via-black/40 transition-all duration-300" />
+              
+              {/* Collection info overlay */}
+              <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+                <h4 className="font-medium text-sm truncate drop-shadow-sm mb-1">
+                  {album.name}
+                </h4>
+                <div className="text-xs text-white/80 drop-shadow-sm">
+                  Coleção
+                </div>
+              </div>
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
               <div className="text-center">

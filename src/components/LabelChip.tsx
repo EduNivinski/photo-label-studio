@@ -10,6 +10,7 @@ interface LabelChipProps {
   variant?: 'filter' | 'tag';
   showCount?: number;
   size?: 'sm' | 'default';
+  className?: string;
 }
 
 export function LabelChip({ 
@@ -19,7 +20,8 @@ export function LabelChip({
   onRemove, 
   variant = 'filter',
   showCount,
-  size = 'default'
+  size = 'default',
+  className = ''
 }: LabelChipProps) {
   const chipStyle = label.color ? { 
     backgroundColor: isSelected ? label.color : `${label.color}20`,
@@ -35,6 +37,7 @@ export function LabelChip({
         ${variant === 'filter' ? 'border' : ''}
         ${isSelected ? 'shadow-sm' : 'hover:bg-label-background'}
         ${size === 'sm' ? 'text-xs px-2 py-0.5' : ''}
+        ${className}
       `}
       style={chipStyle}
       onClick={onClick}
