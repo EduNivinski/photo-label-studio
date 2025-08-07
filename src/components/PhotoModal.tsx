@@ -128,6 +128,7 @@ export function PhotoModal({
               <video
                 src={photo.url}
                 controls
+                autoPlay
                 className="max-w-full max-h-[60vh] object-contain rounded-lg"
                 preload="metadata"
               >

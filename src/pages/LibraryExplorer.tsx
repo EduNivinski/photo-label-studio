@@ -17,6 +17,7 @@ import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
 import { usePagination } from '@/hooks/usePagination';
 import { useAlbums } from '@/hooks/useAlbums';
 import { useToast } from '@/hooks/use-toast';
+import { PhotoModal } from '@/components/PhotoModal';
 
 export default function LibraryExplorer() {
   const { 
@@ -69,6 +70,8 @@ export default function LibraryExplorer() {
   const [showLabelManager, setShowLabelManager] = useState(false);
   const [showLabelCreator, setShowLabelCreator] = useState(false);
   const [selectedPhotoForLabels, setSelectedPhotoForLabels] = useState<string | null>(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [selectedPhotoForModal, setSelectedPhotoForModal] = useState<any | null>(null);
 
   // Check if there are active filters
   const hasActiveFilters = filters.labels.length > 0 || filters.searchTerm;
@@ -80,7 +83,8 @@ export default function LibraryExplorer() {
   }, [hasActiveFilters, filteredPhotos]);
 
   const handlePhotoClick = (photo: any) => {
-    // Handle single photo view if needed
+    setSelectedPhotoForModal(photo);
+    setShowPhotoModal(true);
   };
 
   const handleLabelManage = (photo: any) => {
@@ -164,6 +168,26 @@ export default function LibraryExplorer() {
       title: "Label criada",
       description: `A label "${name}" foi criada com sucesso.`,
     });
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!selectedPhotoForModal) return;
+    
+    const success = await deletePhoto(selectedPhotoForModal.id);
+    if (success) {
+      setShowPhotoModal(false);
+      setSelectedPhotoForModal(null);
+      toast({
+        title: "Foto deletada",
+        description: "A foto foi deletada com sucesso.",
+      });
+    } else {
+      toast({
+        title: "Erro",
+        description: "Erro ao deletar a foto.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -353,6 +377,23 @@ export default function LibraryExplorer() {
         isOpen={showLabelCreator}
         onOpenChange={setShowLabelCreator}
         onCreateLabel={handleCreateLabel}
+      />
+
+      <PhotoModal
+        photo={selectedPhotoForModal}
+        labels={labels}
+        isOpen={showPhotoModal}
+        onClose={() => {
+          setShowPhotoModal(false);
+          setSelectedPhotoForModal(null);
+        }}
+        onLabelManage={() => {
+          if (selectedPhotoForModal) {
+            setSelectedPhotoForLabels(selectedPhotoForModal.id);
+            setShowLabelManager(true);
+          }
+        }}
+        onDelete={handleDeletePhoto}
       />
       </div>
     </>
