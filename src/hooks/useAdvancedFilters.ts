@@ -100,7 +100,7 @@ export function useAdvancedFilters(photos: Photo[]) {
     });
 
     return filtered;
-  }, [photos, filters]);
+  }, [photos, filters, showFavorites]);
 
   const updateFilters = (updates: Partial<PhotoFilters>) => {
     setFilters(prev => ({ ...prev, ...updates }));
