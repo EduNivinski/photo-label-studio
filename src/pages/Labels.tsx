@@ -191,10 +191,9 @@ export default function Labels() {
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div
-                      className="px-3 py-1.5 rounded-full text-sm font-medium flex-1 text-center"
+                      className="px-3 py-1.5 rounded-full text-sm font-medium flex-1 text-center text-white"
                       style={{
-                        backgroundColor: label.color || '#6b7280',
-                        color: getContrastColor(label.color || '#6b7280')
+                        backgroundColor: label.color || '#6b7280'
                       }}
                     >
                       {label.name}
