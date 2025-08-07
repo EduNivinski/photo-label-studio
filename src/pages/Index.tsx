@@ -303,14 +303,14 @@ const Index = () => {
   }
 
   return (
-    <>
+    <div className="flex-1 min-h-screen bg-background">
       <AppSidebar 
         onUpload={handleUpload}
         onManageLabels={() => handleLabelManage()}
         onManageCollections={() => {/* TODO: implement collections view */}}
       />
       
-      <div className="flex-1 flex flex-col min-h-screen bg-background">
+      <div className="flex-1 flex flex-col">
         {/* Header */}
         {(currentView === 'gallery' || hasActiveFilters) && (
           <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
@@ -652,7 +652,7 @@ const Index = () => {
       {/* Keyboard Shortcuts Tooltip */}
       <KeyboardShortcuts />
       </div>
-    </>
+    </div>
   );
 };
 
