@@ -59,7 +59,7 @@ export function PhotoCard({
   };
 
   return (
-    <div className="media-card group overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer w-[200px] h-[250px] relative border border-photo-border hover:border-primary rounded-lg" onClick={handleCardClick}>
+    <div className="media-card group overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer w-[250px] h-[250px] relative border border-photo-border hover:border-primary rounded-xl" onClick={handleCardClick}>
       {/* Selection Checkbox */}
       <div className="absolute top-2 left-2 z-10">
         <div 
