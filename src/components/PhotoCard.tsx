@@ -69,9 +69,11 @@ export function PhotoCard({
   };
 
   const handleToggleFavorite = () => {
+    console.log('Toggling favorite for photo:', photo.id, 'Current favorite status:', isFavorite);
     const newLabels = isFavorite 
       ? photo.labels.filter(id => id !== 'favorites')
       : [...photo.labels, 'favorites'];
+    console.log('New labels array:', newLabels);
     onUpdateLabels(photo.id, newLabels);
   };
 

@@ -141,8 +141,10 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
     toggleSelection(photoId, isShiftPressed, filteredPhotos);
   };
 
-  const handleUpdateLabels = (photoId: string, labelIds: string[]) => {
-    updatePhotoLabels(photoId, labelIds);
+  const handleUpdateLabels = async (photoId: string, labelIds: string[]) => {
+    console.log('handleUpdateLabels called with:', photoId, labelIds);
+    const result = await updatePhotoLabels(photoId, labelIds);
+    console.log('updatePhotoLabels result:', result);
   };
 
   const handleBulkLabelManage = () => {
