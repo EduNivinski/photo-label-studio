@@ -192,7 +192,7 @@ export function PhotoCard({
               handleToggleFavorite();
             }}
           >
-            <Heart className={`h-5 w-5 transition-colors ${
+            <Heart className={`h-6 w-6 transition-colors ${
               isFavorite 
                 ? 'fill-red-500 text-red-500 drop-shadow-lg' 
                 : 'text-white/90 hover:text-red-400'
