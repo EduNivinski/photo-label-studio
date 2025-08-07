@@ -166,12 +166,30 @@ export default function LibraryExplorer() {
   };
 
   const handleApplyBulkLabels = async (photoIds: string[], labelIds: string[]) => {
-    await applyLabelsToPhotos(photoIds, labelIds);
+    let successCount = 0;
+    for (const photoId of photoIds) {
+      const photo = photos.find(p => p.id === photoId);
+      if (photo) {
+        const currentLabels = photo.labels;
+        const newLabels = Array.from(new Set([...currentLabels, ...labelIds]));
+        const success = await updatePhotoLabels(photoId, newLabels);
+        if (success) successCount++;
+      }
+    }
     clearSelection();
-    toast({
-      title: "Labels aplicadas",
-      description: `Labels foram aplicadas a ${photoIds.length} foto(s).`,
-    });
+    
+    if (successCount === photoIds.length) {
+      toast({
+        title: "Labels aplicadas",
+        description: `Labels foram aplicadas a ${photoIds.length} foto(s).`,
+      });
+    } else {
+      toast({
+        title: "Erro ao aplicar labels",
+        description: `Erro ao aplicar labels em algumas fotos. ${successCount} de ${photoIds.length} foram processadas.`,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveBulkLabels = async (photoIds: string[], labelIds: string[]) => {
