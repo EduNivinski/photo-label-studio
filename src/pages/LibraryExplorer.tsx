@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Save, Plus, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -20,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { PhotoModal } from '@/components/PhotoModal';
 
 export default function LibraryExplorer() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { 
     photos, 
     labels, 
@@ -72,6 +74,32 @@ export default function LibraryExplorer() {
   const [selectedPhotoForLabels, setSelectedPhotoForLabels] = useState<string | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [selectedPhotoForModal, setSelectedPhotoForModal] = useState<any | null>(null);
+
+  // Check for recent filter parameter
+  useEffect(() => {
+    const filterParam = searchParams.get('filter');
+    if (filterParam === 'recent') {
+      // Apply recent filter (last 24 hours)
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      updateFilters({
+        sortBy: 'date-desc',
+        dateRange: {
+          start: yesterday,
+          end: new Date()
+        }
+      });
+
+      // Clear the URL parameter
+      setSearchParams({});
+      
+      toast({
+        title: "Filtro aplicado",
+        description: "Mostrando fotos adicionadas nas últimas 24 horas",
+      });
+    }
+  }, [searchParams, updateFilters, setSearchParams, toast]);
 
   // Check if there are active filters
   const hasActiveFilters = filters.labels.length > 0 || filters.searchTerm;

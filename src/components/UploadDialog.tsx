@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { UploadArea } from './UploadArea';
 import { UploadLabelSelector } from './UploadLabelSelector';
+import { useNavigate } from 'react-router-dom';
 import type { Label } from '@/types/photo';
 
 interface UploadDialogProps {
@@ -21,6 +22,7 @@ export function UploadDialog({
   onCreateLabel, 
   onApplyLabelsToPhotos 
 }: UploadDialogProps) {
+  const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
   const [showLabelSelector, setShowLabelSelector] = useState(false);
   const [uploadedPhotoIds, setUploadedPhotoIds] = useState<string[]>([]);
@@ -47,6 +49,9 @@ export function UploadDialog({
       await onApplyLabelsToPhotos(uploadedPhotoIds, labelIds);
     }
     handleCloseAll();
+    
+    // Redirect to explore page with recent filter
+    navigate('/explore?filter=recent');
   };
 
   const handleCloseAll = () => {
@@ -54,6 +59,11 @@ export function UploadDialog({
     setUploadedPhotoIds([]);
     setUploadedCount(0);
     onClose();
+    
+    // Also redirect if user closes without applying labels
+    if (uploadedPhotoIds.length > 0) {
+      navigate('/explore?filter=recent');
+    }
   };
 
   return (

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useToast } from '@/hooks/use-toast';
 import { UploadLabelSelectorInline } from '@/components/UploadLabelSelectorInline';
+import { useNavigate } from 'react-router-dom';
 
 interface UploadingFile {
   id: string;
@@ -19,6 +20,7 @@ interface UploadingFile {
 export default function Upload() {
   const { labels, uploadPhotos } = useSupabaseData();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -68,6 +70,8 @@ export default function Upload() {
       uf.status === 'pending' ? { ...uf, status: 'uploading' as const } : uf
     ));
 
+    let allUploadsSuccessful = true;
+
     for (const uploadingFile of pendingFiles) {
       try {
         // Simulate progress
@@ -103,6 +107,7 @@ export default function Upload() {
           throw new Error('Upload failed');
         }
       } catch (error) {
+        allUploadsSuccessful = false;
         setUploadingFiles(prev => prev.map(uf => 
           uf.id === uploadingFile.id 
             ? { ...uf, status: 'error' as const }
@@ -115,6 +120,13 @@ export default function Upload() {
           variant: "destructive",
         });
       }
+    }
+
+    // Redirect to explore page with recent filter after all uploads
+    if (allUploadsSuccessful && pendingFiles.length > 0) {
+      setTimeout(() => {
+        navigate('/explore?filter=recent');
+      }, 1500);
     }
   };
 
