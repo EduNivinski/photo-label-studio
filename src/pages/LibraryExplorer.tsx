@@ -203,23 +203,7 @@ export default function LibraryExplorer() {
 
   return (
     <div className="flex-1 min-h-screen bg-background">
-      <AppSidebar 
-        labels={labels}
-        selectedLabels={filters.labels}
-        onLabelToggle={toggleLabel}
-        onClearFilters={clearFilters}
-        onUpload={() => {/* TODO: implement upload */}}
-        onManageLabels={() => setShowLabelManager(true)}
-        onManageCollections={() => {/* TODO: implement collections */}}
-        showSearch={true}
-        filters={filters}
-        onUpdateFilters={updateFilters}
-        onToggleFileType={toggleFileType}
-        onToggleMediaType={toggleMediaType}
-      />
-      
-      <div className="flex-1">
-        {/* Header */}
+      {/* Header */}
         <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
           <div className="px-4 py-2">
             <div className="flex items-center justify-between">
@@ -395,7 +379,6 @@ export default function LibraryExplorer() {
         }}
         onDelete={handleDeletePhoto}
       />
-      </div>
     </div>
   );
 }
