@@ -56,22 +56,16 @@ export function PhotoModal({
   const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
 
-  // Early return if photo is null
-  if (!photo) {
-    return null;
-  }
-
-  const photoLabels = labels.filter(label => photo.labels.includes(label.id));
-  const isVideo = getFileType(photo.url) === 'video';
-
   useEffect(() => {
-    setAliasValue(photo?.alias || '');
-    setZoom(1);
+    if (photo) {
+      setAliasValue(photo.alias || '');
+      setZoom(1);
+    }
   }, [photo]);
 
   // Keyboard navigation
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !photo) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -92,7 +86,16 @@ export function PhotoModal({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, hasNext, hasPrevious, onNext, onPrevious, onClose, onDelete]);
+  }, [isOpen, hasNext, hasPrevious, onNext, onPrevious, onClose, onDelete, photo]);
+
+  // Early return if photo is null - AFTER all hooks
+  if (!photo) {
+    return null;
+  }
+
+  const photoLabels = labels.filter(label => photo.labels.includes(label.id));
+  const isVideo = getFileType(photo.url) === 'video';
+
 
   const handleDownload = () => {
     const link = document.createElement('a');
