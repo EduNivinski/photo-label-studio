@@ -41,25 +41,28 @@ export function SmartLabelSearch({
       {/* Search Input */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar labels..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onFocus={() => setIsOpen(true)}
-              className={`pl-10 ${compact ? 'h-8 text-sm' : ''}`}
-            />
-          </div>
+          <Button 
+            variant="outline" 
+            className={`w-full justify-start text-left font-normal ${compact ? 'h-8 text-sm' : 'h-10'}`}
+            onClick={() => setIsOpen(!isOpen)}
+          >
+            <Search className="mr-2 h-4 w-4 text-muted-foreground" />
+            {searchTerm || "Buscar labels..."}
+          </Button>
         </PopoverTrigger>
         
         <PopoverContent 
-          className="p-0 w-80" 
+          className="p-0 w-80 z-50" 
           align="start"
           onOpenAutoFocus={(e) => e.preventDefault()}
+          sideOffset={4}
         >
           <Command>
-            <CommandInput placeholder="Buscar labels..." />
+            <CommandInput 
+              placeholder="Buscar labels..." 
+              value={searchTerm}
+              onValueChange={setSearchTerm}
+            />
             <CommandList>
               <CommandEmpty>Nenhuma label encontrada.</CommandEmpty>
               <CommandGroup heading="Labels disponíveis">
