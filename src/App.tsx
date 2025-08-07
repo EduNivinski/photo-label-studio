@@ -22,6 +22,7 @@ function AppContent() {
   const { photos, labels } = useSupabaseData();
   const { 
     filters, 
+    filteredPhotos,
     showFavorites,
     updateFilters,
     toggleLabel,
@@ -58,8 +59,32 @@ function AppContent() {
           <Route path="/labels" element={<Labels />} />
           <Route path="/collections" element={<Collections />} />
           <Route path="/collections/:id" element={<CollectionDetail />} />
-          <Route path="/library" element={<LibraryExplorer />} />
-          <Route path="/explore" element={<LibraryExplorer />} />
+          <Route path="/library" element={
+            <LibraryExplorer 
+              filters={filters}
+              filteredPhotos={filteredPhotos}
+              showFavorites={showFavorites}
+              updateFilters={updateFilters}
+              toggleLabel={toggleLabel}
+              toggleFileType={toggleFileType}
+              toggleMediaType={toggleMediaType}
+              toggleFavorites={toggleFavorites}
+              clearFilters={clearFilters}
+            />
+          } />
+          <Route path="/explore" element={
+            <LibraryExplorer 
+              filters={filters}
+              filteredPhotos={filteredPhotos}
+              showFavorites={showFavorites}
+              updateFilters={updateFilters}
+              toggleLabel={toggleLabel}
+              toggleFileType={toggleFileType}
+              toggleMediaType={toggleMediaType}
+              toggleFavorites={toggleFavorites}
+              clearFilters={clearFilters}
+            />
+          } />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>

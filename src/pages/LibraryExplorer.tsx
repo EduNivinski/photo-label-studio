@@ -13,14 +13,28 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
+import { usePhotoSelection } from '@/hooks/usePhotoSelection';
+
 import { usePagination } from '@/hooks/usePagination';
 import { useAlbums } from '@/hooks/useAlbums';
 import { useToast } from '@/hooks/use-toast';
 import { PhotoModal } from '@/components/PhotoModal';
+import type { Photo, PhotoFilters } from '@/types/photo';
 
-export default function LibraryExplorer() {
+interface LibraryExplorerProps {
+  filters?: PhotoFilters;
+  filteredPhotos?: Photo[];
+  showFavorites?: boolean;
+  updateFilters?: (updates: Partial<PhotoFilters>) => void;
+  toggleLabel?: (labelId: string) => void;
+  toggleFileType?: (fileType: string) => void;
+  toggleMediaType?: (mediaType: string) => void;
+  toggleFavorites?: () => void;
+  clearFilters?: () => void;
+}
+
+export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { 
     photos, 
@@ -42,18 +56,19 @@ export default function LibraryExplorer() {
     getSelectedPhotos 
   } = usePhotoSelection();
 
-  const { 
-    filters, 
-    filteredPhotos, 
-    showFavorites,
-    updateFilters,
-    updateSearchTerm, 
-    toggleLabel,
-    toggleFileType,
-    toggleMediaType,
-    toggleFavorites,
-    clearFilters 
-  } = useAdvancedFilters(photos);
+  // Use global filters if provided, otherwise use local filters
+  const localFiltersHook = useAdvancedFilters(photos);
+  
+  const filters = props.filters || localFiltersHook.filters;
+  const filteredPhotos = props.filteredPhotos || localFiltersHook.filteredPhotos;
+  const showFavorites = props.showFavorites || localFiltersHook.showFavorites;
+  const updateFilters = props.updateFilters || localFiltersHook.updateFilters;
+  const updateSearchTerm = localFiltersHook.updateSearchTerm;
+  const toggleLabel = props.toggleLabel || localFiltersHook.toggleLabel;
+  const toggleFileType = props.toggleFileType || localFiltersHook.toggleFileType;
+  const toggleMediaType = props.toggleMediaType || localFiltersHook.toggleMediaType;
+  const toggleFavorites = props.toggleFavorites || localFiltersHook.toggleFavorites;
+  const clearFilters = props.clearFilters || localFiltersHook.clearFilters;
 
   const {
     paginatedItems: paginatedPhotos,
@@ -123,7 +138,7 @@ export default function LibraryExplorer() {
   };
 
   const handleSelectionToggle = (photoId: string, isShiftPressed: boolean) => {
-    toggleSelection(photoId, isShiftPressed, paginatedPhotos);
+    toggleSelection(photoId, isShiftPressed, filteredPhotos);
   };
 
   const handleUpdateLabels = (photoId: string, labelIds: string[]) => {
