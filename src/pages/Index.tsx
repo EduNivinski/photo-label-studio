@@ -314,7 +314,7 @@ const Index = () => {
         {/* Header */}
         {(currentView === 'gallery' || hasActiveFilters) && (
           <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-            <div className="px-6 py-4">
+            <div className="px-4 py-2">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-xl font-bold text-foreground">Galeria de Fotos</h1>
@@ -340,7 +340,7 @@ const Index = () => {
         {currentView === 'home' && !hasActiveFilters ? (
           <div className="flex-1 overflow-y-auto">
             {/* Hero Section */}
-            <section className="p-4 bg-gradient-to-br from-primary/5 to-background border-b border-border">
+            <section className="px-4 py-3 bg-gradient-to-br from-primary/5 to-background border-b border-border">
               <div className="text-center max-w-2xl mx-auto">
                 <h1 className="text-3xl font-bold text-foreground mb-2">📷 PhotoLabel</h1>
                 <p className="text-muted-foreground mb-4">
@@ -370,7 +370,7 @@ const Index = () => {
             </section>
 
             {/* My Collections Section - Renamed from Albums */}
-            <section className="p-4 border-b border-border animate-fade-in">
+            <section className="px-4 py-3 border-b border-border animate-fade-in">
               <div className="mb-4">
                 <div className="flex items-center gap-3 mb-2">
                   <FolderOpen className="h-6 w-6 text-primary" />

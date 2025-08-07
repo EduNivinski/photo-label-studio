@@ -197,7 +197,7 @@ export default function LibraryExplorer() {
       <div className="flex-1 min-h-screen bg-background">
         {/* Header */}
         <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-          <div className="px-6 py-3">
+          <div className="px-4 py-2">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Explorar Biblioteca</h1>
@@ -245,8 +245,8 @@ export default function LibraryExplorer() {
         {/* Active Filters Summary */}
         {hasActiveFilters && (
           <section className="border-b border-border bg-card/30">
-            <div className="px-6 py-3">
-              <Card className="p-3 bg-primary/5 border-primary/20">
+            <div className="px-4 py-2">
+              <Card className="p-2 bg-primary/5 border-primary/20">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground">

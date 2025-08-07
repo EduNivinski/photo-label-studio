@@ -137,6 +137,41 @@ All colors MUST be HSL.
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 1rem;
     justify-items: center;
-    padding: 1rem;
+    padding: 0.5rem;
+  }
+
+  /* Media card styling */
+  .media-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    padding: 0;
+  }
+
+  .media-card img, .media-card video {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .card-overlay {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    padding: 8px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+    color: #fff;
+    font-size: 12px;
+  }
+
+  .card-overlay .labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .card-overlay .date {
+    margin-top: 4px;
+    font-weight: 400;
   }
 }
