@@ -56,19 +56,22 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
     getSelectedPhotos 
   } = usePhotoSelection();
 
-  // Use global filters if provided, otherwise use local filters
-  const localFiltersHook = useAdvancedFilters(photos);
+  // Check if we're receiving global filters from App.tsx
+  const isUsingGlobalFilters = !!props.filteredPhotos;
   
-  const filters = props.filters || localFiltersHook.filters;
-  const filteredPhotos = props.filteredPhotos || localFiltersHook.filteredPhotos;
-  const showFavorites = props.showFavorites || localFiltersHook.showFavorites;
-  const updateFilters = props.updateFilters || localFiltersHook.updateFilters;
-  const updateSearchTerm = localFiltersHook.updateSearchTerm;
-  const toggleLabel = props.toggleLabel || localFiltersHook.toggleLabel;
-  const toggleFileType = props.toggleFileType || localFiltersHook.toggleFileType;
-  const toggleMediaType = props.toggleMediaType || localFiltersHook.toggleMediaType;
-  const toggleFavorites = props.toggleFavorites || localFiltersHook.toggleFavorites;
-  const clearFilters = props.clearFilters || localFiltersHook.clearFilters;
+  // Use local filters only if no global filters provided
+  const localFiltersHook = !isUsingGlobalFilters ? useAdvancedFilters(photos) : null;
+  
+  const filters = isUsingGlobalFilters ? props.filters : localFiltersHook?.filters;
+  const filteredPhotos = isUsingGlobalFilters ? props.filteredPhotos : localFiltersHook?.filteredPhotos || photos;
+  const showFavorites = isUsingGlobalFilters ? props.showFavorites : localFiltersHook?.showFavorites || false;
+  const updateFilters = isUsingGlobalFilters ? props.updateFilters : localFiltersHook?.updateFilters;
+  const updateSearchTerm = localFiltersHook?.updateSearchTerm;
+  const toggleLabel = isUsingGlobalFilters ? props.toggleLabel : localFiltersHook?.toggleLabel;
+  const toggleFileType = isUsingGlobalFilters ? props.toggleFileType : localFiltersHook?.toggleFileType;
+  const toggleMediaType = isUsingGlobalFilters ? props.toggleMediaType : localFiltersHook?.toggleMediaType;
+  const toggleFavorites = isUsingGlobalFilters ? props.toggleFavorites : localFiltersHook?.toggleFavorites;
+  const clearFilters = isUsingGlobalFilters ? props.clearFilters : localFiltersHook?.clearFilters;
 
   const {
     paginatedItems: paginatedPhotos,
@@ -95,7 +98,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   // Check for recent filter parameter
   useEffect(() => {
     const filterParam = searchParams.get('filter');
-    if (filterParam === 'recent') {
+    if (filterParam === 'recent' && updateFilters) {
       // Apply recent filter (last 24 hours)
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -119,7 +122,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   }, [searchParams, updateFilters, setSearchParams, toast]);
 
   // Check if there are active filters
-  const hasActiveFilters = filters.labels.length > 0 || filters.searchTerm;
+  const hasActiveFilters = filters?.labels.length > 0 || filters?.searchTerm || showFavorites;
 
   // Get photos that match current filters for album creation
   const photosForAlbum = useMemo(() => {
@@ -325,7 +328,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
                       Filtros ativos:
                     </span>
                     <span className="text-sm text-muted-foreground">
-                      {filters.labels.length} label{filters.labels.length !== 1 ? 's' : ''} selecionada{filters.labels.length !== 1 ? 's' : ''}
+                      {filters?.labels?.length || 0} label{(filters?.labels?.length || 0) !== 1 ? 's' : ''} selecionada{(filters?.labels?.length || 0) !== 1 ? 's' : ''}
+                      {showFavorites && ' + favoritos'}
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground">
@@ -379,7 +383,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         isOpen={showCreateAlbum}
         onClose={() => setShowCreateAlbum(false)}
         onCreateAlbum={handleCreateAlbumFromFilters}
-        selectedLabels={filters.labels}
+        selectedLabels={filters?.labels || []}
         labels={labels}
         filteredPhotos={photosForAlbum}
       />
