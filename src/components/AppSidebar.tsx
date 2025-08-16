@@ -29,11 +29,11 @@ import { Badge } from '@/components/ui/badge';
 import type { Label, PhotoFilters } from '@/types/photo';
 
 const navigation = [
-  { title: 'Início', url: '/', icon: Home },
+  { title: 'Explorar Biblioteca', url: '/', icon: Library },
   { title: 'Upload de Fotos', url: '/upload', icon: Upload },
   { title: 'Gestão de Labels', url: '/labels', icon: Tag },
   { title: 'Minhas Coleções', url: '/collections', icon: FolderOpen },
-  { title: 'Explorar Biblioteca', url: '/explore', icon: Library },
+  { title: 'Home Tradicional', url: '/home', icon: Home },
 ];
 
 interface AppSidebarProps {
@@ -144,8 +144,8 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Smart Label Search and Advanced Filters - only show on explore page and when not collapsed */}
-        {showSearch && open && currentPath === '/explore' && (
+        {/* Smart Label Search and Advanced Filters - only show on main library page and when not collapsed */}
+        {showSearch && open && (currentPath === '/' || currentPath === '/explore') && (
           <SidebarGroup className="mt-6">
             <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs flex items-center gap-2">
               <Search className="h-3 w-3" />

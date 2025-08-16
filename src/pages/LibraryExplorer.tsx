@@ -282,7 +282,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
           <div className="px-4 py-2">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Explorar Biblioteca</h1>
+                <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
                 <p className="text-sm text-muted-foreground">
                   {currentlyShowing} de {totalItems} arquivo{totalItems !== 1 ? 's' : ''} exibido{totalItems !== 1 ? 's' : ''}
                 </p>

@@ -82,7 +82,7 @@ function AppContent() {
     clearFilters 
   } = useAdvancedFilters(photos);
 
-  const showAdvancedSidebar = location.pathname === '/explore' || location.pathname === '/library';
+  const showAdvancedSidebar = location.pathname === '/' || location.pathname === '/explore';
   const hideSidebarRoutes = ['/auth'];
   const shouldShowSidebar = !hideSidebarRoutes.includes(location.pathname);
 
@@ -117,6 +117,21 @@ function AppContent() {
         <Routes>
           <Route path="/" element={
             <ProtectedRoute>
+              <LibraryExplorer 
+                filters={filters}
+                filteredPhotos={filteredPhotos}
+                showFavorites={showFavorites}
+                updateFilters={updateFilters}
+                toggleLabel={toggleLabel}
+                toggleFileType={toggleFileType}
+                toggleMediaType={toggleMediaType}
+                toggleFavorites={toggleFavorites}
+                clearFilters={clearFilters}
+              />
+            </ProtectedRoute>
+          } />
+          <Route path="/home" element={
+            <ProtectedRoute>
               <Index />
             </ProtectedRoute>
           } />
@@ -138,21 +153,6 @@ function AppContent() {
           <Route path="/collections/:id" element={
             <ProtectedRoute>
               <CollectionDetail />
-            </ProtectedRoute>
-          } />
-          <Route path="/library" element={
-            <ProtectedRoute>
-              <LibraryExplorer 
-                filters={filters}
-                filteredPhotos={filteredPhotos}
-                showFavorites={showFavorites}
-                updateFilters={updateFilters}
-                toggleLabel={toggleLabel}
-                toggleFileType={toggleFileType}
-                toggleMediaType={toggleMediaType}
-                toggleFavorites={toggleFavorites}
-                clearFilters={clearFilters}
-              />
             </ProtectedRoute>
           } />
           <Route path="/explore" element={
