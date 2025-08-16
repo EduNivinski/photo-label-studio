@@ -15,6 +15,7 @@ import { SmartSuggestionsSection } from '@/components/SmartSuggestionsSection';
 import { UploadDialog } from '@/components/UploadDialog';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileSearchOverlay } from '@/components/MobileSearchOverlay';
+import { NavigationHub } from '@/components/NavigationHub';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -436,11 +437,31 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         </div>
       </header>
 
+      {/* Navigation Hub - Quick Access Cards */}
+      <NavigationHub
+        albumsCount={albums.length}
+        unlabeledCount={unlabeledPhotos.length}
+        clustersCount={3} // Placeholder for smart clusters
+        onScrollToSection={(section) => {
+          if (section === 'collections') {
+            // Scroll to collections section or apply filters
+            const collectionsElement = document.getElementById('collections-section');
+            collectionsElement?.scrollIntoView({ behavior: 'smooth' });
+          } else if (section === 'unlabeled') {
+            handleToggleUnlabeledFilter();
+          } else if (section === 'smart') {
+            // Scroll to smart suggestions
+            const smartElement = document.getElementById('smart-suggestions-section');
+            smartElement?.scrollIntoView({ behavior: 'smooth' });
+          }
+        }}
+      />
+
       {/* Quick Access Sections - Show when no active filters */}
       {!hasActiveFilters && (
         <div className="px-4 py-4 space-y-6">
           {/* Minhas Coleções Section */}
-          <section className="animate-fade-in">
+          <section id="collections-section" className="animate-fade-in">
             <div className="mb-4">
               <div className="flex items-center gap-3 mb-2">
                 <FolderOpen className="h-6 w-6 text-primary" />
@@ -566,7 +587,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
           />
 
           {/* Smart Suggestions Section */}
-          <SmartSuggestionsSection
+          <div id="smart-suggestions-section">
+            <SmartSuggestionsSection
             photos={photos}
             labels={labels}
             onClusterClick={(labelIds) => {
@@ -576,7 +598,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
                 }
               });
             }}
-          />
+            />
+          </div>
         </div>
       )}
 
