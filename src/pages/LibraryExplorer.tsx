@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Save, Plus, Archive } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Save, Plus, Archive, Upload, FolderOpen, FolderPlus, Edit, Trash2, TagIcon, Filter, Grid3X3, List, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PhotoGallery } from '@/components/PhotoGallery';
@@ -9,18 +9,23 @@ import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { StandardLabelCreator } from '@/components/StandardLabelCreator';
-import { AppSidebar } from '@/components/AppSidebar';
-import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { HorizontalCarousel } from '@/components/HorizontalCarousel';
+import { UnlabeledPhotosSection } from '@/components/UnlabeledPhotosSection';
+import { SmartSuggestionsSection } from '@/components/SmartSuggestionsSection';
+import { UploadDialog } from '@/components/UploadDialog';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { MobileSearchOverlay } from '@/components/MobileSearchOverlay';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Toggle } from '@/components/ui/toggle';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
-
 import { usePagination } from '@/hooks/usePagination';
 import { useAlbums } from '@/hooks/useAlbums';
 import { useToast } from '@/hooks/use-toast';
 import { PhotoModal } from '@/components/PhotoModal';
 import type { Photo, PhotoFilters } from '@/types/photo';
+import type { Album } from '@/types/album';
 
 interface LibraryExplorerProps {
   filters?: PhotoFilters;
@@ -43,7 +48,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
     updatePhotoLabels, 
     deletePhoto, 
     createLabel,
-    applyLabelsToPhotos 
+    applyLabelsToPhotos,
+    uploadPhotos
   } = useSupabaseData();
 
   const { 
@@ -90,7 +96,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
     totalItems
   } = usePagination(filteredPhotos, 30);
 
-  const { createAlbum } = useAlbums();
+  const { albums, createAlbum, updateAlbum, deleteAlbum } = useAlbums();
   const { toast } = useToast();
 
   // Dialog states
@@ -98,9 +104,17 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   const [showBulkLabel, setShowBulkLabel] = useState(false);
   const [showLabelManager, setShowLabelManager] = useState(false);
   const [showLabelCreator, setShowLabelCreator] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [showEditAlbum, setShowEditAlbum] = useState(false);
   const [selectedPhotoForLabels, setSelectedPhotoForLabels] = useState<string | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [selectedPhotoForModal, setSelectedPhotoForModal] = useState<any | null>(null);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  
+  // View states for new home design
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showUnlabeledFilter, setShowUnlabeledFilter] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   // Check for recent filter parameter
   useEffect(() => {
@@ -129,7 +143,13 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   }, [searchParams, updateFilters, setSearchParams, toast]);
 
   // Check if there are active filters
-  const hasActiveFilters = filters?.labels.length > 0 || filters?.searchTerm || showFavorites;
+  const hasActiveFilters = filters?.labels.length > 0 || filters?.searchTerm || showFavorites || showUnlabeledFilter;
+  
+  // Get unlabeled photos for the filter
+  const unlabeledPhotos = useMemo(() => 
+    photos.filter(photo => photo.labels.filter(label => label !== 'favorites').length === 0),
+    [photos]
+  );
 
   // Get photos that match current filters for album creation
   const photosForAlbum = useMemo(() => {
@@ -264,6 +284,61 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
     }
   };
 
+  // Album management handlers
+  const handleAlbumClick = (album: Album) => {
+    // Apply album filters (labels associated with the album)
+    album.labels.forEach(labelId => {
+      if (!filters?.labels.includes(labelId)) {
+        toggleLabel?.(labelId);
+      }
+    });
+  };
+
+  const handleEditAlbum = (album: Album) => {
+    setSelectedAlbum(album);
+    setShowEditAlbum(true);
+  };
+
+  const handleDeleteAlbum = async (albumId: string) => {
+    const confirmed = confirm('Tem certeza que deseja deletar esta coleção?');
+    if (confirmed) {
+      const success = await deleteAlbum(albumId);
+      if (success) {
+        toast({
+          title: "Coleção deletada",
+          description: "A coleção foi deletada com sucesso.",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: "Erro ao deletar coleção.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleUploadFiles = async (files: File[]) => {
+    const uploadedPhotos = await uploadPhotos(files);
+    if (uploadedPhotos && uploadedPhotos.length > 0) {
+      toast({
+        title: "Upload concluído!",
+        description: `${uploadedPhotos.length} arquivo(s) enviado(s) com sucesso.`,
+      });
+    }
+  };
+
+  const handleToggleUnlabeledFilter = () => {
+    if (showUnlabeledFilter) {
+      setShowUnlabeledFilter(false);
+      // Clear unlabeled filter if active
+      updateFilters?.({ showUnlabeled: false });
+    } else {
+      setShowUnlabeledFilter(true);
+      updateFilters?.({ showUnlabeled: true });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -276,105 +351,287 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   }
 
   return (
-    <div className="flex-1 min-h-screen bg-background">
-      {/* Header */}
-        <header className="border-b border-border bg-background sticky top-0 z-40">
-          <div className="px-4 py-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
-                <p className="text-sm text-muted-foreground">
-                  {currentlyShowing} de {totalItems} arquivo{totalItems !== 1 ? 's' : ''} exibido{totalItems !== 1 ? 's' : ''}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Select value={itemsPerPage.toString()} onValueChange={(value) => changeItemsPerPage(parseInt(value))}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 por página</SelectItem>
-                    <SelectItem value="60">60 por página</SelectItem>
-                    <SelectItem value="100">100 por página</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowLabelCreator(true)}
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Nova Label
-                </Button>
-
-                {hasActiveFilters && (
-                  <Button
-                    onClick={() => setShowCreateAlbum(true)}
-                    className="gap-2 bg-primary hover:bg-primary/90"
-                  >
-                    <Archive className="h-4 w-4" />
-                    Salvar como Coleção
-                  </Button>
-                )}
-              </div>
+    <div className="flex-1 min-h-screen bg-background pb-20 md:pb-0">
+      {/* Enhanced Header with Quick Actions - Hide buttons on mobile, show simplified version */}
+      <header className="border-b border-border bg-background sticky top-0 z-40">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
+              <p className="text-sm text-muted-foreground">
+                {currentlyShowing} de {totalItems} arquivo{totalItems !== 1 ? 's' : ''} • {unlabeledPhotos.length} sem labels
+              </p>
             </div>
-          </div>
-        </header>
 
-        {/* Active Filters Summary */}
-        {hasActiveFilters && (
-          <section className="border-b border-border bg-card/30">
-            <div className="px-4 py-2">
-              <Card className="p-2 bg-primary/5 border-primary/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">
-                      Filtros ativos:
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {filters?.labels?.length || 0} label{(filters?.labels?.length || 0) !== 1 ? 's' : ''} selecionada{(filters?.labels?.length || 0) !== 1 ? 's' : ''}
-                      {showFavorites && ' + favoritos'}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {totalItems} arquivo{totalItems !== 1 ? 's' : ''} no resultado
-                  </span>
-                </div>
-              </Card>
-            </div>
-          </section>
-        )}
+            {/* Desktop Quick Actions - Hidden on mobile */}
+            <div className="hidden md:flex items-center gap-2">
+              {/* Quick Actions */}
+              <Toggle 
+                pressed={showUnlabeledFilter}
+                onPressedChange={handleToggleUnlabeledFilter}
+                className="gap-2"
+                size="sm"
+              >
+                <TagIcon className="h-4 w-4" />
+                Sem Labels ({unlabeledPhotos.length})
+              </Toggle>
 
-        {/* Photos Grid */}
-        <main className="flex-1">
-          <PhotoGallery
-            photos={paginatedPhotos}
-            labels={labels}
-            selectedPhotoIds={selectedPhotoIds}
-            onPhotoClick={handlePhotoClick}
-            onLabelManage={handleLabelManage}
-            onSelectionToggle={handleSelectionToggle}
-            onUpdateLabels={handleUpdateLabels}
-          />
-          
-          {/* Load More Button */}
-          {hasMoreItems && (
-            <div className="flex justify-center py-8">
-              <Button 
-                onClick={loadMore} 
-                variant="outline" 
-                size="lg"
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUpload(true)}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Upload
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLabelCreator(true)}
                 className="gap-2"
               >
                 <Plus className="h-4 w-4" />
-                Mostrar Mais Arquivos (+30)
+                Nova Label
               </Button>
+
+              {hasActiveFilters && (
+                <Button
+                  onClick={() => setShowCreateAlbum(true)}
+                  className="gap-2 bg-primary hover:bg-primary/90"
+                >
+                  <Archive className="h-4 w-4" />
+                  Salvar como Coleção
+                </Button>
+              )}
             </div>
-          )}
-        </main>
+          </div>
+
+          {/* View Controls - Desktop only */}
+          <div className="hidden md:flex items-center justify-between mt-3">
+            <div className="flex items-center gap-2">
+              <Select value={itemsPerPage.toString()} onValueChange={(value) => changeItemsPerPage(parseInt(value))}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 por página</SelectItem>
+                  <SelectItem value="60">60 por página</SelectItem>
+                  <SelectItem value="100">100 por página</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Toggle 
+                pressed={viewMode === 'grid'}
+                onPressedChange={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                size="sm"
+              >
+                {viewMode === 'grid' ? <Grid3X3 className="h-4 w-4" /> : <List className="h-4 w-4" />}
+              </Toggle>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Quick Access Sections - Show when no active filters */}
+      {!hasActiveFilters && (
+        <div className="px-4 py-4 space-y-6">
+          {/* Minhas Coleções Section */}
+          <section className="animate-fade-in">
+            <div className="mb-4">
+              <div className="flex items-center gap-3 mb-2">
+                <FolderOpen className="h-6 w-6 text-primary" />
+                <h2 className="text-xl font-bold text-foreground">Minhas Coleções</h2>
+                <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                  {albums.length}
+                </span>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                Acesse suas coleções organizadas por temas
+              </p>
+            </div>
+
+            {albums.length === 0 ? (
+              <Card className="p-8 text-center bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                <div className="text-4xl mb-4 opacity-80">📁</div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Nenhuma coleção criada
+                </h3>
+                <p className="text-muted-foreground mb-4 text-sm">
+                  Organize suas fotos em coleções temáticas
+                </p>
+                <Button onClick={() => setShowCreateAlbum(true)} size="sm" className="gap-2">
+                  <FolderPlus className="h-4 w-4" />
+                  Criar Coleção
+                </Button>
+              </Card>
+            ) : (
+              <HorizontalCarousel>
+                {albums.map((album, index) => (
+                  <div 
+                    key={album.id} 
+                    className="flex-shrink-0 animate-fade-in" 
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className="group cursor-pointer hover:scale-105 transition-transform duration-200">
+                      <Card 
+                        className="w-64 h-40 relative overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border hover:border-primary/40"
+                        onClick={() => handleAlbumClick(album)}
+                      >
+                        {album.cover_photo_url ? (
+                          <div className="relative w-full h-full">
+                            <img 
+                              src={album.cover_photo_url} 
+                              alt={album.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                            <div className="absolute bottom-3 left-3 right-3">
+                              <h3 className="text-white font-bold text-sm drop-shadow-lg">
+                                {album.name}
+                              </h3>
+                              <p className="text-white/80 text-xs drop-shadow">
+                                {album.labels.length} label{album.labels.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-muted to-muted/50 text-center p-3">
+                            <FolderOpen className="h-6 w-6 text-muted-foreground mb-2" />
+                            <h3 className="font-semibold text-sm text-foreground">
+                              {album.name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {album.labels.length} label{album.labels.length !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Action Buttons Overlay */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditAlbum(album);
+                              }}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAlbum(album.id);
+                              }}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Create Collection Button */}
+                <div className="flex-shrink-0">
+                  <Card 
+                    className="w-64 h-40 border-2 border-dashed border-primary/30 hover:border-primary/60 hover:scale-105 transition-all duration-200 cursor-pointer group shadow-md hover:shadow-lg"
+                    onClick={() => setShowCreateAlbum(true)}
+                  >
+                    <div className="flex flex-col items-center justify-center h-full text-center p-3">
+                      <FolderPlus className="h-6 w-6 text-primary group-hover:scale-110 transition-transform mb-2" />
+                      <span className="text-sm font-medium text-foreground">Criar Coleção</span>
+                      <span className="text-xs text-muted-foreground">Organize suas fotos</span>
+                    </div>
+                  </Card>
+                </div>
+              </HorizontalCarousel>
+            )}
+          </section>
+
+          {/* Unlabeled Photos Section */}
+          <UnlabeledPhotosSection
+            photos={photos}
+            onViewAll={handleToggleUnlabeledFilter}
+          />
+
+          {/* Smart Suggestions Section */}
+          <SmartSuggestionsSection
+            photos={photos}
+            labels={labels}
+            onClusterClick={(labelIds) => {
+              labelIds.forEach(labelId => {
+                if (!filters?.labels.includes(labelId)) {
+                  toggleLabel?.(labelId);
+                }
+              });
+            }}
+          />
+        </div>
+      )}
+
+      {/* Active Filters Summary */}
+      {hasActiveFilters && (
+        <section className="border-b border-border bg-card/30">
+          <div className="px-4 py-2">
+            <Card className="p-2 bg-primary/5 border-primary/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Filtros ativos:
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {filters?.labels?.length || 0} label{(filters?.labels?.length || 0) !== 1 ? 's' : ''} selecionada{(filters?.labels?.length || 0) !== 1 ? 's' : ''}
+                    {showFavorites && ' + favoritos'}
+                    {showUnlabeledFilter && ' + sem labels'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {totalItems} arquivo{totalItems !== 1 ? 's' : ''} no resultado
+                </span>
+              </div>
+            </Card>
+          </div>
+        </section>
+      )}
+
+      {/* Photos Grid */}
+      <main className="flex-1">
+        <PhotoGallery
+          photos={paginatedPhotos}
+          labels={labels}
+          selectedPhotoIds={selectedPhotoIds}
+          onPhotoClick={handlePhotoClick}
+          onLabelManage={handleLabelManage}
+          onSelectionToggle={handleSelectionToggle}
+          onUpdateLabels={handleUpdateLabels}
+        />
+        
+        {/* Load More Button */}
+        {hasMoreItems && (
+          <div className="flex justify-center py-8">
+            <Button 
+              onClick={loadMore} 
+              variant="outline" 
+              size="lg"
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Mostrar Mais Arquivos (+30)
+            </Button>
+          </div>
+        )}
+      </main>
 
       {/* Selection Panel */}
       <SelectionPanel
@@ -383,6 +640,16 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         onDeleteSelected={handleDeleteSelected}
         onClearSelection={clearSelection}
         onCreateCollection={() => setShowCreateAlbum(true)}
+      />
+
+      {/* Upload Dialog */}
+      <UploadDialog
+        isOpen={showUpload}
+        onClose={() => setShowUpload(false)}
+        onUpload={handleUploadFiles}
+        labels={labels}
+        onCreateLabel={createLabel}
+        onApplyLabelsToPhotos={applyLabelsToPhotos}
       />
 
       {/* Dialogs */}
@@ -418,7 +685,6 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         }
         onCreateLabel={handleCreateLabel}
         onDeleteLabel={async (labelId: string) => {
-          // Implementation for deleting label
           toast({
             title: "Funcionalidade em desenvolvimento",
             description: "A exclusão de labels será implementada em breve.",
@@ -453,6 +719,27 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
           }
         }}
         onDelete={handleDeletePhoto}
+      />
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        onUpload={() => setShowUpload(true)}
+        onToggleSearch={() => setShowMobileSearch(true)}
+        onToggleUnlabeled={handleToggleUnlabeledFilter}
+        showUnlabeled={showUnlabeledFilter}
+        unlabeledCount={unlabeledPhotos.length}
+      />
+
+      {/* Mobile Search Overlay */}
+      <MobileSearchOverlay
+        isOpen={showMobileSearch}
+        onClose={() => setShowMobileSearch(false)}
+        labels={labels}
+        selectedLabels={filters?.labels || []}
+        searchTerm={filters?.searchTerm}
+        onSearchChange={updateSearchTerm}
+        onLabelToggle={toggleLabel}
+        onClearFilters={clearFilters}
       />
     </div>
   );
