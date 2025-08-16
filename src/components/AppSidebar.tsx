@@ -118,14 +118,23 @@ export function AppSidebar({
                 <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton 
                   asChild
-                  className={`${
+                  className={`relative ${
                     isActive(item.url) 
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                  } transition-colors`}
+                  } transition-all duration-200`}
                 >
-                  <NavLink to={item.url} className="flex items-center gap-3">
-                    <item.icon className="h-4 w-4" />
+                  <NavLink 
+                    to={item.url} 
+                    className={`flex items-center gap-3 ${
+                      isActive(item.url) 
+                        ? 'border-l-4 border-l-sidebar-primary pl-3' 
+                        : 'pl-4'
+                    }`}
+                  >
+                    <item.icon className={`h-4 w-4 ${
+                      isActive(item.url) ? 'text-sidebar-primary' : ''
+                    }`} />
                     {open && <span>{item.title}</span>}
                   </NavLink>
                 </SidebarMenuButton>

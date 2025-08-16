@@ -52,11 +52,15 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    /* Sidebar colors */
-    --sidebar: 220 13% 13%;
-    --sidebar-foreground: 220 9% 46%;
-    --sidebar-accent: 220 12% 22%;
-    --sidebar-accent-foreground: 220 15% 85%;
+    /* Sidebar colors - new modern design */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 215 20% 35%;
+    --sidebar-primary: 215 85% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 85% 95%;
+    --sidebar-accent-foreground: 215 85% 30%;
+    --sidebar-border: 215 20% 90%;
+    --sidebar-ring: 215 85% 65%;
   }
 
   .dark {
@@ -87,11 +91,16 @@ All colors MUST be HSL.
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    
     /* Sidebar colors for dark mode */
-    --sidebar: 240 5.9% 10%;
+    --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 215 85% 65%;
+    --sidebar-primary-foreground: 240 5.9% 10%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 5.9% 90%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 215 85% 65%;
   }
 }
 
@@ -162,7 +171,7 @@ All colors MUST be HSL.
     }
   }
 
-  /* Media card styling - maintaining square aspect ratio */
+  /* Media card styling - square aspect ratio with modern hover effects */
   .media-card {
     position: relative;
     overflow: hidden;
@@ -170,10 +179,11 @@ All colors MUST be HSL.
     padding: 0;
     width: 280px;
     height: 280px;
+    aspect-ratio: 1 / 1;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 12px hsl(var(--border) / 0.3);
-    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px hsl(var(--border) / 0.15);
+    transition: all 0.2s ease;
   }
 
   @media (max-width: 768px) {
@@ -191,8 +201,8 @@ All colors MUST be HSL.
   }
 
   .media-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px hsl(var(--border) / 0.4);
+    transform: scale(1.02);
+    box-shadow: 0 4px 20px hsl(var(--border) / 0.25);
   }
 
   .media-card img, 
@@ -207,7 +217,7 @@ All colors MUST be HSL.
     position: absolute;
     bottom: 0;
     width: 100%;
-    padding: 8px;
+    padding: 12px;
     background: linear-gradient(to top, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.4), transparent);
     color: #fff;
     font-size: 12px;

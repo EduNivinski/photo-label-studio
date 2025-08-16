@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Tag, Plus, Play, Heart } from 'lucide-react';
+import { Tag, Plus, Play, Heart, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
 import { getFileType } from '@/lib/fileUtils';
@@ -38,7 +39,7 @@ export function PhotoCard({
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger on checkbox, buttons, or other interactive elements
     const target = e.target as HTMLElement;
-    if (target.closest('input, button, [role="button"]')) return;
+    if (target.closest('input, button, [role="button"], [data-radix-popper-content-wrapper]')) return;
     
     // Se há seleções ativas (modo seleção múltipla), clicar na foto alterna a seleção
     if (hasActiveSelections) {
@@ -78,7 +79,11 @@ export function PhotoCard({
   };
 
   return (
-    <div className="media-card group overflow-hidden transition-all duration-200 hover:shadow-lg cursor-pointer w-[250px] h-[250px] relative border border-photo-border hover:border-primary rounded-xl" onClick={handleCardClick}>
+    <div 
+      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/50" 
+      onClick={handleCardClick}
+      style={{ aspectRatio: '1 / 1' }}
+    >
       {/* Selection Checkbox */}
       <div className="absolute top-2 left-2 z-10">
         <div 
@@ -142,7 +147,7 @@ export function PhotoCard({
       )}
       
       {/* Gradient overlay for content integration */}
-      <div className="card-overlay absolute bottom-0 w-full p-2">
+      <div className="card-overlay absolute bottom-0 w-full">
         <div className="labels flex flex-wrap gap-1 mb-1">
           {photoLabels.slice(0, 2).map((label) => (
             <LabelChip 
@@ -155,9 +160,35 @@ export function PhotoCard({
             />
           ))}
           {photoLabels.length > 2 && (
-            <span className="text-xs text-white/80 bg-white/20 px-2 py-1 rounded-full">
-              +{photoLabels.length - 2}
-            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button 
+                  className="text-xs text-white/90 bg-white/25 backdrop-blur-sm px-2 py-1 rounded-full hover:bg-white/35 transition-colors flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  +{photoLabels.length - 2}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="start">
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">
+                    Todas as labels:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {photoLabels.map((label) => (
+                      <LabelChip 
+                        key={label.id}
+                        label={label}
+                        variant="tag"
+                        onRemove={() => handleRemoveLabel(label.id)}
+                        size="sm"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           
           {/* Botão para adicionar nova label */}
