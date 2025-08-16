@@ -113,6 +113,7 @@ function AppContent() {
           onToggleFileType={showAdvancedSidebar ? toggleFileType : undefined}
           onToggleMediaType={showAdvancedSidebar ? toggleMediaType : undefined}
           onToggleFavorites={showAdvancedSidebar ? toggleFavorites : undefined}
+          photos={filteredPhotos}
         />
         <Routes>
           <Route path="/" element={

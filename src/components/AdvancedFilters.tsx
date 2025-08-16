@@ -1,14 +1,9 @@
 import { useState } from 'react';
-import { Calendar, Filter, ChevronDown, Heart } from 'lucide-react';
+import { Filter, ChevronDown, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import type { PhotoFilters } from '@/types/photo';
 
 interface AdvancedFiltersProps {
@@ -43,13 +38,7 @@ export function AdvancedFilters({
 }: AdvancedFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
-
   const hasActiveFilters = 
-    filters.year || 
-    filters.dateRange?.start || 
-    filters.dateRange?.end ||
     filters.fileTypes.length < 6 ||
     filters.mediaTypes.length < 2 ||
     showFavorites;

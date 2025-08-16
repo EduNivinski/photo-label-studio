@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { SmartLabelSearch } from '@/components/SmartLabelSearch';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { DateFilters } from '@/components/DateFilters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Label, PhotoFilters } from '@/types/photo';
@@ -52,6 +53,7 @@ interface AppSidebarProps {
   onToggleFileType?: (fileType: string) => void;
   onToggleMediaType?: (mediaType: string) => void;
   onToggleFavorites?: () => void;
+  photos?: any[];
 }
 
 export function AppSidebar({
@@ -68,7 +70,8 @@ export function AppSidebar({
   onUpdateFilters,
   onToggleFileType,
   onToggleMediaType,
-  onToggleFavorites
+  onToggleFavorites,
+  photos = []
 }: AppSidebarProps) {
   const { open, setOpen } = useSidebar();
   const location = useLocation();
@@ -195,6 +198,17 @@ export function AppSidebar({
                       Limpar todos
                     </Button>
                   )}
+                </div>
+              )}
+
+              {/* Date Filters */}
+              {filters && onUpdateFilters && photos.length > 0 && (
+                <div className="px-1">
+                  <DateFilters
+                    photos={photos}
+                    filters={filters}
+                    onUpdateFilters={onUpdateFilters}
+                  />
                 </div>
               )}
 

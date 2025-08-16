@@ -16,6 +16,7 @@ import { UploadDialog } from '@/components/UploadDialog';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileSearchOverlay } from '@/components/MobileSearchOverlay';
 import { NavigationHub } from '@/components/NavigationHub';
+import { DateFilters } from '@/components/DateFilters';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
