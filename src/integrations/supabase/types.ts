@@ -22,7 +22,7 @@ export type Database = {
           labels: string[]
           name: string
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           cover_photo_url?: string | null
@@ -31,7 +31,7 @@ export type Database = {
           labels?: string[]
           name: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           cover_photo_url?: string | null
@@ -40,7 +40,7 @@ export type Database = {
           labels?: string[]
           name?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -49,19 +49,19 @@ export type Database = {
           color: string | null
           id: string
           name: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           color?: string | null
           id?: string
           name: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           color?: string | null
           id?: string
           name?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -73,7 +73,7 @@ export type Database = {
           name: string
           upload_date: string
           url: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           alias?: string | null
@@ -82,7 +82,7 @@ export type Database = {
           name: string
           upload_date?: string
           url: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           alias?: string | null
@@ -91,7 +91,7 @@ export type Database = {
           name?: string
           upload_date?: string
           url?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
