@@ -26,12 +26,19 @@ export function useAlbums() {
 
   const createAlbum = async (name: string, labels: string[], coverPhotoUrl?: string): Promise<Album | null> => {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('collections')
         .insert({
           name,
           labels,
-          cover_photo_url: coverPhotoUrl
+          cover_photo_url: coverPhotoUrl,
+          user_id: user.id
         })
         .select()
         .single();

@@ -51,26 +51,37 @@ export function useSupabaseData() {
   };
 
   const createLabel = async (name: string, color?: string): Promise<void> => {
-    const { data, error } = await (supabase as any)
-      .from('labels')
-      .insert({ name, color })
-      .select()
-      .single();
-    
-    if (error) {
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { data, error } = await (supabase as any)
+        .from('labels')
+        .insert({ name, color, user_id: user.id })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error creating label:', error);
+        return;
+      }
+      
+      if (!data) return;
+      
+      const newLabel: Label = {
+        id: data.id,
+        name: data.name,
+        color: data.color || undefined
+      };
+      
+      setLabels(prev => [...prev, newLabel]);
+    } catch (error) {
       console.error('Error creating label:', error);
-      return;
+      throw error;
     }
-    
-    if (!data) return;
-    
-    const newLabel: Label = {
-      id: data.id,
-      name: data.name,
-      color: data.color || undefined
-    };
-    
-    setLabels(prev => [...prev, newLabel]);
   };
 
   const updateLabel = async (labelId: string, name: string, color: string) => {
@@ -199,58 +210,70 @@ export function useSupabaseData() {
   };
 
   const uploadPhotos = async (files: File[]) => {
-    const uploadPromises = files.map(async (file) => {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const uploadPromises = files.map(async (file) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        
+        // Upload to storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, file);
+
+        if (uploadError) {
+          console.error('Error uploading file:', uploadError);
+          return null;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+
+        // Save to database with user_id
+        const { data: photoData, error: dbError } = await (supabase as any)
+          .from('photos')
+          .insert({
+            url: publicUrl,
+            name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+            labels: [],
+            user_id: user.id
+          })
+          .select()
+          .single();
+
+        if (dbError) {
+          console.error('Error saving to database:', dbError);
+          return null;
+        }
+
+        if (!photoData) return null;
+
+        return {
+          id: photoData.id,
+          url: photoData.url,
+          name: photoData.name,
+          uploadDate: photoData.upload_date,
+          labels: photoData.labels || [],
+          alias: photoData.alias || undefined
+        } as Photo;
+      });
+
+      const results = await Promise.all(uploadPromises);
+      const successfulUploads = results.filter(Boolean) as Photo[];
       
-      // Upload to storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('photos')
-        .upload(fileName, file);
-
-      if (uploadError) {
-        console.error('Error uploading file:', uploadError);
-        return null;
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName);
-
-      // Save to database
-      const { data: photoData, error: dbError } = await (supabase as any)
-        .from('photos')
-        .insert({
-          url: publicUrl,
-          name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-          labels: []
-        })
-        .select()
-        .single();
-
-      if (dbError) {
-        console.error('Error saving to database:', dbError);
-        return null;
-      }
-
-      if (!photoData) return null;
-
-      return {
-        id: photoData.id,
-        url: photoData.url,
-        name: photoData.name,
-        uploadDate: photoData.upload_date,
-        labels: photoData.labels || [],
-        alias: photoData.alias || undefined
-      } as Photo;
-    });
-
-    const results = await Promise.all(uploadPromises);
-    const successfulUploads = results.filter(Boolean) as Photo[];
-    
-    setPhotos(prev => [...successfulUploads, ...prev]);
-    return successfulUploads;
+      setPhotos(prev => [...successfulUploads, ...prev]);
+      return successfulUploads;
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      throw error;
+    }
   };
 
   const applyLabelsToPhotos = async (photoIds: string[], labelIds: string[]) => {
