@@ -80,12 +80,14 @@ export function PhotoCard({
 
   return (
     <div 
-      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-lg" 
+      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-md" 
       onClick={handleCardClick}
       style={{ aspectRatio: '1 / 1' }}
     >
       {/* Selection Checkbox */}
-      <div className="absolute top-2 left-2 z-10">
+      <div className={`absolute top-2 left-2 z-10 transition-opacity duration-200 ${
+        hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+      }`}>
         <div 
           className={`w-5 h-5 rounded border-2 cursor-pointer transition-all duration-200 flex items-center justify-center ${
             isSelected 
@@ -147,7 +149,9 @@ export function PhotoCard({
       )}
       
       {/* Gradient overlay for content integration */}
-      <div className="card-overlay absolute bottom-0 w-full">
+      <div className={`card-overlay absolute bottom-0 w-full transition-opacity duration-200 ${
+        hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+      }`}>
         <div className="labels flex flex-wrap gap-1 mb-1">
           {photoLabels.slice(0, 2).map((label) => (
             <LabelChip 
@@ -194,20 +198,24 @@ export function PhotoCard({
           
           {/* Botão para adicionar nova label */}
           {!isSelected && photoLabels.length < 3 && (
-            <QuickLabelSelector
-              labels={labels}
-              photoLabels={photo.labels}
-              onAddLabel={handleAddLabel}
-            >
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20"
-                onClick={(e) => e.stopPropagation()}
+            <div className={`transition-opacity duration-200 ${
+              hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}>
+              <QuickLabelSelector
+                labels={labels}
+                photoLabels={photo.labels}
+                onAddLabel={handleAddLabel}
               >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </QuickLabelSelector>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </QuickLabelSelector>
+            </div>
           )}
         </div>
         
@@ -220,21 +228,25 @@ export function PhotoCard({
           </div>
           
           {/* Favorite button */}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0 rounded-full text-white hover:text-white hover:bg-black/30 bg-black/20 backdrop-blur-sm relative z-10"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleFavorite();
-            }}
-          >
-            <Heart className={`h-6 w-6 transition-colors ${
-              isFavorite 
-                ? 'fill-red-500 text-red-500 drop-shadow-lg' 
-                : 'text-white/90 hover:text-red-400'
-            }`} />
-          </Button>
+          <div className={`transition-opacity duration-200 ${
+            hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 rounded-full text-white hover:text-white hover:bg-black/30 bg-black/20 backdrop-blur-sm relative z-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleFavorite();
+              }}
+            >
+              <Heart className={`h-6 w-6 transition-colors ${
+                isFavorite 
+                  ? 'fill-red-500 text-red-500 drop-shadow-lg' 
+                  : 'text-white/90 hover:text-red-400'
+              }`} />
+            </Button>
+          </div>
         </div>
       </div>
 
