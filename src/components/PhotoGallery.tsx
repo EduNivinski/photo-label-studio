@@ -45,9 +45,9 @@ export function PhotoGallery({
   return (
     <div className="flex-1 bg-gallery-background">
       {/* Relatório sutil no canto superior esquerdo */}
-      {hasActiveFilters && totalItems !== undefined && (
-        <div className="px-4 py-2">
-          <span className="text-xs text-muted-foreground">
+      {totalItems !== undefined && totalItems > 0 && (
+        <div className="px-4 py-3">
+          <span className="text-sm text-muted-foreground">
             {totalItems} arquivo{totalItems !== 1 ? 's' : ''} encontrado{totalItems !== 1 ? 's' : ''}
           </span>
         </div>

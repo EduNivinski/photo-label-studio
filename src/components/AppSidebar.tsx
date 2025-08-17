@@ -229,26 +229,6 @@ export function AppSidebar({
           </SidebarGroup>
         )}
 
-        {/* Total arquivos após filtros - só mostra na biblioteca principal */}
-        {open && (currentPath === '/' || currentPath === '/explore') && photos.length > 0 && (
-          <SidebarGroup className="mt-4">
-            <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs">
-              Resultados dos Filtros
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <div className="px-1 py-2">
-                <div className="bg-sidebar-accent/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-sidebar-accent-foreground">
-                    {photos.length}
-                  </div>
-                  <div className="text-xs text-sidebar-foreground/60">
-                    arquivo{photos.length !== 1 ? 's' : ''} encontrado{photos.length !== 1 ? 's' : ''}
-                  </div>
-                </div>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
     </Sidebar>
   );
