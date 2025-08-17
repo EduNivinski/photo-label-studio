@@ -46,7 +46,7 @@ export function PhotoGallery({
     <div className="flex-1 bg-gallery-background">
       {/* Relatório sutil no canto superior esquerdo */}
       {totalItems !== undefined && totalItems > 0 && (
-        <div className="px-4 py-3">
+        <div className="px-4 py-1">
           <span className="text-sm text-muted-foreground">
             {totalItems} arquivo{totalItems !== 1 ? 's' : ''} encontrado{totalItems !== 1 ? 's' : ''}
           </span>

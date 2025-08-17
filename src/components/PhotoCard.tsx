@@ -149,9 +149,7 @@ export function PhotoCard({
       )}
       
       {/* Gradient overlay for content integration */}
-      <div className={`card-overlay absolute bottom-0 w-full transition-opacity duration-200 ${
-        hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-      }`}>
+      <div className="card-overlay absolute bottom-0 w-full">
         <div className="labels flex flex-wrap gap-1 mb-1">
           {photoLabels.slice(0, 2).map((label) => (
             <LabelChip 
@@ -219,14 +217,7 @@ export function PhotoCard({
           )}
         </div>
         
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-white font-medium bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
-            {new Date(photo.uploadDate).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: 'short'
-            })}
-          </div>
-          
+        <div className="flex items-center justify-end">          
           {/* Favorite button */}
           <div className={`transition-opacity duration-200 ${
             hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
