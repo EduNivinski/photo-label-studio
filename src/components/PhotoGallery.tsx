@@ -5,6 +5,8 @@ interface PhotoGalleryProps {
   photos: Photo[];
   labels: Label[];
   selectedPhotoIds: Set<string>;
+  totalItems?: number;
+  hasActiveFilters?: boolean;
   onPhotoClick: (photo: Photo) => void;
   onLabelManage: (photo: Photo) => void;
   onSelectionToggle: (photoId: string, isShiftPressed: boolean) => void;
@@ -15,6 +17,8 @@ export function PhotoGallery({
   photos, 
   labels, 
   selectedPhotoIds,
+  totalItems,
+  hasActiveFilters = false,
   onPhotoClick, 
   onLabelManage,
   onSelectionToggle,
@@ -40,6 +44,15 @@ export function PhotoGallery({
 
   return (
     <div className="flex-1 bg-gallery-background">
+      {/* Relatório sutil no canto superior esquerdo */}
+      {hasActiveFilters && totalItems !== undefined && (
+        <div className="px-4 py-2">
+          <span className="text-xs text-muted-foreground">
+            {totalItems} arquivo{totalItems !== 1 ? 's' : ''} encontrado{totalItems !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+      
       <div className="photo-grid">
         {photos.map((photo) => (
           <PhotoCard

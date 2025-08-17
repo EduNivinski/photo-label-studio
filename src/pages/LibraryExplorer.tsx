@@ -148,7 +148,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   }, [searchParams, updateFilters, setSearchParams, toast]);
 
   // Check if there are active filters
-  const hasActiveFilters = filters?.labels.length > 0 || filters?.searchTerm || showFavorites || showUnlabeledFilter;
+  const hasActiveFilters = (filters?.labels.length || 0) > 0 || !!filters?.searchTerm || !!showFavorites || showUnlabeledFilter;
   
   // Get unlabeled photos for the filter
   const unlabeledPhotos = useMemo(() => 
@@ -407,30 +407,6 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
       />
 
 
-      {/* Active Filters Summary */}
-      {hasActiveFilters && (
-        <section className="border-b border-border bg-card/30">
-          <div className="px-4 py-2">
-            <Card className="p-2 bg-primary/5 border-primary/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    Filtros ativos:
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {filters?.labels?.length || 0} label{(filters?.labels?.length || 0) !== 1 ? 's' : ''} selecionada{(filters?.labels?.length || 0) !== 1 ? 's' : ''}
-                    {showFavorites && ' + favoritos'}
-                    {showUnlabeledFilter && ' + sem labels'}
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {totalItems} arquivo{totalItems !== 1 ? 's' : ''} no resultado
-                </span>
-              </div>
-            </Card>
-          </div>
-        </section>
-      )}
 
       {/* Photos Grid */}
       <main className="flex-1">
@@ -438,6 +414,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
           photos={paginatedPhotos}
           labels={labels}
           selectedPhotoIds={selectedPhotoIds}
+          totalItems={totalItems}
+          hasActiveFilters={hasActiveFilters}
           onPhotoClick={handlePhotoClick}
           onLabelManage={handleLabelManage}
           onSelectionToggle={handleSelectionToggle}
