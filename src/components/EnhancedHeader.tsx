@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Filter, Grid3X3, List, ChevronDown } from 'lucide-react';
+import { Filter, Grid3X3, List, ChevronDown, Tag, Trash2, X, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,6 +27,12 @@ interface EnhancedHeaderProps {
   onToggleFilters?: () => void;
   onSelectAll?: () => void;
   allSelected?: boolean;
+  // Selection actions
+  selectedCount?: number;
+  onManageLabels?: () => void;
+  onDeleteSelected?: () => void;
+  onClearSelection?: () => void;
+  onCreateCollection?: () => void;
 }
 
 export function EnhancedHeader({
@@ -43,7 +49,12 @@ export function EnhancedHeader({
   onToggleView,
   onToggleFilters,
   onSelectAll,
-  allSelected
+  allSelected,
+  selectedCount = 0,
+  onManageLabels,
+  onDeleteSelected,
+  onClearSelection,
+  onCreateCollection
 }: EnhancedHeaderProps) {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
@@ -110,6 +121,71 @@ export function EnhancedHeader({
             </DropdownMenu>
           </div>
         </div>
+
+        {/* Selection Actions Bar - When items are selected */}
+        {selectedCount > 0 && (
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border bg-muted/30 -mx-4 px-4 py-3 rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
+                  {selectedCount}
+                </div>
+                <span className="text-sm font-medium">
+                  arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {onCreateCollection && (
+                  <Button
+                    size="sm"
+                    onClick={onCreateCollection}
+                    className="flex items-center gap-2 bg-primary hover:bg-primary/90"
+                  >
+                    <Archive className="h-4 w-4" />
+                    <span className="hidden sm:inline">Criar Coleção</span>
+                  </Button>
+                )}
+
+                {onManageLabels && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onManageLabels}
+                    className="flex items-center gap-2"
+                  >
+                    <Tag className="h-4 w-4" />
+                    <span className="hidden sm:inline">Gerenciar Labels</span>
+                  </Button>
+                )}
+
+                {onDeleteSelected && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={onDeleteSelected}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Deletar</span>
+                  </Button>
+                )}
+
+                {onClearSelection && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={onClearSelection}
+                    className="flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="hidden sm:inline">Limpar</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* View Controls - Desktop only */}
         <div className="hidden md:flex items-center justify-between mt-4 pt-3 border-t border-border">

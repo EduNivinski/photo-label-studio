@@ -379,6 +379,11 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
           }
         }}
         allSelected={selectedCount === filteredPhotos.length && filteredPhotos.length > 0}
+        selectedCount={selectedCount}
+        onManageLabels={handleBulkLabelManage}
+        onDeleteSelected={handleDeleteSelected}
+        onClearSelection={clearSelection}
+        onCreateCollection={() => setShowCreateAlbum(true)}
       />
 
       {/* Navigation Hub - Quick Access Cards */}
@@ -455,14 +460,6 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         )}
       </main>
 
-      {/* Selection Panel */}
-      <SelectionPanel
-        selectedCount={selectedCount}
-        onManageLabels={handleBulkLabelManage}
-        onDeleteSelected={handleDeleteSelected}
-        onClearSelection={clearSelection}
-        onCreateCollection={() => setShowCreateAlbum(true)}
-      />
 
       {/* Upload Dialog */}
       <UploadDialog
