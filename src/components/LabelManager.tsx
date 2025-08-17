@@ -10,6 +10,12 @@ import { StandardLabelCreator } from './StandardLabelCreator';
 import { useToast } from '@/hooks/use-toast';
 import type { Label, Photo } from '@/types/photo';
 
+const PRESET_COLORS = [
+  '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', 
+  '#06B6D4', '#84CC16', '#6B7280', '#EC4899',
+  '#F97316', '#3B82F6', '#8B5A2B', '#059669'
+];
+
 interface LabelManagerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -33,6 +39,8 @@ export function LabelManager({
   const [searchQuery, setSearchQuery] = useState('');
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showColorSelector, setShowColorSelector] = useState(false);
+  const [selectedColor, setSelectedColor] = useState('#10B981');
   const { toast } = useToast();
 
   // Filter available labels (not already applied to photo)
@@ -66,6 +74,9 @@ export function LabelManager({
       description: `Label "${name}" foi criada com sucesso.`
     });
     setShowCreateDialog(false);
+    setShowColorSelector(false);
+    setSearchQuery('');
+    setIsComboboxOpen(false);
   };
 
   const handleSaveChanges = async () => {
@@ -91,6 +102,7 @@ export function LabelManager({
   React.useEffect(() => {
     setPhotoLabels(selectedPhoto?.labels || []);
     setSearchQuery('');
+    setShowColorSelector(false);
   }, [selectedPhoto]);
 
   return (
@@ -188,7 +200,7 @@ export function LabelManager({
                       <CommandGroup heading="Criar nova">
                         <CommandItem
                           onSelect={() => {
-                            setShowCreateDialog(true);
+                            setShowColorSelector(true);
                             setIsComboboxOpen(false);
                           }}
                           className="flex items-center gap-2 cursor-pointer text-primary"
@@ -206,6 +218,65 @@ export function LabelManager({
                     )}
                   </CommandList>
                 </Command>
+              </div>
+            )}
+
+            {/* Seletor de cor inline para criar nova label */}
+            {showColorSelector && searchQuery && (
+              <div className="border border-border rounded-md bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-medium text-foreground">
+                    Criar label "{searchQuery}"
+                  </h5>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowColorSelector(false);
+                      setSearchQuery('');
+                    }}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div>
+                  <span className="text-xs text-muted-foreground mb-2 block">Escolha uma cor:</span>
+                  <div className="flex gap-2 flex-wrap">
+                    {PRESET_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${
+                          selectedColor === color ? 'border-foreground scale-110' : 'border-border'
+                        }`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setSelectedColor(color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => handleCreateNewLabel(searchQuery, selectedColor)}
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Criar
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowColorSelector(false);
+                      setSearchQuery('');
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               </div>
             )}
           </div>
