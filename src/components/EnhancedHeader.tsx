@@ -26,6 +26,7 @@ interface EnhancedHeaderProps {
   onToggleView: () => void;
   onToggleFilters?: () => void;
   onSelectAll?: () => void;
+  allSelected?: boolean;
 }
 
 export function EnhancedHeader({
@@ -41,7 +42,8 @@ export function EnhancedHeader({
   onChangeItemsPerPage,
   onToggleView,
   onToggleFilters,
-  onSelectAll
+  onSelectAll,
+  allSelected
 }: EnhancedHeaderProps) {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
@@ -125,15 +127,22 @@ export function EnhancedHeader({
             
             {onSelectAll && (
               <Button
-                variant="outline"
+                variant={allSelected ? "default" : "outline"}
                 size="sm"
                 onClick={onSelectAll}
                 className="flex items-center gap-2"
               >
-                <div className="w-4 h-4 border border-current rounded-sm flex items-center justify-center">
-                  <div className="w-2 h-1 bg-current rounded-sm" />
+                <div className={`w-4 h-4 border rounded-sm flex items-center justify-center ${
+                  allSelected ? 'border-primary-foreground bg-primary-foreground' : 'border-current'
+                }`}>
+                  {allSelected && (
+                    <div className="w-2 h-1 bg-primary rounded-sm" />
+                  )}
+                  {!allSelected && (
+                    <div className="w-2 h-1 bg-current rounded-sm" />
+                  )}
                 </div>
-                Selecionar Tudo
+                {allSelected ? 'Desselecionar Tudo' : 'Selecionar Tudo'}
               </Button>
             )}
           </div>
