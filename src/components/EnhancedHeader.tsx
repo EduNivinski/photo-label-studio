@@ -59,52 +59,58 @@ export function EnhancedHeader({
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   return (
-    <header className="border-b border-border bg-black backdrop-blur-sm sticky top-0 z-40">
-      <div className="px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-white">📷 PhotoLabel</h1>
+    <div className="sticky top-0 z-40">
+      {/* Header preto com título */}
+      <header className="border-b border-border bg-black backdrop-blur-sm">
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-white">📷 PhotoLabel</h1>
+              </div>
+            </div>
+
+            {/* Desktop Actions */}
+            <div className="hidden md:flex items-center gap-3">
+              <ActionsDropdown
+                onUpload={onUpload}
+                onCreateLabel={onCreateLabel}
+              />
+            </div>
+
+            {/* Mobile Filter Button */}
+            <div className="md:hidden">
+              <DropdownMenu open={showMobileFilters} onOpenChange={setShowMobileFilters}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Filter className="h-4 w-4" />
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={onUpload}>
+                    <ChevronDown className="h-4 w-4 mr-2" />
+                    Upload de Arquivos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onCreateLabel}>
+                    <ChevronDown className="h-4 w-4 mr-2" />
+                    Nova Label
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onToggleFilters}>
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filtros Avançados
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-3">
-            <ActionsDropdown
-              onUpload={onUpload}
-              onCreateLabel={onCreateLabel}
-            />
-          </div>
-
-          {/* Mobile Filter Button */}
-          <div className="md:hidden">
-            <DropdownMenu open={showMobileFilters} onOpenChange={setShowMobileFilters}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Filter className="h-4 w-4" />
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={onUpload}>
-                  <ChevronDown className="h-4 w-4 mr-2" />
-                  Upload de Arquivos
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onCreateLabel}>
-                  <ChevronDown className="h-4 w-4 mr-2" />
-                  Nova Label
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onToggleFilters}>
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtros Avançados
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
+      </header>
 
-        {/* View Controls - Desktop only */}
-        <div className="hidden md:flex items-center justify-between mt-4 pt-3 border-t border-border">
+      {/* Barra de controles branca - Desktop only */}
+      <div className="hidden md:block bg-background border-b border-border">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
           {/* Selection Actions - When items are selected */}
           {selectedCount > 0 ? (
             <div className="flex items-center gap-4">
@@ -219,21 +225,22 @@ export function EnhancedHeader({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <Toggle 
-              pressed={viewMode === 'grid'}
-              onPressedChange={onToggleView}
-              size="sm"
-              className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-            >
-              {viewMode === 'grid' ? <Grid3X3 className="h-4 w-4" /> : <List className="h-4 w-4" />}
-              <span className="ml-2 hidden lg:inline">
-                {viewMode === 'grid' ? 'Grade' : 'Lista'}
-              </span>
-            </Toggle>
+            <div className="flex items-center gap-2">
+              <Toggle 
+                pressed={viewMode === 'grid'}
+                onPressedChange={onToggleView}
+                size="sm"
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              >
+                {viewMode === 'grid' ? <Grid3X3 className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                <span className="ml-2 hidden lg:inline">
+                  {viewMode === 'grid' ? 'Grade' : 'Lista'}
+                </span>
+              </Toggle>
+            </div>
           </div>
         </div>
       </div>
-    </header>
+    </div>
   );
 }
