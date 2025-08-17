@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Filter, Grid3X3, List, ChevronDown, Tag, Trash2, X, Archive } from 'lucide-react';
+import { Filter, Grid3X3, List, ChevronDown, Tag, Trash2, X, Archive, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ActionsDropdown } from './ActionsDropdown';
 
 interface EnhancedHeaderProps {
   currentlyShowing: number;
@@ -70,12 +69,15 @@ export function EnhancedHeader({
               </div>
             </div>
 
-            {/* Desktop Actions */}
+            {/* Desktop Upload Button */}
             <div className="hidden md:flex items-center gap-3">
-              <ActionsDropdown
-                onUpload={onUpload}
-                onCreateLabel={onCreateLabel}
-              />
+              <Button 
+                onClick={onUpload}
+                className="gap-2 shadow-lg hover:shadow-xl transition-all duration-300 bg-primary hover:bg-primary/90"
+              >
+                <Upload className="h-4 w-4" />
+                Upload
+              </Button>
             </div>
 
             {/* Mobile Filter Button */}
@@ -89,12 +91,8 @@ export function EnhancedHeader({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={onUpload}>
-                    <ChevronDown className="h-4 w-4 mr-2" />
+                    <Upload className="h-4 w-4 mr-2" />
                     Upload de Arquivos
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onCreateLabel}>
-                    <ChevronDown className="h-4 w-4 mr-2" />
-                    Nova Label
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={onToggleFilters}>
                     <Filter className="h-4 w-4 mr-2" />
