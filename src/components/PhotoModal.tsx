@@ -171,6 +171,16 @@ export function PhotoModal({
                   className="h-8 bg-white/10 border-white/20 text-white placeholder:text-white/60"
                   autoFocus
                 />
+                <div className="flex items-center gap-6 text-sm text-white/80 ml-4">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <File className="h-4 w-4" />
+                    {isVideo ? 'Vídeo' : 'Foto'}
+                  </div>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -306,23 +316,10 @@ export function PhotoModal({
                   variant="ghost"
                   size="sm"
                   onClick={onLabelManage}
-                  className="text-white/80 hover:text-white hover:bg-white/10"
+                  className="text-white/80 hover:text-white hover:bg-white/10 w-8 h-8 rounded-full border border-white/40 hover:border-white/60 p-0 flex items-center justify-center"
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Label
+                  <Plus className="h-4 w-4" />
                 </Button>
-              </div>
-
-              {/* Quick Info */}
-              <div className="flex items-center gap-6 text-sm text-white/80">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
-                </div>
-                <div className="flex items-center gap-1">
-                  <File className="h-4 w-4" />
-                  {isVideo ? 'Vídeo' : 'Foto'}
-                </div>
               </div>
             </div>
 
