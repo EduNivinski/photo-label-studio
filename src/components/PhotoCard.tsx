@@ -150,8 +150,8 @@ export function PhotoCard({
       
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full">
-        <div className="labels flex flex-wrap gap-1 mb-1">
-          {photoLabels.slice(0, 2).map((label) => (
+        <div className="labels flex flex-wrap gap-1 mb-2 max-h-12 overflow-hidden">
+          {photoLabels.slice(0, 6).map((label) => (
             <LabelChip 
               key={label.id} 
               label={label} 
@@ -161,7 +161,7 @@ export function PhotoCard({
               size="sm"
             />
           ))}
-          {photoLabels.length > 2 && (
+          {photoLabels.length > 6 && (
             <Popover>
               <PopoverTrigger asChild>
                 <button 
@@ -195,7 +195,7 @@ export function PhotoCard({
           )}
           
           {/* Botão para adicionar nova label */}
-          {!isSelected && photoLabels.length < 3 && (
+          {!isSelected && photoLabels.length < 6 && (
             <div className={`transition-opacity duration-200 ${
               hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}>
