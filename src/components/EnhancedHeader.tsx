@@ -66,22 +66,6 @@ export function EnhancedHeader({
             <div>
               <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
             </div>
-
-            {/* Unlabeled Alert Button - Left side as requested */}
-            <Button
-              variant="unlabeled"
-              size="sm"
-              onClick={onToggleUnlabeled}
-              className={`gap-2 transition-all duration-200 ${
-                showUnlabeledFilter ? 'ring-2 ring-unlabeled-alert' : ''
-              }`}
-            >
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-unlabeled-alert animate-pulse" />
-                <span className="font-medium">{unlabeledCount}</span>
-              </div>
-              <span className="hidden sm:inline">Sem Labels</span>
-            </Button>
           </div>
 
           {/* Desktop Actions */}
@@ -195,6 +179,22 @@ export function EnhancedHeader({
                   <SelectItem value="100">100 por página</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Unlabeled Filter Button */}
+              <Button
+                variant="unlabeled"
+                size="sm"
+                onClick={onToggleUnlabeled}
+                className={`gap-2 transition-all duration-200 ${
+                  showUnlabeledFilter ? 'ring-2 ring-unlabeled-alert' : ''
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-unlabeled-alert animate-pulse" />
+                  <span className="font-medium">{unlabeledCount}</span>
+                </div>
+                <span className="hidden sm:inline">Sem Labels</span>
+              </Button>
               
               {onSelectAll && (
                 <Button
