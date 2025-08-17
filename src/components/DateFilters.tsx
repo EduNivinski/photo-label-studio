@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,7 @@ const MONTHS = [
 
 export function DateFilters({ photos, filters, onUpdateFilters }: DateFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -179,19 +181,25 @@ export function DateFilters({ photos, filters, onUpdateFilters }: DateFiltersPro
                   </Button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {availableYears.map(year => (
-                  <Button
-                    key={year}
-                    variant={selectedYears.includes(year) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleYear(year)}
-                    className="h-7 px-3 text-xs"
-                  >
-                    {year}
-                  </Button>
-                ))}
-              </div>
+              <Select 
+                value={selectedYears.length === 1 ? selectedYears[0].toString() : ""}
+                onValueChange={(value) => {
+                  if (value) {
+                    toggleYear(parseInt(value));
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Selecionar ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -230,32 +238,48 @@ export function DateFilters({ photos, filters, onUpdateFilters }: DateFiltersPro
             </div>
           )}
 
-          {/* Day Picker */}
+          {/* Day Picker - Hidden until requested */}
           <div className="space-y-2">
-            <label className="text-xs text-sidebar-foreground/60">Dia específico</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal h-8 text-xs",
-                    !selectedDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-3 w-3" />
-                  {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecionar data"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={handleDateSelect}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-sidebar-foreground/60">Dia específico</label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className="h-6 px-2 text-xs text-sidebar-foreground/60"
+              >
+                <CalendarIcon className="h-3 w-3" />
+              </Button>
+            </div>
+            
+            {showDatePicker && (
+              <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-8 text-xs",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-3 w-3" />
+                    {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecionar data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      handleDateSelect(date);
+                      setShowDatePicker(false);
+                    }}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           {/* Clear All */}

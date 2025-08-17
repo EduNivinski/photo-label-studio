@@ -18,6 +18,7 @@ import { MobileSearchOverlay } from '@/components/MobileSearchOverlay';
 import { NavigationHub } from '@/components/NavigationHub';
 import { DateFilters } from '@/components/DateFilters';
 import { EnhancedHeader } from '@/components/EnhancedHeader';
+import { AdvancedFiltersCollapsible } from '@/components/AdvancedFiltersCollapsible';
 import { FloatingUploadButton } from '@/components/FloatingUploadButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
@@ -366,6 +367,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         viewMode={viewMode}
         onToggleUnlabeled={handleToggleUnlabeledFilter}
         onCreateLabel={() => setShowLabelCreator(true)}
+        onUpload={() => setShowUpload(true)}
         onChangeItemsPerPage={changeItemsPerPage}
         onToggleView={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
         onToggleFilters={() => setShowMobileSearch(true)}

@@ -163,8 +163,8 @@ All colors MUST be HSL.
   .photo-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-    padding: 2.5rem 2rem;
+    gap: 1rem; /* Reduced gap for better screen utilization */
+    padding: 2rem 1.5rem;
     max-width: 100%;
     justify-items: center;
   }

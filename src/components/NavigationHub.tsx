@@ -89,15 +89,19 @@ export function NavigationHub({
         <p className="text-sm text-muted-foreground">Navegue pelas principais funcionalidades</p>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {cards.map((card) => {
-          const IconComponent = card.icon;
-          return (
-            <Card
-              key={card.id}
-              className={`relative p-6 cursor-pointer group transition-all duration-300 hover:scale-105 hover:shadow-lg border-2 border-transparent hover:border-primary/20 bg-gradient-to-br ${card.bgGradient}`}
-              onClick={() => handleCardClick(card.id as 'collections' | 'unlabeled' | 'smart')}
-            >
+      {/* Mobile Carousel / Desktop Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-x-visible">
+        <div className="flex md:grid md:grid-cols-3 md:col-span-3 gap-4 md:gap-6 snap-x snap-mandatory md:snap-none pb-2 md:pb-0"
+             style={{ minWidth: 'max-content' }}
+        >
+          {cards.map((card) => {
+            const IconComponent = card.icon;
+            return (
+              <Card
+                key={card.id}
+                className={`relative p-4 md:p-6 cursor-pointer group transition-all duration-300 hover:scale-105 hover:shadow-lg border-2 border-transparent hover:border-primary/20 bg-gradient-to-br ${card.bgGradient} flex-shrink-0 snap-center min-w-[280px] md:min-w-0`}
+                onClick={() => handleCardClick(card.id as 'collections' | 'unlabeled' | 'smart')}
+              >
               {card.visual}
               
               <div className="flex flex-col items-center text-center space-y-3">
@@ -116,9 +120,10 @@ export function NavigationHub({
                   </div>
                 </div>
               </div>
-            </Card>
-          );
-        })}
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

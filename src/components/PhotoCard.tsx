@@ -80,7 +80,7 @@ export function PhotoCard({
 
   return (
     <div 
-      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300" 
+      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-lg" 
       onClick={handleCardClick}
       style={{ aspectRatio: '1 / 1' }}
     >
@@ -165,9 +165,10 @@ export function PhotoCard({
                 <button 
                   className="text-xs text-white/90 bg-white/25 backdrop-blur-sm px-2 py-1 rounded-full hover:bg-white/35 transition-colors flex items-center gap-1"
                   onClick={(e) => e.stopPropagation()}
+                  title={`${photoLabels.length} labels no total`}
                 >
-                  +{photoLabels.length - 2}
-                  <ChevronDown className="h-3 w-3" />
+                  <span className="text-xs">⋯</span>
+                  <span className="text-xs font-medium">{photoLabels.length}</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-2" align="start">
@@ -211,7 +212,7 @@ export function PhotoCard({
         </div>
         
         <div className="flex items-center justify-between">
-        <div className="text-xs text-white/80 font-medium">
+          <div className="text-xs text-white font-medium bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
             {new Date(photo.uploadDate).toLocaleDateString('pt-BR', {
               day: '2-digit',
               month: 'short'

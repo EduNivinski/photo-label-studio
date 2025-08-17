@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TagIcon, Plus, Filter, Grid3X3, List, ChevronDown } from 'lucide-react';
+import { Filter, Grid3X3, List, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ActionsDropdown } from './ActionsDropdown';
 
 interface EnhancedHeaderProps {
   currentlyShowing: number;
@@ -20,6 +21,7 @@ interface EnhancedHeaderProps {
   viewMode: 'grid' | 'list';
   onToggleUnlabeled: () => void;
   onCreateLabel: () => void;
+  onUpload: () => void;
   onChangeItemsPerPage: (value: number) => void;
   onToggleView: () => void;
   onToggleFilters?: () => void;
@@ -34,6 +36,7 @@ export function EnhancedHeader({
   viewMode,
   onToggleUnlabeled,
   onCreateLabel,
+  onUpload,
   onChangeItemsPerPage,
   onToggleView,
   onToggleFilters
@@ -71,15 +74,10 @@ export function EnhancedHeader({
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCreateLabel}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Nova Label
-            </Button>
+            <ActionsDropdown
+              onUpload={onUpload}
+              onCreateLabel={onCreateLabel}
+            />
           </div>
 
           {/* Mobile Filter Button */}
@@ -92,8 +90,12 @@ export function EnhancedHeader({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={onUpload}>
+                  <ChevronDown className="h-4 w-4 mr-2" />
+                  Upload de Arquivos
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={onCreateLabel}>
-                  <Plus className="h-4 w-4 mr-2" />
+                  <ChevronDown className="h-4 w-4 mr-2" />
                   Nova Label
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onToggleFilters}>

@@ -25,6 +25,7 @@ import {
 import { SmartLabelSearch } from '@/components/SmartLabelSearch';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { DateFilters } from '@/components/DateFilters';
+import { AdvancedFiltersCollapsible } from '@/components/AdvancedFiltersCollapsible';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Label, PhotoFilters } from '@/types/photo';
@@ -212,15 +213,13 @@ export function AppSidebar({
                 </div>
               )}
 
-              {/* Advanced Filters */}
-              {filters && onUpdateFilters && onToggleFileType && onToggleMediaType && (
+              {/* Advanced Filters - Now collapsible */}
+              {filters && onUpdateFilters && onToggleFavorites && (
                 <div className="px-1">
-                  <AdvancedFilters
+                  <AdvancedFiltersCollapsible
                     filters={filters}
                     showFavorites={showFavorites}
                     onUpdateFilters={onUpdateFilters}
-                    onToggleFileType={onToggleFileType}
-                    onToggleMediaType={onToggleMediaType}
                     onToggleFavorites={onToggleFavorites}
                   />
                 </div>
