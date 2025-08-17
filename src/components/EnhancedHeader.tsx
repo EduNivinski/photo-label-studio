@@ -122,21 +122,27 @@ export function EnhancedHeader({
                 </SelectContent>
               </Select>
 
-              {/* Unlabeled Filter Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onToggleUnlabeled}
-                className={`gap-2 transition-all duration-200 ${
-                  showUnlabeledFilter ? 'bg-unlabeled-alert-bg text-unlabeled-alert border-unlabeled-alert' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-unlabeled-alert animate-pulse" />
-                  <span className="font-medium">{unlabeledCount}</span>
-                </div>
-                <span className="hidden sm:inline">Sem Labels</span>
-              </Button>
+              {/* Unlabeled Filter Button - Only show when there are unlabeled items */}
+              {unlabeledCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onToggleUnlabeled}
+                  className={`gap-2 transition-all duration-200 ${
+                    showUnlabeledFilter 
+                      ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' 
+                      : 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    <span className="font-medium">
+                      {unlabeledCount > 999 ? '999+' : unlabeledCount}
+                    </span>
+                    <span className="hidden sm:inline">Sem Labels</span>
+                  </div>
+                </Button>
+              )}
               
               {onSelectAll && (
                 <Button
