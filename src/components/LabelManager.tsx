@@ -51,7 +51,7 @@ export function LabelManager({
   const handleAddLabel = (labelId: string) => {
     setPhotoLabels(prev => [...prev, labelId]);
     setSearchQuery('');
-    setTimeout(() => setIsComboboxOpen(false), 100);
+    setIsComboboxOpen(false);
   };
 
   const handleRemoveLabel = (labelId: string) => {
@@ -146,27 +146,22 @@ export function LabelManager({
               Adicionar labels
             </h4>
             
-            <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
-              <PopoverTrigger asChild>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar ou criar nova label..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      if (e.target.value.length > 0) {
-                        setIsComboboxOpen(true);
-                      } else if (e.target.value.length === 0) {
-                        setIsComboboxOpen(false);
-                      }
-                    }}
-                    className="pl-10 bg-background border-border"
-                  />
-                </div>
-              </PopoverTrigger>
-              
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar ou criar nova label..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsComboboxOpen(e.target.value.length > 0);
+                }}
+                onFocus={() => searchQuery && setIsComboboxOpen(true)}
+                className="pl-10 bg-background border-border"
+              />
+            </div>
+
+            {isComboboxOpen && (
+              <div className="border border-border rounded-md bg-popover shadow-lg p-0 z-50">
                 <Command>
                   <CommandList className="max-h-48">
                     {availableLabels.length > 0 && (
@@ -192,7 +187,10 @@ export function LabelManager({
                     ) && (
                       <CommandGroup heading="Criar nova">
                         <CommandItem
-                          onSelect={() => setShowCreateDialog(true)}
+                          onSelect={() => {
+                            setShowCreateDialog(true);
+                            setIsComboboxOpen(false);
+                          }}
                           className="flex items-center gap-2 cursor-pointer text-primary"
                         >
                           <Plus className="h-3 w-3" />
@@ -208,8 +206,8 @@ export function LabelManager({
                     )}
                   </CommandList>
                 </Command>
-              </PopoverContent>
-            </Popover>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
