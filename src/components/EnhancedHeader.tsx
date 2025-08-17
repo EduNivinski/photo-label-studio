@@ -109,69 +109,7 @@ export function EnhancedHeader({
       <div className="hidden md:block bg-background border-b border-border">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
-          {/* Selection Actions - When items are selected */}
-          {selectedCount > 0 ? (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
-                  {selectedCount}
-                </div>
-                <span className="text-sm font-medium">
-                  arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {onCreateCollection && (
-                  <Button
-                    size="sm"
-                    onClick={onCreateCollection}
-                    className="flex items-center gap-2"
-                  >
-                    <Archive className="h-4 w-4" />
-                    <span className="hidden lg:inline">Criar Coleção</span>
-                  </Button>
-                )}
-
-                {onManageLabels && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onManageLabels}
-                    className="flex items-center gap-2"
-                  >
-                    <Tag className="h-4 w-4" />
-                    <span className="hidden lg:inline">Gerenciar Labels</span>
-                  </Button>
-                )}
-
-                {onDeleteSelected && (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={onDeleteSelected}
-                    className="flex items-center gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden lg:inline">Deletar</span>
-                  </Button>
-                )}
-
-                {onClearSelection && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={onClearSelection}
-                    className="flex items-center gap-2"
-                  >
-                    <X className="h-4 w-4" />
-                    <span className="hidden lg:inline">Limpar</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Normal controls when no selection */
+            {/* Normal controls - Always visible */}
             <div className="flex items-center gap-3">
               <Select value={itemsPerPage.toString()} onValueChange={(value) => onChangeItemsPerPage(parseInt(value))}>
                 <SelectTrigger className="w-36">
@@ -221,7 +159,6 @@ export function EnhancedHeader({
                 </Button>
               )}
             </div>
-          )}
 
             <div className="flex items-center gap-2">
               <Toggle 
@@ -239,6 +176,75 @@ export function EnhancedHeader({
           </div>
         </div>
       </div>
+
+      {/* Barra temporária de seleção - Aparece quando há itens selecionados */}
+      {selectedCount > 0 && (
+        <div className="hidden md:block bg-primary/5 border-b border-primary/20">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
+                    {selectedCount}
+                  </div>
+                  <span className="text-sm font-medium">
+                    arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {onCreateCollection && (
+                    <Button
+                      size="sm"
+                      onClick={onCreateCollection}
+                      className="flex items-center gap-2"
+                    >
+                      <Archive className="h-4 w-4" />
+                      <span className="hidden lg:inline">Criar Coleção</span>
+                    </Button>
+                  )}
+
+                  {onManageLabels && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onManageLabels}
+                      className="flex items-center gap-2"
+                    >
+                      <Tag className="h-4 w-4" />
+                      <span className="hidden lg:inline">Gerenciar Labels</span>
+                    </Button>
+                  )}
+
+                  {onDeleteSelected && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={onDeleteSelected}
+                      className="flex items-center gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden lg:inline">Deletar</span>
+                    </Button>
+                  )}
+
+                  {onClearSelection && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={onClearSelection}
+                      className="flex items-center gap-2"
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="hidden lg:inline">Limpar</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
