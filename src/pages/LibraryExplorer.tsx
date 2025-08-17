@@ -371,6 +371,7 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         onChangeItemsPerPage={changeItemsPerPage}
         onToggleView={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
         onToggleFilters={() => setShowMobileSearch(true)}
+        onSelectAll={() => selectAll(filteredPhotos)}
       />
 
       {/* Navigation Hub - Quick Access Cards */}

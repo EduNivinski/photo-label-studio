@@ -25,6 +25,7 @@ interface EnhancedHeaderProps {
   onChangeItemsPerPage: (value: number) => void;
   onToggleView: () => void;
   onToggleFilters?: () => void;
+  onSelectAll?: () => void;
 }
 
 export function EnhancedHeader({
@@ -39,7 +40,8 @@ export function EnhancedHeader({
   onUpload,
   onChangeItemsPerPage,
   onToggleView,
-  onToggleFilters
+  onToggleFilters,
+  onSelectAll
 }: EnhancedHeaderProps) {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
@@ -120,6 +122,20 @@ export function EnhancedHeader({
                 <SelectItem value="100">100 por página</SelectItem>
               </SelectContent>
             </Select>
+            
+            {onSelectAll && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSelectAll}
+                className="flex items-center gap-2"
+              >
+                <div className="w-4 h-4 border border-current rounded-sm flex items-center justify-center">
+                  <div className="w-2 h-1 bg-current rounded-sm" />
+                </div>
+                Selecionar Tudo
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

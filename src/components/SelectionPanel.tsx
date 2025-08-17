@@ -27,7 +27,7 @@ export function SelectionPanel({
             {selectedCount}
           </div>
           <span className="text-sm font-medium">
-            {selectedCount} arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
+            arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
           </span>
         </div>
 
