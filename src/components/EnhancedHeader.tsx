@@ -185,7 +185,7 @@ export function EnhancedHeader({
 
       {/* Barra temporária de seleção - Aparece quando há itens selecionados */}
       {selectedCount > 0 && (
-        <div className="hidden md:block bg-primary/5 border-b border-primary/20">
+        <div className="hidden md:block bg-white border-b border-border">
           <div className="px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
