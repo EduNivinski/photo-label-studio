@@ -51,7 +51,7 @@ export function LabelManager({
   const handleAddLabel = (labelId: string) => {
     setPhotoLabels(prev => [...prev, labelId]);
     setSearchQuery('');
-    setIsComboboxOpen(false);
+    setTimeout(() => setIsComboboxOpen(false), 100);
   };
 
   const handleRemoveLabel = (labelId: string) => {
@@ -155,8 +155,10 @@ export function LabelManager({
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
-                      if (e.target.value && !isComboboxOpen) {
+                      if (e.target.value.length > 0) {
                         setIsComboboxOpen(true);
+                      } else if (e.target.value.length === 0) {
+                        setIsComboboxOpen(false);
                       }
                     }}
                     className="pl-10 bg-background border-border"
