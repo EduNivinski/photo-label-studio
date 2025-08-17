@@ -163,22 +163,22 @@ export function PhotoModal({
                 <Edit3 className="h-4 w-4" />
               </Button>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4 w-full">
                 <Input
                   value={aliasValue}
                   onChange={(e) => setAliasValue(e.target.value)}
                   placeholder="Digite um nome..."
-                  className="h-8 bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                  className="h-8 bg-white/10 border-white/20 text-white placeholder:text-white/60 flex-1"
                   autoFocus
                 />
-                <div className="flex items-center gap-6 text-sm text-white/80 ml-4">
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center gap-4 text-sm text-white bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-md border border-white/20 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
-                    {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+                    <span>{new Date(photo.uploadDate).toLocaleDateString('pt-BR')}</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <File className="h-4 w-4" />
-                    {isVideo ? 'Vídeo' : 'Foto'}
+                    <span>{isVideo ? 'Vídeo' : 'Foto'}</span>
                   </div>
                 </div>
                 <Button
