@@ -9,13 +9,14 @@ import { useSupabaseData } from "@/hooks/useSupabaseData";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
-import type { User, Session } from '@supabase/supabase-js';
+import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import Index from "./pages/Index";
 import Upload from "./pages/Upload";
 import Labels from "./pages/Labels";
 import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
 import LibraryExplorer from "./pages/LibraryExplorer";
+import UserPage from "./pages/User";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 
@@ -23,7 +24,7 @@ const queryClient = new QueryClient();
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -154,6 +155,11 @@ function AppContent() {
           <Route path="/collections/:id" element={
             <ProtectedRoute>
               <CollectionDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="/user" element={
+            <ProtectedRoute>
+              <UserPage />
             </ProtectedRoute>
           } />
           <Route path="/explore" element={

@@ -84,10 +84,6 @@ export function NavigationHub({
 
   return (
     <section className="p-6 border-b border-border/50">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-foreground mb-1">🚀 Acesso Rápido</h2>
-        <p className="text-sm text-muted-foreground">Navegue pelas principais funcionalidades</p>
-      </div>
       
       {/* Mobile Carousel / Desktop Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-x-visible">

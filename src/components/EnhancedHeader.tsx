@@ -65,9 +65,6 @@ export function EnhancedHeader({
           <div className="flex items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
-              <p className="text-sm text-muted-foreground">
-                {currentlyShowing} de {totalItems} arquivo{totalItems !== 1 ? 's' : ''}
-              </p>
             </div>
 
             {/* Unlabeled Alert Button - Left side as requested */}
@@ -122,9 +119,10 @@ export function EnhancedHeader({
           </div>
         </div>
 
-        {/* Selection Actions Bar - When items are selected */}
-        {selectedCount > 0 && (
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border bg-muted/30 -mx-4 px-4 py-3 rounded-lg">
+        {/* View Controls - Desktop only */}
+        <div className="hidden md:flex items-center justify-between mt-4 pt-3 border-t border-border">
+          {/* Selection Actions - When items are selected */}
+          {selectedCount > 0 ? (
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">
@@ -140,10 +138,10 @@ export function EnhancedHeader({
                   <Button
                     size="sm"
                     onClick={onCreateCollection}
-                    className="flex items-center gap-2 bg-primary hover:bg-primary/90"
+                    className="flex items-center gap-2"
                   >
                     <Archive className="h-4 w-4" />
-                    <span className="hidden sm:inline">Criar Coleção</span>
+                    <span className="hidden lg:inline">Criar Coleção</span>
                   </Button>
                 )}
 
@@ -155,7 +153,7 @@ export function EnhancedHeader({
                     className="flex items-center gap-2"
                   >
                     <Tag className="h-4 w-4" />
-                    <span className="hidden sm:inline">Gerenciar Labels</span>
+                    <span className="hidden lg:inline">Gerenciar Labels</span>
                   </Button>
                 )}
 
@@ -167,7 +165,7 @@ export function EnhancedHeader({
                     className="flex items-center gap-2"
                   >
                     <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Deletar</span>
+                    <span className="hidden lg:inline">Deletar</span>
                   </Button>
                 )}
 
@@ -179,49 +177,47 @@ export function EnhancedHeader({
                     className="flex items-center gap-2"
                   >
                     <X className="h-4 w-4" />
-                    <span className="hidden sm:inline">Limpar</span>
+                    <span className="hidden lg:inline">Limpar</span>
                   </Button>
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* View Controls - Desktop only */}
-        <div className="hidden md:flex items-center justify-between mt-4 pt-3 border-t border-border">
-          <div className="flex items-center gap-3">
-            <Select value={itemsPerPage.toString()} onValueChange={(value) => onChangeItemsPerPage(parseInt(value))}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30 por página</SelectItem>
-                <SelectItem value="60">60 por página</SelectItem>
-                <SelectItem value="100">100 por página</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            {onSelectAll && (
-              <Button
-                variant={allSelected ? "default" : "outline"}
-                size="sm"
-                onClick={onSelectAll}
-                className="flex items-center gap-2"
-              >
-                <div className={`w-4 h-4 border rounded-sm flex items-center justify-center ${
-                  allSelected ? 'border-primary-foreground bg-primary-foreground' : 'border-current'
-                }`}>
-                  {allSelected && (
-                    <div className="w-2 h-1 bg-primary rounded-sm" />
-                  )}
-                  {!allSelected && (
-                    <div className="w-2 h-1 bg-current rounded-sm" />
-                  )}
-                </div>
-                {allSelected ? 'Desselecionar Tudo' : 'Selecionar Tudo'}
-              </Button>
-            )}
-          </div>
+          ) : (
+            /* Normal controls when no selection */
+            <div className="flex items-center gap-3">
+              <Select value={itemsPerPage.toString()} onValueChange={(value) => onChangeItemsPerPage(parseInt(value))}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 por página</SelectItem>
+                  <SelectItem value="60">60 por página</SelectItem>
+                  <SelectItem value="100">100 por página</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {onSelectAll && (
+                <Button
+                  variant={allSelected ? "default" : "outline"}
+                  size="sm"
+                  onClick={onSelectAll}
+                  className="flex items-center gap-2"
+                >
+                  <div className={`w-4 h-4 border rounded-sm flex items-center justify-center ${
+                    allSelected ? 'border-primary-foreground bg-primary-foreground' : 'border-current'
+                  }`}>
+                    {allSelected && (
+                      <div className="w-2 h-1 bg-primary rounded-sm" />
+                    )}
+                    {!allSelected && (
+                      <div className="w-2 h-1 bg-current rounded-sm" />
+                    )}
+                  </div>
+                  {allSelected ? 'Desselecionar Tudo' : 'Selecionar Tudo'}
+                </Button>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <Toggle 
