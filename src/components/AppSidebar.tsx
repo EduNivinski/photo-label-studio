@@ -99,16 +99,17 @@ export function AppSidebar({
       className="border-r border-border bg-sidebar"
       collapsible="icon"
     >
-      <SidebarHeader className="p-4 border-b border-border">
-        <NavLink to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className="text-2xl">📷</div>
+      <SidebarHeader className="p-4 border-b border-border bg-black">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-medium text-gray-600">
+            U
+          </div>
           {open && (
             <div>
-              <h1 className="text-lg font-bold text-sidebar-foreground">PhotoLabel</h1>
-              <p className="text-xs text-sidebar-foreground/60">Organize suas fotos</p>
+              <h2 className="text-sm font-medium text-white">João</h2>
             </div>
           )}
-        </NavLink>
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-2">

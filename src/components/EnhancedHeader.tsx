@@ -59,12 +59,12 @@ export function EnhancedHeader({
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   return (
-    <header className="border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-40">
+    <header className="border-b border-border bg-black backdrop-blur-sm sticky top-0 z-40">
       <div className="px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
+              <h1 className="text-2xl font-bold text-white">📷 PhotoLabel</h1>
             </div>
           </div>
 
@@ -182,11 +182,11 @@ export function EnhancedHeader({
 
               {/* Unlabeled Filter Button */}
               <Button
-                variant="unlabeled"
+                variant="outline"
                 size="sm"
                 onClick={onToggleUnlabeled}
                 className={`gap-2 transition-all duration-200 ${
-                  showUnlabeledFilter ? 'ring-2 ring-unlabeled-alert' : ''
+                  showUnlabeledFilter ? 'bg-unlabeled-alert-bg text-unlabeled-alert border-unlabeled-alert' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
                 <div className="flex items-center gap-1">
