@@ -80,7 +80,7 @@ export function PhotoCard({
 
   return (
     <div 
-      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-md" 
+      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-sm" 
       onClick={handleCardClick}
       style={{ aspectRatio: '1 / 1' }}
     >
