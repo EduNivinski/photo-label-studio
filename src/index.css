@@ -45,6 +45,14 @@ All colors MUST be HSL.
     --search-background: 0 0% 100%;
     --gallery-background: 215 5% 99%;
     
+    /* Enhanced UI colors */
+    --upload-primary: 260 85% 60%;
+    --upload-primary-foreground: 0 0% 100%;
+    --upload-hover: 260 85% 55%;
+    --fab-shadow: 0 8px 25px hsl(260 85% 60% / 0.3);
+    --unlabeled-alert: 0 84% 60%;
+    --unlabeled-alert-bg: 0 84% 96%;
+    
     /* Success colors */
     --success: 142 76% 36%;
     --success-light: 142 76% 96%;
@@ -91,6 +99,13 @@ All colors MUST be HSL.
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    
+    /* Enhanced UI colors for dark mode */
+    --upload-primary: 260 85% 60%;
+    --upload-primary-foreground: 0 0% 100%;
+    --upload-hover: 260 85% 55%;
+    --unlabeled-alert: 0 84% 60%;
+    --unlabeled-alert-bg: 0 84% 15%;
     
     /* Sidebar colors for dark mode */
     --sidebar-background: 240 5.9% 10%;
@@ -147,9 +162,9 @@ All colors MUST be HSL.
   /* PhotoCard grid improvements */
   .photo-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
-    padding: 2rem 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    padding: 2.5rem 2rem;
     max-width: 100%;
     justify-items: center;
   }
@@ -157,17 +172,18 @@ All colors MUST be HSL.
   /* Responsive adjustments */
   @media (max-width: 768px) {
     .photo-grid {
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
-      padding: 1rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+      padding: 1.5rem 1rem;
+      max-width: none;
     }
   }
 
   @media (min-width: 1200px) {
     .photo-grid {
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
-      padding: 2.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 2.5rem;
+      padding: 3rem 2.5rem;
     }
   }
 
@@ -175,34 +191,29 @@ All colors MUST be HSL.
   .media-card {
     position: relative;
     overflow: hidden;
-    border-radius: 16px;
+    border-radius: 20px;
     padding: 0;
-    width: 280px;
-    height: 280px;
+    width: 100%;
+    max-width: 320px;
     aspect-ratio: 1 / 1;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 2px 8px hsl(var(--border) / 0.15);
-    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px hsl(var(--border) / 0.15);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: hsl(var(--card));
+    cursor: pointer;
   }
 
   @media (max-width: 768px) {
     .media-card {
-      width: 240px;
-      height: 240px;
-    }
-  }
-
-  @media (min-width: 1200px) {
-    .media-card {
-      width: 300px;
-      height: 300px;
+      border-radius: 16px;
+      box-shadow: 0 2px 8px hsl(var(--border) / 0.12);
     }
   }
 
   .media-card:hover {
-    transform: scale(1.02);
-    box-shadow: 0 4px 20px hsl(var(--border) / 0.25);
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 12px 32px hsl(var(--border) / 0.25);
   }
 
   .media-card img, 

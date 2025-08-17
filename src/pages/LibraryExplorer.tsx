@@ -17,6 +17,8 @@ import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileSearchOverlay } from '@/components/MobileSearchOverlay';
 import { NavigationHub } from '@/components/NavigationHub';
 import { DateFilters } from '@/components/DateFilters';
+import { EnhancedHeader } from '@/components/EnhancedHeader';
+import { FloatingUploadButton } from '@/components/FloatingUploadButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -354,89 +356,20 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
 
   return (
     <div className="flex-1 min-h-screen bg-background pb-20 md:pb-0">
-      {/* Enhanced Header with Quick Actions - Hide buttons on mobile, show simplified version */}
-      <header className="border-b border-border bg-background sticky top-0 z-40">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
-              <p className="text-sm text-muted-foreground">
-                {currentlyShowing} de {totalItems} arquivo{totalItems !== 1 ? 's' : ''} • {unlabeledPhotos.length} sem labels
-              </p>
-            </div>
-
-            {/* Desktop Quick Actions - Hidden on mobile */}
-            <div className="hidden md:flex items-center gap-2">
-              {/* Quick Actions */}
-              <Toggle 
-                pressed={showUnlabeledFilter}
-                onPressedChange={handleToggleUnlabeledFilter}
-                className="gap-2"
-                size="sm"
-              >
-                <TagIcon className="h-4 w-4" />
-                Sem Labels ({unlabeledPhotos.length})
-              </Toggle>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowUpload(true)}
-                className="gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Upload
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLabelCreator(true)}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Nova Label
-              </Button>
-
-              {hasActiveFilters && (
-                <Button
-                  onClick={() => setShowCreateAlbum(true)}
-                  className="gap-2 bg-primary hover:bg-primary/90"
-                >
-                  <Archive className="h-4 w-4" />
-                  Salvar como Coleção
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* View Controls - Desktop only */}
-          <div className="hidden md:flex items-center justify-between mt-3">
-            <div className="flex items-center gap-2">
-              <Select value={itemsPerPage.toString()} onValueChange={(value) => changeItemsPerPage(parseInt(value))}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 por página</SelectItem>
-                  <SelectItem value="60">60 por página</SelectItem>
-                  <SelectItem value="100">100 por página</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Toggle 
-                pressed={viewMode === 'grid'}
-                onPressedChange={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-                size="sm"
-              >
-                {viewMode === 'grid' ? <Grid3X3 className="h-4 w-4" /> : <List className="h-4 w-4" />}
-              </Toggle>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Enhanced Header */}
+      <EnhancedHeader
+        currentlyShowing={currentlyShowing}
+        totalItems={totalItems}
+        unlabeledCount={unlabeledPhotos.length}
+        showUnlabeledFilter={showUnlabeledFilter}
+        itemsPerPage={itemsPerPage}
+        viewMode={viewMode}
+        onToggleUnlabeled={handleToggleUnlabeledFilter}
+        onCreateLabel={() => setShowLabelCreator(true)}
+        onChangeItemsPerPage={changeItemsPerPage}
+        onToggleView={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+        onToggleFilters={() => setShowMobileSearch(true)}
+      />
 
       {/* Navigation Hub - Quick Access Cards */}
       <NavigationHub
@@ -620,6 +553,26 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         onLabelToggle={toggleLabel}
         onClearFilters={clearFilters}
       />
+
+      {/* Floating Upload Button - Visible only on mobile */}
+      <FloatingUploadButton
+        onClick={() => setShowUpload(true)}
+        className="md:hidden"
+      />
+
+      {/* Desktop Upload Button with enhanced styling - Show in filter summary when active */}
+      {hasActiveFilters && (
+        <div className="hidden md:block fixed bottom-6 right-6 z-50">
+          <Button
+            onClick={() => setShowCreateAlbum(true)}
+            className="gap-2 bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+            size="lg"
+          >
+            <Archive className="h-5 w-5" />
+            Salvar como Coleção
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

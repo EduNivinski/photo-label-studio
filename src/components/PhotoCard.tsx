@@ -80,7 +80,7 @@ export function PhotoCard({
 
   return (
     <div 
-      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/50" 
+      className="media-card group overflow-hidden cursor-pointer relative border border-photo-border hover:border-primary/30 hover:shadow-lg transition-all duration-300" 
       onClick={handleCardClick}
       style={{ aspectRatio: '1 / 1' }}
     >
@@ -106,9 +106,9 @@ export function PhotoCard({
         <>
           <video
             src={photo.url}
-            className={`w-full h-full object-cover transition-all duration-300 ${
+            className={`w-full h-full object-cover transition-all duration-500 ${
               mediaLoaded ? 'opacity-100' : 'opacity-0'
-            } group-hover:scale-105`}
+            } group-hover:scale-110`}
             onLoadedData={() => setMediaLoaded(true)}
             onError={() => setMediaError(true)}
             muted
@@ -125,9 +125,9 @@ export function PhotoCard({
         <img
           src={photo.url}
           alt={photo.name}
-          className={`w-full h-full object-cover transition-all duration-300 ${
+          className={`w-full h-full object-cover transition-all duration-500 ${
             mediaLoaded ? 'opacity-100' : 'opacity-0'
-          } group-hover:scale-105`}
+          } group-hover:scale-110`}
           onLoad={() => setMediaLoaded(true)}
           onError={() => setMediaError(true)}
         />
@@ -211,8 +211,11 @@ export function PhotoCard({
         </div>
         
         <div className="flex items-center justify-between">
-          <div className="date text-xs text-white/90 drop-shadow-sm font-medium">
-            {new Date(photo.uploadDate).toLocaleDateString('pt-BR')}
+        <div className="text-xs text-white/80 font-medium">
+            {new Date(photo.uploadDate).toLocaleDateString('pt-BR', {
+              day: '2-digit',
+              month: 'short'
+            })}
           </div>
           
           {/* Favorite button */}

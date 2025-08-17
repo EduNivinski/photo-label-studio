@@ -19,9 +19,9 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				'sans': ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+				'sans': ['Plus Jakarta Sans', 'Outfit', 'Inter', 'system-ui', 'sans-serif'],
 				'serif': ['Playfair Display', 'Georgia', 'serif'],
-				'display': ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+				'display': ['Plus Jakarta Sans', 'Outfit', 'system-ui', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -70,6 +70,12 @@ export default {
 				'label-foreground': 'hsl(var(--label-foreground))',
 				'search-background': 'hsl(var(--search-background))',
 				'gallery-background': 'hsl(var(--gallery-background))',
+				// Enhanced UI colors
+				'upload-primary': 'hsl(var(--upload-primary))',
+				'upload-primary-foreground': 'hsl(var(--upload-primary-foreground))',
+				'upload-hover': 'hsl(var(--upload-hover))',
+				'unlabeled-alert': 'hsl(var(--unlabeled-alert))',
+				'unlabeled-alert-bg': 'hsl(var(--unlabeled-alert-bg))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
