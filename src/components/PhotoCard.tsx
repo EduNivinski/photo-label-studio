@@ -152,9 +152,9 @@ export function PhotoCard({
       <div className="card-overlay absolute bottom-0 w-full">
         <div className="labels mb-2">
           {/* Container com altura fixa para sempre manter a mesma posição */}
-          <div className="h-[3.25rem] flex flex-col justify-end">
+          <div className="h-[1.5rem] flex flex-col justify-end">
             {/* Primeira linha de labels (sempre na mesma posição) */}
-            <div className="flex flex-wrap gap-1 h-6 overflow-hidden mb-1">
+            <div className="flex flex-wrap gap-1 h-6 overflow-hidden">
               {photoLabels.slice(0, 3).map((label) => (
                 <LabelChip 
                   key={label.id} 
