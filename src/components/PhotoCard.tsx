@@ -151,11 +151,46 @@ export function PhotoCard({
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
         <div className="labels mb-2 relative z-10">
-          {/* Container que mantém a primeira linha sempre na mesma posição */}
-          <div className="flex flex-col">
-            {/* Primeira linha de labels (posição fixa) */}
-            <div className="flex flex-wrap gap-1 h-6 mb-1">
-              {photoLabels.slice(0, 3).map((label) => (
+          {/* Primeira linha de labels (posição fixa como nos cards com uma linha só) */}
+          <div className="flex flex-wrap gap-1 h-6 mb-1">
+            {photoLabels.slice(0, 3).map((label) => (
+              <LabelChip 
+                key={label.id} 
+                label={label} 
+                variant="card" 
+                onRemove={() => handleRemoveLabel(label.id)}
+                className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0"
+                size="sm"
+              />
+            ))}
+            
+            {/* Botão para adicionar nova label na primeira linha */}
+            {!isSelected && photoLabels.length < 3 && (
+              <div className={`transition-opacity duration-200 flex-shrink-0 ${
+                hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              }`}>
+                <QuickLabelSelector
+                  labels={labels}
+                  photoLabels={photo.labels}
+                  onAddLabel={handleAddLabel}
+                >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20 flex-shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </QuickLabelSelector>
+              </div>
+            )}
+          </div>
+          
+          {/* Segunda linha de labels (apenas se houver mais de 3) */}
+          {photoLabels.length > 3 && (
+            <div className="flex flex-wrap gap-1 h-6">
+              {photoLabels.slice(3, 6).map((label) => (
                 <LabelChip 
                   key={label.id} 
                   label={label} 
@@ -166,8 +201,42 @@ export function PhotoCard({
                 />
               ))}
               
-              {/* Botão para adicionar nova label na primeira linha */}
-              {!isSelected && photoLabels.length < 3 && (
+              {/* Botão de "mais" se houver mais de 6 labels */}
+              {photoLabels.length > 6 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button 
+                      className="text-xs text-white/90 bg-white/25 backdrop-blur-sm px-2 py-1 rounded-full hover:bg-white/35 transition-colors flex items-center gap-1 flex-shrink-0 h-6"
+                      onClick={(e) => e.stopPropagation()}
+                      title={`${photoLabels.length} labels no total`}
+                    >
+                      <span className="text-xs">⋯</span>
+                      <span className="text-xs font-medium">{photoLabels.length}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2" align="start">
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-muted-foreground mb-2">
+                        Todas as labels:
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {photoLabels.map((label) => (
+                          <LabelChip 
+                            key={label.id}
+                            label={label}
+                            variant="tag"
+                            onRemove={() => handleRemoveLabel(label.id)}
+                            size="sm"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+              
+              {/* Botão para adicionar nova label na segunda linha */}
+              {!isSelected && photoLabels.length >= 3 && photoLabels.length < 6 && (
                 <div className={`transition-opacity duration-200 flex-shrink-0 ${
                   hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}>
@@ -188,79 +257,7 @@ export function PhotoCard({
                 </div>
               )}
             </div>
-            
-            {/* Segunda linha de labels (apenas se houver mais de 3) */}
-            {photoLabels.length > 3 && (
-              <div className="flex flex-wrap gap-1 h-6">
-                {photoLabels.slice(3, 6).map((label) => (
-                  <LabelChip 
-                    key={label.id} 
-                    label={label} 
-                    variant="card" 
-                    onRemove={() => handleRemoveLabel(label.id)}
-                    className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0"
-                    size="sm"
-                  />
-                ))}
-                
-                {/* Botão de "mais" se houver mais de 6 labels */}
-                {photoLabels.length > 6 && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button 
-                        className="text-xs text-white/90 bg-white/25 backdrop-blur-sm px-2 py-1 rounded-full hover:bg-white/35 transition-colors flex items-center gap-1 flex-shrink-0 h-6"
-                        onClick={(e) => e.stopPropagation()}
-                        title={`${photoLabels.length} labels no total`}
-                      >
-                        <span className="text-xs">⋯</span>
-                        <span className="text-xs font-medium">{photoLabels.length}</span>
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2" align="start">
-                      <div className="space-y-1">
-                        <div className="text-xs font-medium text-muted-foreground mb-2">
-                          Todas as labels:
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {photoLabels.map((label) => (
-                            <LabelChip 
-                              key={label.id}
-                              label={label}
-                              variant="tag"
-                              onRemove={() => handleRemoveLabel(label.id)}
-                              size="sm"
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
-                
-                {/* Botão para adicionar nova label na segunda linha */}
-                {!isSelected && photoLabels.length >= 3 && photoLabels.length < 6 && (
-                  <div className={`transition-opacity duration-200 flex-shrink-0 ${
-                    hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}>
-                    <QuickLabelSelector
-                      labels={labels}
-                      photoLabels={photo.labels}
-                      onAddLabel={handleAddLabel}
-                    >
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20 flex-shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </QuickLabelSelector>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
         
         <div className="flex items-center justify-end relative z-10">
