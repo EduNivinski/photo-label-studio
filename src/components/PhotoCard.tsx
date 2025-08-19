@@ -149,10 +149,10 @@ export function PhotoCard({
       )}
       
       {/* Gradient overlay for content integration */}
-      <div className="card-overlay absolute bottom-0 w-full">
-        <div className="labels mb-2">
-          {/* Container com altura fixa para sempre manter a mesma posição */}
-          <div className="h-[1.5rem] flex flex-col justify-end">
+      <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
+        <div className="labels mb-2 relative z-10">
+          {/* Container com altura dinâmica para acomodar até 2 linhas */}
+          <div className="space-y-1">
             {/* Primeira linha de labels (sempre na mesma posição) */}
             <div className="flex flex-wrap gap-1 h-6 overflow-hidden">
               {photoLabels.slice(0, 3).map((label) => (
@@ -263,7 +263,7 @@ export function PhotoCard({
           </div>
         </div>
         
-        <div className="flex items-center justify-end">          
+        <div className="flex items-center justify-end relative z-10">
           {/* Favorite button */}
           <div className={`transition-opacity duration-200 ${
             hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
