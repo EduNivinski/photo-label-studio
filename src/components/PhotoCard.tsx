@@ -151,10 +151,10 @@ export function PhotoCard({
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
         <div className="labels mb-2 relative z-10">
-          {/* Container com altura dinâmica para acomodar até 2 linhas */}
-          <div className="space-y-1">
-            {/* Primeira linha de labels (sempre na mesma posição) */}
-            <div className="flex flex-wrap gap-1 h-6 overflow-hidden">
+          {/* Container que mantém a primeira linha sempre na mesma posição */}
+          <div className="flex flex-col">
+            {/* Primeira linha de labels (posição fixa) */}
+            <div className="flex flex-wrap gap-1 h-6 mb-1">
               {photoLabels.slice(0, 3).map((label) => (
                 <LabelChip 
                   key={label.id} 
@@ -189,9 +189,9 @@ export function PhotoCard({
               )}
             </div>
             
-            {/* Segunda linha de labels (se houver mais de 3) */}
+            {/* Segunda linha de labels (apenas se houver mais de 3) */}
             {photoLabels.length > 3 && (
-              <div className="flex flex-wrap gap-1 h-6 overflow-hidden">
+              <div className="flex flex-wrap gap-1 h-6">
                 {photoLabels.slice(3, 6).map((label) => (
                   <LabelChip 
                     key={label.id} 
