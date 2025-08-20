@@ -150,8 +150,8 @@ export function PhotoCard({
       
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
-        <div className="labels mb-2 relative z-10">
-          {/* Primeira linha de labels (posição fixa como nos cards com uma linha só) */}
+        <div className="labels mb-2 relative z-10 h-[3.25rem] flex flex-col justify-end">
+          {/* Primeira linha de labels (posição fixa ancorada na parte inferior) */}
           <div className="flex flex-wrap gap-1 h-6 mb-1">
             {photoLabels.slice(0, 3).map((label) => (
               <LabelChip 
