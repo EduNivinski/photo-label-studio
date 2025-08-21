@@ -150,10 +150,46 @@ export function PhotoCard({
       
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
-        <div className="labels mb-2 relative z-10 h-[3.25rem] flex flex-col">
-          {/* Segunda linha de labels (aparece primeiro no flex-col para ficar acima) */}
+        <div className="labels mb-2 relative z-10 h-[3.25rem] flex flex-col justify-end">
+          {/* Primeira linha de labels (ancorada na parte inferior) */}
+          <div className="flex flex-wrap gap-1 h-6">
+            {photoLabels.slice(0, 3).map((label) => (
+              <LabelChip 
+                key={label.id} 
+                label={label} 
+                variant="card" 
+                onRemove={() => handleRemoveLabel(label.id)}
+                className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0"
+                size="sm"
+              />
+            ))}
+            
+            {/* Botão para adicionar nova label na primeira linha */}
+            {!isSelected && photoLabels.length < 3 && (
+              <div className={`transition-opacity duration-200 flex-shrink-0 ${
+                hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              }`}>
+                <QuickLabelSelector
+                  labels={labels}
+                  photoLabels={photo.labels}
+                  onAddLabel={handleAddLabel}
+                >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20 flex-shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </QuickLabelSelector>
+              </div>
+            )}
+          </div>
+          
+          {/* Segunda linha de labels (aparece ABAIXO da primeira linha) */}
           {photoLabels.length > 3 && (
-            <div className="flex flex-wrap gap-1 h-6 mb-1">
+            <div className="flex flex-wrap gap-1 h-6 mt-1">
               {photoLabels.slice(3, 6).map((label) => (
                 <LabelChip 
                   key={label.id} 
@@ -222,42 +258,6 @@ export function PhotoCard({
               )}
             </div>
           )}
-          
-          {/* Primeira linha de labels (ancorada na parte inferior) */}
-          <div className="flex flex-wrap gap-1 h-6 mt-auto">
-            {photoLabels.slice(0, 3).map((label) => (
-              <LabelChip 
-                key={label.id} 
-                label={label} 
-                variant="card" 
-                onRemove={() => handleRemoveLabel(label.id)}
-                className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0"
-                size="sm"
-              />
-            ))}
-            
-            {/* Botão para adicionar nova label na primeira linha */}
-            {!isSelected && photoLabels.length < 3 && (
-              <div className={`transition-opacity duration-200 flex-shrink-0 ${
-                hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-              }`}>
-                <QuickLabelSelector
-                  labels={labels}
-                  photoLabels={photo.labels}
-                  onAddLabel={handleAddLabel}
-                >
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20 flex-shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </QuickLabelSelector>
-              </div>
-            )}
-          </div>
         </div>
         
         <div className="flex items-center justify-end relative z-10">
