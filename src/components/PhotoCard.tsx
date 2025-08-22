@@ -151,8 +151,8 @@ export function PhotoCard({
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
         <div className="labels mb-2 relative z-10 h-[3.25rem]">          
-          {/* Linha principal - sempre na mesma posição fixa */}
-          <div className="absolute bottom-6 left-0 right-0 h-6">
+          {/* Linha principal - posição fixa mais próxima da base */}
+          <div className="absolute bottom-3 left-0 right-0 h-6">
             <div className="flex gap-1">
               {photoLabels.slice(0, 3).map((label) => (
                 <LabelChip 
@@ -189,55 +189,57 @@ export function PhotoCard({
             </div>
           </div>
           
-          {/* Segunda linha - posicionada ABAIXO da linha principal */}
-          <div className="absolute bottom-0 left-0 right-0 h-6">
-            <div className="flex gap-1">
-              {photoLabels.slice(3, 6).map((label) => (
-                <LabelChip 
-                  key={label.id} 
-                  label={label} 
-                  variant="card" 
-                  onRemove={() => handleRemoveLabel(label.id)}
-                  className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0 h-6"
-                  size="sm"
-                />
-              ))}
-              
-              {/* Botão de "mais" se houver mais de 6 labels */}
-              {photoLabels.length > 6 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button 
-                      className="text-xs text-white/90 bg-white/25 backdrop-blur-sm px-2 py-1 rounded-full hover:bg-white/35 transition-colors flex items-center gap-1 flex-shrink-0 h-6"
-                      onClick={(e) => e.stopPropagation()}
-                      title={`${photoLabels.length} labels no total`}
-                    >
-                      <span className="text-xs">⋯</span>
-                      <span className="text-xs font-medium">{photoLabels.length}</span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-2" align="start">
-                    <div className="space-y-1">
-                      <div className="text-xs font-medium text-muted-foreground mb-2">
-                        Todas as labels:
+          {/* Segunda linha - com espaçamento adequado abaixo da principal */}
+          {photoLabels.length > 3 && (
+            <div className="absolute bottom-0 left-0 right-0 h-6">
+              <div className="flex gap-1">
+                {photoLabels.slice(3, 6).map((label) => (
+                  <LabelChip 
+                    key={label.id} 
+                    label={label} 
+                    variant="card" 
+                    onRemove={() => handleRemoveLabel(label.id)}
+                    className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0 h-6"
+                    size="sm"
+                  />
+                ))}
+                
+                {/* Botão de "mais" se houver mais de 6 labels */}
+                {photoLabels.length > 6 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button 
+                        className="text-xs text-white/90 bg-white/25 backdrop-blur-sm px-2 py-1 rounded-full hover:bg-white/35 transition-colors flex items-center gap-1 flex-shrink-0 h-6"
+                        onClick={(e) => e.stopPropagation()}
+                        title={`${photoLabels.length} labels no total`}
+                      >
+                        <span className="text-xs">⋯</span>
+                        <span className="text-xs font-medium">{photoLabels.length}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-2" align="start">
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">
+                          Todas as labels:
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {photoLabels.map((label) => (
+                            <LabelChip 
+                              key={label.id}
+                              label={label}
+                              variant="tag"
+                              onRemove={() => handleRemoveLabel(label.id)}
+                              size="sm"
+                            />
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {photoLabels.map((label) => (
-                          <LabelChip 
-                            key={label.id}
-                            label={label}
-                            variant="tag"
-                            onRemove={() => handleRemoveLabel(label.id)}
-                            size="sm"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
         
         <div className="flex items-center justify-end relative z-10">
