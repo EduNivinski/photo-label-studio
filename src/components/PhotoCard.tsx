@@ -151,10 +151,26 @@ export function PhotoCard({
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
         <div className="labels mb-2 relative z-10 h-[3.25rem]">
-          {/* Container das labels com posição fixa para a linha principal */}
-          <div className="absolute bottom-0 left-0 right-0">
-            <div className="flex flex-wrap gap-1 max-h-12 overflow-hidden">
-              {photoLabels.slice(0, 6).map((label) => (
+          {/* Segunda linha (opcional) - posicionada no topo do container */}
+          <div className="absolute top-0 left-0 right-0 h-6">
+            <div className="flex gap-1">
+              {photoLabels.slice(3, 6).map((label) => (
+                <LabelChip 
+                  key={label.id} 
+                  label={label} 
+                  variant="card" 
+                  onRemove={() => handleRemoveLabel(label.id)}
+                  className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30 text-xs flex-shrink-0 h-6"
+                  size="sm"
+                />
+              ))}
+            </div>
+          </div>
+          
+          {/* Linha principal - sempre posicionada no bottom */}
+          <div className="absolute bottom-0 left-0 right-0 h-6">
+            <div className="flex gap-1">
+              {photoLabels.slice(0, 3).map((label) => (
                 <LabelChip 
                   key={label.id} 
                   label={label} 
@@ -200,7 +216,7 @@ export function PhotoCard({
               )}
               
               {/* Botão para adicionar nova label */}
-              {!isSelected && photoLabels.length < 6 && (
+              {!isSelected && photoLabels.length < 3 && (
                 <div className={`transition-opacity duration-200 flex-shrink-0 ${
                   hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}>
