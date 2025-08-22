@@ -150,11 +150,11 @@ export function PhotoCard({
       
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
-        <div className="labels mb-2 relative z-10 h-[3.25rem]">
-          {/* Segunda linha (opcional) - posicionada logo acima da linha principal */}
+        <div className="labels mb-2 relative z-10 h-[3.25rem]">          
+          {/* Linha principal - sempre na mesma posição fixa */}
           <div className="absolute bottom-6 left-0 right-0 h-6">
             <div className="flex gap-1">
-              {photoLabels.slice(3, 6).map((label) => (
+              {photoLabels.slice(0, 3).map((label) => (
                 <LabelChip 
                   key={label.id} 
                   label={label} 
@@ -164,13 +164,35 @@ export function PhotoCard({
                   size="sm"
                 />
               ))}
+              
+              {/* Botão para adicionar nova label */}
+              {!isSelected && photoLabels.length < 3 && (
+                <div className={`transition-opacity duration-200 flex-shrink-0 ${
+                  hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}>
+                  <QuickLabelSelector
+                    labels={labels}
+                    photoLabels={photo.labels}
+                    onAddLabel={handleAddLabel}
+                  >
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20 flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </QuickLabelSelector>
+                </div>
+              )}
             </div>
           </div>
           
-          {/* Linha principal - sempre posicionada no bottom */}
+          {/* Segunda linha - posicionada ABAIXO da linha principal */}
           <div className="absolute bottom-0 left-0 right-0 h-6">
             <div className="flex gap-1">
-              {photoLabels.slice(0, 3).map((label) => (
+              {photoLabels.slice(3, 6).map((label) => (
                 <LabelChip 
                   key={label.id} 
                   label={label} 
@@ -213,28 +235,6 @@ export function PhotoCard({
                     </div>
                   </PopoverContent>
                 </Popover>
-              )}
-              
-              {/* Botão para adicionar nova label */}
-              {!isSelected && photoLabels.length < 3 && (
-                <div className={`transition-opacity duration-200 flex-shrink-0 ${
-                  hasActiveSelections || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}>
-                  <QuickLabelSelector
-                    labels={labels}
-                    photoLabels={photo.labels}
-                    onAddLabel={handleAddLabel}
-                  >
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 rounded-full text-white/80 hover:text-white hover:bg-white/20 flex-shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </QuickLabelSelector>
-                </div>
               )}
             </div>
           </div>
