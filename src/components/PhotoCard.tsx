@@ -151,8 +151,8 @@ export function PhotoCard({
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
         <div className="labels mb-2 relative z-10 h-[3.25rem]">          
-          {/* Linha principal - posição fixa mais próxima da base */}
-          <div className="absolute bottom-3 left-0 right-0 h-6">
+          {/* Linha principal */}
+          <div className="absolute bottom-7 left-0 right-0 h-6">
             <div className="flex gap-1">
               {photoLabels.slice(0, 3).map((label) => (
                 <LabelChip 
