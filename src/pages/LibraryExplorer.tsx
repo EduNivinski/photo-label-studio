@@ -20,10 +20,11 @@ import { DateFilters } from '@/components/DateFilters';
 import { EnhancedHeader } from '@/components/EnhancedHeader';
 import { AdvancedFiltersCollapsible } from '@/components/AdvancedFiltersCollapsible';
 import { FloatingUploadButton } from '@/components/FloatingUploadButton';
+import { RelatedLabelsBar } from '@/components/RelatedLabelsBar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useAdvancedFilters } from '@/hooks/useAdvancedFilters';
+import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { usePagination } from '@/hooks/usePagination';
 import { useAlbums } from '@/hooks/useAlbums';
@@ -75,18 +76,26 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
   console.log('LibraryExplorer: props.filteredPhotos length =', props.filteredPhotos?.length);
   
   // Use local filters only if no global filters provided
-  const localFiltersHook = !isUsingGlobalFilters ? useAdvancedFilters(photos) : null;
+  const localFiltersHook = !isUsingGlobalFilters ? usePhotoFilters(photos) : null;
   
   const filters = isUsingGlobalFilters ? props.filters : localFiltersHook?.filters;
   const filteredPhotos = isUsingGlobalFilters ? props.filteredPhotos : localFiltersHook?.filteredPhotos || photos;
   const showFavorites = isUsingGlobalFilters ? props.showFavorites : localFiltersHook?.showFavorites || false;
-  const updateFilters = isUsingGlobalFilters ? props.updateFilters : localFiltersHook?.updateFilters;
+  const updateFilters = isUsingGlobalFilters ? props.updateFilters : () => {};
   const updateSearchTerm = localFiltersHook?.updateSearchTerm;
   const toggleLabel = isUsingGlobalFilters ? props.toggleLabel : localFiltersHook?.toggleLabel;
-  const toggleFileType = isUsingGlobalFilters ? props.toggleFileType : localFiltersHook?.toggleFileType;
-  const toggleMediaType = isUsingGlobalFilters ? props.toggleMediaType : localFiltersHook?.toggleMediaType;
+  const toggleFileType = isUsingGlobalFilters ? props.toggleFileType : () => {};
+  const toggleMediaType = isUsingGlobalFilters ? props.toggleMediaType : () => {};
   const toggleFavorites = isUsingGlobalFilters ? props.toggleFavorites : localFiltersHook?.toggleFavorites;
   const clearFilters = isUsingGlobalFilters ? props.clearFilters : localFiltersHook?.clearFilters;
+  
+  // Advanced filtering from new hook
+  const includedLabels = localFiltersHook?.includedLabels || [];
+  const excludedLabels = localFiltersHook?.excludedLabels || [];
+  const includeLabel = localFiltersHook?.includeLabel;
+  const excludeLabel = localFiltersHook?.excludeLabel;
+  const removeLabel = localFiltersHook?.removeLabel;
+  const getRelatedLabels = localFiltersHook?.getRelatedLabels || [];
   
   console.log('LibraryExplorer: final showFavorites =', showFavorites);
   console.log('LibraryExplorer: final filteredPhotos length =', filteredPhotos?.length);
@@ -385,6 +394,19 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         onClearSelection={clearSelection}
         onCreateCollection={() => setShowCreateAlbum(true)}
       />
+
+      {/* Related Labels Bar */}
+      {!isUsingGlobalFilters && includeLabel && excludeLabel && removeLabel && (
+        <RelatedLabelsBar
+          relatedLabels={getRelatedLabels}
+          allLabels={labels}
+          includedLabels={includedLabels}
+          excludedLabels={excludedLabels}
+          onIncludeLabel={includeLabel}
+          onExcludeLabel={excludeLabel}
+          onRemoveLabel={removeLabel}
+        />
+      )}
 
       {/* Navigation Hub - Quick Access Cards */}
       <NavigationHub
