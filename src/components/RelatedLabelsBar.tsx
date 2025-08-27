@@ -22,8 +22,15 @@ export function RelatedLabelsBar({
   onExcludeLabel,
   onRemoveLabel
 }: RelatedLabelsBarProps) {
+  // Debug: Show a message if no filters are active
   if (includedLabels.length === 0 && excludedLabels.length === 0) {
-    return null;
+    return (
+      <div className="bg-muted/30 border-b border-border p-4">
+        <p className="text-sm text-muted-foreground italic">
+          💡 Dica: Selecione uma label acima para ver as "Labels Relacionadas" e poder incluir/excluir outras labels dinamicamente
+        </p>
+      </div>
+    );
   }
 
   const getLabelName = (labelId: string) => {
