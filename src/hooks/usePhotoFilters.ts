@@ -12,6 +12,9 @@ export function usePhotoFilters(photos: Photo[]) {
   });
   const [showFavorites, setShowFavorites] = useState(false);
   const [filterMode, setFilterMode] = useState<'AND' | 'OR'>('AND');
+  // New state for advanced filtering
+  const [includedLabels, setIncludedLabels] = useState<string[]>([]);
+  const [excludedLabels, setExcludedLabels] = useState<string[]>([]);
 
   const filteredPhotos = useMemo(() => {
     return photos.filter((photo) => {
@@ -19,10 +22,22 @@ export function usePhotoFilters(photos: Photo[]) {
       const matchesSearch = filters.searchTerm === '' || 
         photo.name.toLowerCase().includes(filters.searchTerm.toLowerCase());
 
-      // Filter by labels (always use AND logic - intersection)
+      // Advanced label filtering with inclusion/exclusion
+      let matchesAdvancedLabels = true;
+      
+      // If we have included labels, photo must have ALL of them
+      if (includedLabels.length > 0) {
+        matchesAdvancedLabels = includedLabels.every(labelId => photo.labels.includes(labelId));
+      }
+      
+      // If we have excluded labels, photo must NOT have ANY of them
+      if (excludedLabels.length > 0 && matchesAdvancedLabels) {
+        matchesAdvancedLabels = !excludedLabels.some(labelId => photo.labels.includes(labelId));
+      }
+
+      // Legacy filter by labels (keep for backward compatibility)
       let matchesLabels = true;
       if (filters.labels.length > 0) {
-        // ALL selected labels must be present
         matchesLabels = filters.labels.every(labelId => photo.labels.includes(labelId));
       }
 
@@ -38,9 +53,9 @@ export function usePhotoFilters(photos: Photo[]) {
         matchesFavorites = photo.labels.includes('favorites');
       }
 
-      return matchesSearch && matchesLabels && matchesUnlabeled && matchesFavorites;
+      return matchesSearch && matchesAdvancedLabels && matchesLabels && matchesUnlabeled && matchesFavorites;
     });
-  }, [photos, filters, filterMode]);
+  }, [photos, filters, filterMode, includedLabels, excludedLabels, showFavorites]);
 
   const updateSearchTerm = (searchTerm: string) => {
     setFilters(prev => ({ ...prev, searchTerm }));
@@ -63,6 +78,51 @@ export function usePhotoFilters(photos: Photo[]) {
     setShowFavorites(prev => !prev);
   };
 
+  // Advanced filtering functions
+  const includeLabel = (labelId: string) => {
+    setIncludedLabels(prev => 
+      prev.includes(labelId) ? prev : [...prev, labelId]
+    );
+    // Remove from excluded if it was there
+    setExcludedLabels(prev => prev.filter(id => id !== labelId));
+  };
+
+  const excludeLabel = (labelId: string) => {
+    setExcludedLabels(prev => 
+      prev.includes(labelId) ? prev : [...prev, labelId]
+    );
+    // Remove from included if it was there
+    setIncludedLabels(prev => prev.filter(id => id !== labelId));
+  };
+
+  const removeLabel = (labelId: string) => {
+    setIncludedLabels(prev => prev.filter(id => id !== labelId));
+    setExcludedLabels(prev => prev.filter(id => id !== labelId));
+  };
+
+  // Get related labels from current filtered photos
+  const getRelatedLabels = useMemo(() => {
+    if (includedLabels.length === 0) return [];
+    
+    const labelCounts = new Map<string, number>();
+    
+    // Count labels from photos that match included labels
+    photos.filter(photo => 
+      includedLabels.every(labelId => photo.labels.includes(labelId))
+    ).forEach(photo => {
+      photo.labels.forEach(labelId => {
+        if (!includedLabels.includes(labelId) && labelId !== 'favorites') {
+          labelCounts.set(labelId, (labelCounts.get(labelId) || 0) + 1);
+        }
+      });
+    });
+
+    return Array.from(labelCounts.entries())
+      .sort((a, b) => b[1] - a[1]) // Sort by count descending
+      .slice(0, 20) // Limit to top 20
+      .map(([labelId, count]) => ({ labelId, count }));
+  }, [photos, includedLabels]);
+
   const clearFilters = () => {
     setFilters({ 
       labels: [], 
@@ -73,6 +133,8 @@ export function usePhotoFilters(photos: Photo[]) {
       sortBy: 'date-desc'
     });
     setShowFavorites(false);
+    setIncludedLabels([]);
+    setExcludedLabels([]);
     // Resetar para mostrar clusters novamente
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('resetClusters'));
@@ -87,6 +149,13 @@ export function usePhotoFilters(photos: Photo[]) {
     toggleLabel,
     toggleUnlabeled,
     toggleFavorites,
-    clearFilters
+    clearFilters,
+    // Advanced filtering
+    includedLabels,
+    excludedLabels,
+    includeLabel,
+    excludeLabel,
+    removeLabel,
+    getRelatedLabels
   };
 }

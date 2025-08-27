@@ -15,6 +15,8 @@ interface SearchBarProps {
   onToggleUnlabeled: () => void;
   onClearFilters: () => void;
   onManageLabels: () => void;
+  // New advanced filtering props
+  onIncludeLabel?: (labelId: string) => void;
 }
 
 export function SearchBar({ 
@@ -27,8 +29,18 @@ export function SearchBar({
   onLabelToggle,
   onToggleUnlabeled,
   onClearFilters,
-  onManageLabels
+  onManageLabels,
+  onIncludeLabel
 }: SearchBarProps) {
+  
+  const handleLabelToggle = (labelId: string) => {
+    // Use advanced include if available, otherwise fall back to legacy toggle
+    if (onIncludeLabel) {
+      onIncludeLabel(labelId);
+    } else {
+      onLabelToggle(labelId);
+    }
+  };
   return (
     <div className="flex gap-4 p-6 bg-search-background border-b border-border">
       <div className="relative flex-1 max-w-md">
@@ -45,7 +57,7 @@ export function SearchBar({
       <SmartLabelSearch
         labels={labels}
         selectedLabels={selectedLabels}
-        onLabelToggle={onLabelToggle}
+        onLabelToggle={handleLabelToggle}
         onClearFilters={onClearFilters}
       />
       

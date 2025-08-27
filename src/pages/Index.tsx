@@ -12,6 +12,7 @@ import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAlbums } from '@/hooks/useAlbums';
 import { SearchBar } from '@/components/SearchBar';
+import { RelatedLabelsBar } from '@/components/RelatedLabelsBar';
 import { UnlabeledPhotosSection } from '@/components/UnlabeledPhotosSection';
 import { SmartSuggestionsSection } from '@/components/SmartSuggestionsSection';
 import { PhotoGallery } from '@/components/PhotoGallery';
@@ -57,7 +58,13 @@ const Index = () => {
     updateSearchTerm,
     toggleLabel,
     toggleUnlabeled,
-    clearFilters
+    clearFilters,
+    includedLabels,
+    excludedLabels,
+    includeLabel,
+    excludeLabel,
+    removeLabel,
+    getRelatedLabels
   } = usePhotoFilters(photos);
 
   // Photo selection state
@@ -263,7 +270,8 @@ const Index = () => {
   };
 
   // Detectar quando filtros estão ativos
-  const hasActiveFilters = filters.labels.length > 0 || filters.showUnlabeled || filters.searchTerm.trim() !== '';
+  const hasActiveFilters = filters.labels.length > 0 || filters.showUnlabeled || filters.searchTerm.trim() !== '' || 
+    includedLabels.length > 0 || excludedLabels.length > 0;
 
   const handlePhotoDelete = async () => {
     if (!selectedPhoto) return;
@@ -511,6 +519,20 @@ const Index = () => {
                 onToggleUnlabeled={toggleUnlabeled}
                 onClearFilters={handleBackToHome}
                 onManageLabels={() => handleLabelManage()}
+                onIncludeLabel={includeLabel}
+              />
+            )}
+
+            {/* Related Labels Bar - Advanced Filtering */}
+            {(currentView === 'gallery' || hasActiveFilters) && (
+              <RelatedLabelsBar
+                relatedLabels={getRelatedLabels}
+                allLabels={labels}
+                includedLabels={includedLabels}
+                excludedLabels={excludedLabels}
+                onIncludeLabel={includeLabel}
+                onExcludeLabel={excludeLabel}
+                onRemoveLabel={removeLabel}
               />
             )}
 
