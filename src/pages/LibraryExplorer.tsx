@@ -395,8 +395,8 @@ export default function LibraryExplorer(props: LibraryExplorerProps = {}) {
         onCreateCollection={() => setShowCreateAlbum(true)}
       />
 
-      {/* Related Labels Bar */}
-      {!isUsingGlobalFilters && includeLabel && excludeLabel && removeLabel && (
+      {/* Related Labels Bar - Always show when we have the functions */}
+      {includeLabel && excludeLabel && removeLabel && (
         <RelatedLabelsBar
           relatedLabels={getRelatedLabels}
           allLabels={labels}

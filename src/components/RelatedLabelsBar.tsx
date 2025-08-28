@@ -22,11 +22,20 @@ export function RelatedLabelsBar({
   onExcludeLabel,
   onRemoveLabel
 }: RelatedLabelsBarProps) {
+  // DEBUG: Always show debug info
+  console.log('RelatedLabelsBar DEBUG:', {
+    includedLabels,
+    excludedLabels,
+    relatedLabelsCount: relatedLabels.length,
+    relatedLabels: relatedLabels.slice(0, 3) // Show first 3 for debugging
+  });
+
   // Debug: Show a message if no filters are active
   if (includedLabels.length === 0 && excludedLabels.length === 0) {
     return (
-      <div className="bg-muted/30 border-b border-border p-4">
-        <p className="text-sm text-muted-foreground italic">
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 border-b border-border p-4">
+        <p className="text-sm text-gray-700 italic">
+          🐛 DEBUG: RelatedLabelsBar renderizado mas sem filtros ativos<br/>
           💡 Dica: Selecione uma label acima para ver as "Labels Relacionadas" e poder incluir/excluir outras labels dinamicamente
         </p>
       </div>
