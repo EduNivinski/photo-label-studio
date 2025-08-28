@@ -17,6 +17,8 @@ interface SearchBarProps {
   onManageLabels: () => void;
   // New advanced filtering props
   onIncludeLabel?: (labelId: string) => void;
+  includedLabels?: string[];
+  excludedLabels?: string[];
 }
 
 export function SearchBar({ 
@@ -30,7 +32,9 @@ export function SearchBar({
   onToggleUnlabeled,
   onClearFilters,
   onManageLabels,
-  onIncludeLabel
+  onIncludeLabel,
+  includedLabels = [],
+  excludedLabels = []
 }: SearchBarProps) {
   
   const handleLabelToggle = (labelId: string) => {
@@ -41,6 +45,10 @@ export function SearchBar({
       onLabelToggle(labelId);
     }
   };
+
+  // Combine both legacy and advanced selected labels for display
+  const allSelectedLabels = Array.from(new Set([...selectedLabels, ...includedLabels]));
+
   return (
     <div className="flex gap-4 p-6 bg-search-background border-b border-border">
       <div className="relative flex-1 max-w-md">
@@ -56,7 +64,7 @@ export function SearchBar({
       
       <SmartLabelSearch
         labels={labels}
-        selectedLabels={selectedLabels}
+        selectedLabels={allSelectedLabels}
         onLabelToggle={handleLabelToggle}
         onClearFilters={onClearFilters}
       />

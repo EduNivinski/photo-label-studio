@@ -383,6 +383,8 @@ const Index = () => {
               onClearFilters={handleBackToHome}
               onManageLabels={() => handleLabelManage()}
               onIncludeLabel={includeLabel}
+              includedLabels={includedLabels}
+              excludedLabels={excludedLabels}
             />
 
             {/* Related Labels Bar - Advanced Filtering */}
@@ -546,6 +548,8 @@ const Index = () => {
                 onClearFilters={handleBackToHome}
                 onManageLabels={() => handleLabelManage()}
                 onIncludeLabel={includeLabel}
+                includedLabels={includedLabels}
+                excludedLabels={excludedLabels}
               />
             )}
 
