@@ -523,18 +523,16 @@ const Index = () => {
               />
             )}
 
-            {/* Related Labels Bar - Advanced Filtering */}
-            {(currentView === 'gallery' || hasActiveFilters) && (
-              <RelatedLabelsBar
-                relatedLabels={getRelatedLabels}
-                allLabels={labels}
-                includedLabels={includedLabels}
-                excludedLabels={excludedLabels}
-                onIncludeLabel={includeLabel}
-                onExcludeLabel={excludeLabel}
-                onRemoveLabel={removeLabel}
-              />
-            )}
+            {/* Related Labels Bar - Advanced Filtering - Always show when there are filters */}
+            <RelatedLabelsBar
+              relatedLabels={getRelatedLabels}
+              allLabels={labels}
+              includedLabels={includedLabels}
+              excludedLabels={excludedLabels}
+              onIncludeLabel={includeLabel}
+              onExcludeLabel={excludeLabel}
+              onRemoveLabel={removeLabel}
+            />
 
             {/* Photo Gallery */}
             <PhotoGallery
