@@ -370,6 +370,32 @@ const Index = () => {
               </div>
             </section>
 
+            {/* Search Bar - Always visible for filtering */}
+            <SearchBar
+              searchTerm={filters.searchTerm}
+              onSearchChange={updateSearchTerm}
+              onUpload={handleUpload}
+              labels={labels}
+              selectedLabels={filters.labels}
+              showUnlabeled={filters.showUnlabeled}
+              onLabelToggle={toggleLabel}
+              onToggleUnlabeled={toggleUnlabeled}
+              onClearFilters={handleBackToHome}
+              onManageLabels={() => handleLabelManage()}
+              onIncludeLabel={includeLabel}
+            />
+
+            {/* Related Labels Bar - Advanced Filtering */}
+            <RelatedLabelsBar
+              relatedLabels={getRelatedLabels}
+              allLabels={labels}
+              includedLabels={includedLabels}
+              excludedLabels={excludedLabels}
+              onIncludeLabel={includeLabel}
+              onExcludeLabel={excludeLabel}
+              onRemoveLabel={removeLabel}
+            />
+
             {/* My Collections Section - Renamed from Albums */}
             <section className="px-4 py-3 border-b border-border animate-fade-in">
               <div className="mb-4">
