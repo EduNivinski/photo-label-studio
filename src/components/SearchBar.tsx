@@ -51,7 +51,19 @@ export function SearchBar({
 
   return (
     <div className="flex gap-4 p-6 bg-search-background border-b border-border">
-      <div className="relative flex-1 max-w-md">
+      {/* SmartLabelSearch - Now primary and larger */}
+      <div className="flex-1 max-w-md">
+        <SmartLabelSearch
+          labels={labels}
+          selectedLabels={allSelectedLabels}
+          onLabelToggle={handleLabelToggle}
+          onClearFilters={onClearFilters}
+          compact={true}
+        />
+      </div>
+      
+      {/* Search Photos - Now secondary and smaller */}
+      <div className="relative w-64">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
         <Input
           type="text"
@@ -61,14 +73,6 @@ export function SearchBar({
           className="pl-10"
         />
       </div>
-      
-      <SmartLabelSearch
-        labels={labels}
-        selectedLabels={allSelectedLabels}
-        onLabelToggle={handleLabelToggle}
-        onClearFilters={onClearFilters}
-        compact={true}
-      />
       
       <div className="flex gap-2">
         <Button 
