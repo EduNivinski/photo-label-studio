@@ -67,6 +67,7 @@ export function SearchBar({
         selectedLabels={allSelectedLabels}
         onLabelToggle={handleLabelToggle}
         onClearFilters={onClearFilters}
+        compact={true}
       />
       
       <div className="flex gap-2">
