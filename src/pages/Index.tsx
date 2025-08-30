@@ -314,14 +314,7 @@ const Index = () => {
       {/* Hero Section - Simplified */}
       <section className="px-6 py-4 border-b border-border">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">📷 PhotoLabel</h1>
-          <Button 
-            onClick={handleUpload}
-            className="gap-2"
-          >
-            <Upload className="h-4 w-4" />
-            Upload
-          </Button>
+          <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
         </div>
       </section>
 
@@ -363,9 +356,6 @@ const Index = () => {
         />
       </div>
 
-      {/* Photo Stats */}
-      <PhotoStats photos={filteredPhotos} />
-
       {/* Pagination Controls */}
       <div className="px-6 py-3 bg-card border-b border-border">
         <div className="flex items-center justify-between">
@@ -385,6 +375,10 @@ const Index = () => {
                 <SelectItem value="200">200 por página</SelectItem>
               </SelectContent>
             </Select>
+
+            <span className="text-sm text-muted-foreground">
+              {filteredPhotos.length.toLocaleString()} fotos • 0 vídeos
+            </span>
           </div>
           
           <div className="flex items-center gap-2">

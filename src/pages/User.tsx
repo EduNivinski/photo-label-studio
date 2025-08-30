@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save } from 'lucide-react';
+import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,8 @@ export default function User() {
     firstName: 'João',
     lastName: 'Silva',
     email: 'joao.silva@email.com',
-    joinDate: '2024-01-15'
+    joinDate: '2024-01-15',
+    customLogo: null as string | null
   });
 
   // Mock data - em uma implementação real, viria do Supabase
@@ -33,6 +34,40 @@ export default function User() {
     { action: 'Aplicou label "natureza" em 8 fotos', date: '3 dias atrás' },
     { action: 'Deletou 3 fotos duplicadas', date: '5 dias atrás' }
   ];
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Verificar tamanho (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "Arquivo muito grande",
+          description: "A logo deve ter no máximo 2MB.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Verificar dimensões (recomendado: máximo 300x100px)
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          if (img.width > 300 || img.height > 100) {
+            toast({
+              title: "Dimensões muito grandes",
+              description: "A logo deve ter no máximo 300x100 pixels para melhor aparência.",
+              variant: "destructive"
+            });
+          } else {
+            setFormData({...formData, customLogo: e.target?.result as string});
+          }
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = () => {
     // Aqui faria a atualização via Supabase
@@ -123,6 +158,53 @@ export default function User() {
                     <span className="text-sm text-muted-foreground">
                       {new Date(formData.joinDate).toLocaleDateString('pt-BR')}
                     </span>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="customLogo">Logo Personalizada</Label>
+                  <div className="mt-1 space-y-3">
+                    {formData.customLogo && (
+                      <div className="flex items-center gap-3 p-3 border border-border rounded-lg bg-muted/50">
+                        <img 
+                          src={formData.customLogo} 
+                          alt="Logo personalizada" 
+                          className="max-w-[150px] max-h-[50px] object-contain"
+                        />
+                        {isEditing && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFormData({...formData, customLogo: null})}
+                          >
+                            Remover
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {isEditing && (
+                      <div>
+                        <input
+                          id="customLogo"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('customLogo')?.click()}
+                          className="gap-2"
+                        >
+                          <Upload className="h-4 w-4" />
+                          {formData.customLogo ? 'Trocar Logo' : 'Carregar Logo'}
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Recomendado: máximo 300x100px, 2MB. Formatos: PNG, JPG, SVG
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
