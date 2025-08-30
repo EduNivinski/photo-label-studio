@@ -1,3 +1,4 @@
+// Force rebuild to fix updateFilters caching issue - timestamp: 1756513884740
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
