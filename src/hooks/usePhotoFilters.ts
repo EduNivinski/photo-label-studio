@@ -123,6 +123,10 @@ export function usePhotoFilters(photos: Photo[]) {
       .map(([labelId, count]) => ({ labelId, count }));
   }, [photos, includedLabels]);
 
+  const updateFilters = (updates: Partial<PhotoFilters>) => {
+    setFilters(prev => ({ ...prev, ...updates }));
+  };
+
   const clearFilters = () => {
     setFilters({ 
       labels: [], 
@@ -146,6 +150,7 @@ export function usePhotoFilters(photos: Photo[]) {
     filteredPhotos,
     showFavorites,
     updateSearchTerm,
+    updateFilters,
     toggleLabel,
     toggleUnlabeled,
     toggleFavorites,

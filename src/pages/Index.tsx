@@ -28,6 +28,7 @@ import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
 import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { HomeFiltersBar } from '@/components/HomeFiltersBar';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
 
@@ -60,6 +61,7 @@ const Index = () => {
     filters,
     filteredPhotos,
     updateSearchTerm,
+    updateFilters,
     toggleLabel,
     toggleUnlabeled,
     clearFilters,
@@ -350,30 +352,14 @@ const Index = () => {
         onRemoveLabel={removeLabel}
       />
 
-      {/* Filters Row - Date and Advanced Filters */}
-      <div className="px-6 py-3 bg-card border-b border-border">
-        <div className="flex gap-4 items-center">
-          <div className="w-64">
-            <div className="text-sm text-muted-foreground">
-              📅 Filtros de data (em desenvolvimento)
-            </div>
-          </div>
-          <div className="w-64">
-            <div className="text-sm text-muted-foreground">
-              ⚙️ Filtros avançados (em desenvolvimento)
-            </div>
-            <div className="mt-2">
-              <Button
-                variant={showFavorites ? "default" : "outline"}
-                size="sm"
-                onClick={toggleFavorites}
-                className="gap-2"
-              >
-                ❤️ {showFavorites ? 'Mostrando Favoritos' : 'Mostrar Favoritos'}
-              </Button>
-            </div>
-          </div>
-        </div>
+      {/* Home Filters Bar - Date, Favorites, Sort */}
+      <div className="px-6 py-3">
+        <HomeFiltersBar
+          filters={filters}
+          showFavorites={showFavorites}
+          onUpdateFilters={updateFilters}
+          onToggleFavorites={toggleFavorites}
+        />
       </div>
 
       {/* Photo Stats */}
