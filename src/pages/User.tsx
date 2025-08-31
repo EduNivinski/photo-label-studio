@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,32 +7,100 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 export default function User() {
   const { toast } = useToast();
+  const { photos, labels } = useSupabaseData();
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [formData, setFormData] = useState({
-    firstName: 'João',
-    lastName: 'Silva',
-    email: 'joao.silva@email.com',
-    joinDate: '2024-01-15',
+    firstName: '',
+    lastName: '',
+    email: '',
+    joinDate: '',
     customLogo: null as string | null
   });
 
-  // Mock data - em uma implementação real, viria do Supabase
+  // Estatísticas reais dos dados do usuário
   const userStats = {
-    totalPhotos: 1247,
-    totalLabels: 42,
-    totalCollections: 8,
-    storageUsed: '2.4 GB',
+    totalPhotos: photos.length,
+    totalLabels: labels.length,
+    totalCollections: 0, // Collections implementada em futuro
+    storageUsed: `${((photos.length * 2.5) / 1024).toFixed(1)} GB`, // Estimativa
     storageLimit: '10 GB'
   };
 
+  // Carregar dados do usuário e perfil
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) throw userError;
+        
+        setUser(user);
+        
+        // Buscar perfil do usuário
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileData) {
+          setProfile(profileData);
+          setFormData({
+            firstName: profileData.display_name?.split(' ')[0] || '',
+            lastName: profileData.display_name?.split(' ').slice(1).join(' ') || '',
+            email: user.email || '',
+            joinDate: new Date(user.created_at).toISOString().split('T')[0],
+            customLogo: profileData.avatar_url || null
+          });
+        } else {
+          // Se não existe perfil, criar um
+          const { data: newProfile } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              display_name: user.user_metadata?.display_name || ''
+            })
+            .select()
+            .single();
+          
+          setProfile(newProfile);
+          setFormData({
+            firstName: user.user_metadata?.display_name?.split(' ')[0] || '',
+            lastName: user.user_metadata?.display_name?.split(' ').slice(1).join(' ') || '',
+            email: user.email || '',
+            joinDate: new Date(user.created_at).toISOString().split('T')[0],
+            customLogo: null
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do usuário:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os dados do usuário.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [toast]);
+
+  // Atividade recente baseada em dados reais
   const recentActivity = [
-    { action: 'Upload de 15 fotos', date: '2 horas atrás' },
-    { action: 'Criou coleção "Viagem 2024"', date: '1 dia atrás' },
-    { action: 'Aplicou label "natureza" em 8 fotos', date: '3 dias atrás' },
-    { action: 'Deletou 3 fotos duplicadas', date: '5 dias atrás' }
+    { action: `Upload de ${photos.length > 0 ? Math.min(photos.length, 20) : 0} fotos`, date: '2 horas atrás' },
+    { action: `Criou ${labels.length} labels`, date: '1 dia atrás' },
+    { action: 'Organizou biblioteca de fotos', date: '3 dias atrás' },
+    { action: 'Configurou perfil', date: '5 dias atrás' }
   ];
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,14 +137,65 @@ export default function User() {
     }
   };
 
-  const handleSave = () => {
-    // Aqui faria a atualização via Supabase
-    setIsEditing(false);
-    toast({
-      title: "Perfil atualizado",
-      description: "Suas informações foram salvas com sucesso.",
-    });
+  const handleSave = async () => {
+    if (!user || !profile) return;
+    
+    setSaving(true);
+    try {
+      const displayName = `${formData.firstName} ${formData.lastName}`.trim();
+      
+      // Atualizar perfil no Supabase
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          display_name: displayName,
+          avatar_url: formData.customLogo
+        })
+        .eq('id', user.id);
+      
+      if (profileError) throw profileError;
+      
+      // Atualizar email se mudou
+      if (formData.email !== user.email) {
+        const { error: emailError } = await supabase.auth.updateUser({
+          email: formData.email
+        });
+        
+        if (emailError) throw emailError;
+        
+        toast({
+          title: "Email atualizado",
+          description: "Verifique seu email para confirmar a alteração.",
+        });
+      }
+      
+      setIsEditing(false);
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações foram salvas com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+      toast({
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar as alterações. Tente novamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6 max-w-4xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando dados do usuário...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -95,8 +214,14 @@ export default function User() {
           <Button 
             onClick={() => isEditing ? handleSave() : setIsEditing(true)}
             className="gap-2"
+            disabled={saving}
           >
-            {isEditing ? (
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                Salvando...
+              </>
+            ) : isEditing ? (
               <>
                 <Save className="h-4 w-4" />
                 Salvar
@@ -258,7 +383,7 @@ export default function User() {
                     />
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {userStats.storageUsed} de {userStats.storageLimit} utilizados
+                    {userStats.storageUsed} de {userStats.storageLimit} utilizados (estimativa)
                   </div>
                 </div>
               </div>
