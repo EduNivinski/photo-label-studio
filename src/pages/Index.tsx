@@ -314,7 +314,11 @@ const Index = () => {
       {/* Hero Section - Simplified */}
       <section className="px-6 py-4 border-b border-border">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
+          <div className="flex items-center">
+            {/* Custom logo from user profile or default text */}
+            {/* TODO: Get customLogo from user profile data */}
+            <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
+          </div>
         </div>
       </section>
 
@@ -377,7 +381,7 @@ const Index = () => {
             </Select>
 
             <span className="text-sm text-muted-foreground">
-              {filteredPhotos.length.toLocaleString()} fotos • 0 vídeos
+              {photos.length.toLocaleString()} fotos • 0 vídeos
             </span>
           </div>
           
