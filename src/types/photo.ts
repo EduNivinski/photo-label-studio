@@ -3,6 +3,7 @@ export interface Photo {
   url: string;
   name: string;
   uploadDate: string;
+  originalDate?: string;
   labels: string[];
   alias?: string;
 }

@@ -87,9 +87,13 @@ export function useAdvancedFilters(photos: Photo[]) {
     filtered.sort((a, b) => {
       switch (filters.sortBy) {
         case 'date-desc':
-          return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime();
+          const dateA_desc = a.originalDate ? new Date(a.originalDate) : new Date(a.uploadDate);
+          const dateB_desc = b.originalDate ? new Date(b.originalDate) : new Date(b.uploadDate);
+          return dateB_desc.getTime() - dateA_desc.getTime();
         case 'date-asc':
-          return new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime();
+          const dateA_asc = a.originalDate ? new Date(a.originalDate) : new Date(a.uploadDate);
+          const dateB_asc = b.originalDate ? new Date(b.originalDate) : new Date(b.uploadDate);
+          return dateA_asc.getTime() - dateB_asc.getTime();
         case 'name-asc':
           return a.name.localeCompare(b.name);
         case 'name-desc':

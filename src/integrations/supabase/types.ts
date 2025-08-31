@@ -71,6 +71,7 @@ export type Database = {
           id: string
           labels: string[] | null
           name: string
+          original_date: string | null
           upload_date: string
           url: string
           user_id: string
@@ -80,6 +81,7 @@ export type Database = {
           id?: string
           labels?: string[] | null
           name: string
+          original_date?: string | null
           upload_date?: string
           url: string
           user_id: string
@@ -89,6 +91,7 @@ export type Database = {
           id?: string
           labels?: string[] | null
           name?: string
+          original_date?: string | null
           upload_date?: string
           url?: string
           user_id?: string

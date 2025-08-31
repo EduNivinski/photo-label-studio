@@ -23,6 +23,7 @@ export function useSupabaseData() {
       url: photo.url,
       name: photo.name,
       uploadDate: photo.upload_date,
+      originalDate: photo.original_date,
       labels: photo.labels || [],
       alias: photo.alias || undefined
     }));
@@ -221,6 +222,28 @@ export function useSupabaseData() {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
         
+        // Extract EXIF data for original date
+        let originalDate = null;
+        if (file.type.startsWith('image/')) {
+          try {
+            const exifr = await import('exifr');
+            const exifData = await exifr.parse(file);
+            
+            // Try to get the original date from EXIF data
+            if (exifData?.DateTimeOriginal) {
+              originalDate = new Date(exifData.DateTimeOriginal).toISOString();
+            } else if (exifData?.DateTime) {
+              originalDate = new Date(exifData.DateTime).toISOString();
+            } else if (exifData?.CreateDate) {
+              originalDate = new Date(exifData.CreateDate).toISOString();
+            }
+          } catch (error) {
+            console.log('Could not extract EXIF data:', error);
+            // Fallback to file modification date or current date
+            originalDate = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+          }
+        }
+        
         // Upload to storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('photos')
@@ -236,14 +259,15 @@ export function useSupabaseData() {
           .from('photos')
           .getPublicUrl(fileName);
 
-        // Save to database with user_id
+        // Save to database with user_id and original_date
         const { data: photoData, error: dbError } = await (supabase as any)
           .from('photos')
           .insert({
             url: publicUrl,
             name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
             labels: [],
-            user_id: user.id
+            user_id: user.id,
+            original_date: originalDate
           })
           .select()
           .single();
@@ -260,6 +284,7 @@ export function useSupabaseData() {
           url: photoData.url,
           name: photoData.name,
           uploadDate: photoData.upload_date,
+          originalDate: photoData.original_date,
           labels: photoData.labels || [],
           alias: photoData.alias || undefined
         } as Photo;
