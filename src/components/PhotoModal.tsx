@@ -97,13 +97,38 @@ export function PhotoModal({
   const isVideo = getFileType(photo.url) === 'video';
 
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = photo.url;
-    link.download = photo.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    try {
+      // Fetch the blob data from the URL
+      const response = await fetch(photo.url);
+      if (!response.ok) throw new Error('Failed to fetch file');
+      
+      const blob = await response.blob();
+      
+      // Create download link with blob URL
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = photo.name;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up blob URL
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      // Fallback to simple download
+      const link = document.createElement('a');
+      link.href = photo.url;
+      link.download = photo.name;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const handleShare = async () => {
