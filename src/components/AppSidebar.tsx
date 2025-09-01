@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   User, 
   Upload, 
@@ -28,6 +28,7 @@ import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFiltersCollapsible } from '@/components/AdvancedFiltersCollapsible';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
 import type { Label, PhotoFilters } from '@/types/photo';
 
 const navigation = [
@@ -77,6 +78,45 @@ export function AppSidebar({
   const { open, setOpen } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  // Carregar perfil do usuário
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+      }
+    };
+
+    loadUserProfile();
+
+    // Escutar mudanças no perfil
+    const channel = supabase
+      .channel('profile_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'profiles'
+      }, (payload) => {
+        loadUserProfile();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const isActive = (path: string) => currentPath === path;
 
@@ -102,11 +142,13 @@ export function AppSidebar({
       <SidebarHeader className="p-4 border-b border-border bg-black">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-medium text-gray-600">
-            U
+            {userProfile?.display_name ? userProfile.display_name.charAt(0).toUpperCase() : 'U'}
           </div>
           {open && (
             <div>
-              <h2 className="text-sm font-medium text-white">João</h2>
+              <h2 className="text-sm font-medium text-white">
+                {userProfile?.display_name || 'Usuário'}
+              </h2>
             </div>
           )}
         </div>
