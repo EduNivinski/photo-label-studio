@@ -15,7 +15,6 @@ import Upload from "./pages/Upload";
 import Labels from "./pages/Labels";
 import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
-import LibraryExplorer from "./pages/LibraryExplorer";
 import UserPage from "./pages/User";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -119,21 +118,6 @@ function AppContent() {
         <Routes>
           <Route path="/" element={
             <ProtectedRoute>
-              <LibraryExplorer 
-                filters={filters}
-                filteredPhotos={filteredPhotos}
-                showFavorites={showFavorites}
-                updateFilters={updateFilters}
-                toggleLabel={toggleLabel}
-                toggleFileType={toggleFileType}
-                toggleMediaType={toggleMediaType}
-                toggleFavorites={toggleFavorites}
-                clearFilters={clearFilters}
-              />
-            </ProtectedRoute>
-          } />
-          <Route path="/home" element={
-            <ProtectedRoute>
               <Index />
             </ProtectedRoute>
           } />
@@ -160,21 +144,6 @@ function AppContent() {
           <Route path="/user" element={
             <ProtectedRoute>
               <UserPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/explore" element={
-            <ProtectedRoute>
-              <LibraryExplorer 
-                filters={filters}
-                filteredPhotos={filteredPhotos}
-                showFavorites={showFavorites}
-                updateFilters={updateFilters}
-                toggleLabel={toggleLabel}
-                toggleFileType={toggleFileType}
-                toggleMediaType={toggleMediaType}
-                toggleFavorites={toggleFavorites}
-                clearFilters={clearFilters}
-              />
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />

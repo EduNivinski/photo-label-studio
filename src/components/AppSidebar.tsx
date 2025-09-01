@@ -32,7 +32,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Label, PhotoFilters } from '@/types/photo';
 
 const navigation = [
-  { title: 'Explorar Biblioteca', url: '/', icon: Library },
+  { title: 'Home', url: '/', icon: Library },
   { title: 'Upload de Fotos', url: '/upload', icon: Upload },
   { title: 'Gestão de Labels', url: '/labels', icon: Tag },
   { title: 'Minhas Coleções', url: '/collections', icon: FolderOpen },
