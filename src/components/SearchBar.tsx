@@ -77,19 +77,25 @@ export function SearchBar({
       <div className="flex gap-2">
         <Button 
           variant={showUnlabeled ? "default" : "outline"} 
-          size="sm"
           onClick={onToggleUnlabeled}
-          className={showUnlabeled ? "" : ""}
+          className={`h-10 ${showUnlabeled ? "" : ""}`}
         >
           Sem Labels
         </Button>
         
-        <Button variant="outline" onClick={onManageLabels} className="flex items-center gap-2">
+        <Button 
+          variant="outline" 
+          onClick={onManageLabels} 
+          className="flex items-center gap-2 h-10"
+        >
           <Settings className="h-4 w-4" />
           Labels
         </Button>
         
-        <Button onClick={onUpload} className="flex items-center gap-2">
+        <Button 
+          onClick={onUpload}
+          className="flex items-center gap-2 h-10"
+        >
           <Upload className="h-4 w-4" />
           Upload
         </Button>

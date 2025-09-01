@@ -43,7 +43,7 @@ export function SmartLabelSearch({
         <PopoverTrigger asChild>
           <Button 
             variant="outline" 
-            className={`w-full justify-start text-left font-normal ${compact ? 'h-8 text-sm' : 'h-10'}`}
+            className={`w-full justify-start text-left font-normal ${compact ? 'h-10 text-sm' : 'h-10'}`}
             onClick={() => setIsOpen(!isOpen)}
           >
             <Search className="mr-2 h-4 w-4 text-muted-foreground" />
