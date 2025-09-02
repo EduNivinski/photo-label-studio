@@ -17,7 +17,7 @@ export function usePhotoFilters(photos: Photo[]) {
   const [excludedLabels, setExcludedLabels] = useState<string[]>([]);
 
   const filteredPhotos = useMemo(() => {
-    return photos.filter((photo) => {
+    let filtered = photos.filter((photo) => {
       // Filter by search term
       const matchesSearch = filters.searchTerm === '' || 
         photo.name.toLowerCase().includes(filters.searchTerm.toLowerCase());
@@ -53,8 +53,50 @@ export function usePhotoFilters(photos: Photo[]) {
         matchesFavorites = photo.labels.includes('favorites');
       }
 
-      return matchesSearch && matchesAdvancedLabels && matchesLabels && matchesUnlabeled && matchesFavorites;
+      // Filter by date range
+      let matchesDateRange = true;
+      if (filters.dateRange?.start || filters.dateRange?.end) {
+        const photoDate = photo.originalDate ? new Date(photo.originalDate) : new Date(photo.uploadDate);
+        if (filters.dateRange.start) {
+          matchesDateRange = photoDate >= filters.dateRange.start;
+        }
+        if (filters.dateRange.end && matchesDateRange) {
+          matchesDateRange = photoDate <= filters.dateRange.end;
+        }
+      }
+
+      // Filter by year
+      let matchesYear = true;
+      if (filters.year) {
+        const photoDate = photo.originalDate ? new Date(photo.originalDate) : new Date(photo.uploadDate);
+        const photoYear = photoDate.getFullYear();
+        matchesYear = photoYear === filters.year;
+      }
+
+      return matchesSearch && matchesAdvancedLabels && matchesLabels && matchesUnlabeled && matchesFavorites && matchesDateRange && matchesYear;
     });
+
+    // Sort photos by original date (or upload date as fallback)
+    filtered.sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'date-desc':
+          const dateA_desc = a.originalDate ? new Date(a.originalDate) : new Date(a.uploadDate);
+          const dateB_desc = b.originalDate ? new Date(b.originalDate) : new Date(b.uploadDate);
+          return dateB_desc.getTime() - dateA_desc.getTime();
+        case 'date-asc':
+          const dateA_asc = a.originalDate ? new Date(a.originalDate) : new Date(a.uploadDate);
+          const dateB_asc = b.originalDate ? new Date(b.originalDate) : new Date(b.uploadDate);
+          return dateA_asc.getTime() - dateB_asc.getTime();
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
   }, [photos, filters, filterMode, includedLabels, excludedLabels, showFavorites]);
 
   const updateSearchTerm = (searchTerm: string) => {
