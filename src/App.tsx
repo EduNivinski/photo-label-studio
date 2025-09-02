@@ -99,21 +99,9 @@ function AppContent() {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar 
-          labels={labels}
-          selectedLabels={filters.labels}
-          onLabelToggle={toggleLabel}
-          onClearFilters={clearFilters}
           onUpload={() => {}}
           onManageLabels={() => {}}
           onManageCollections={() => {}}
-          showSearch={showAdvancedSidebar}
-          filters={showAdvancedSidebar ? filters : undefined}
-          showFavorites={showAdvancedSidebar ? showFavorites : undefined}
-          onUpdateFilters={showAdvancedSidebar ? updateFilters : undefined}
-          onToggleFileType={showAdvancedSidebar ? toggleFileType : undefined}
-          onToggleMediaType={showAdvancedSidebar ? toggleMediaType : undefined}
-          onToggleFavorites={showAdvancedSidebar ? toggleFavorites : undefined}
-          photos={filteredPhotos}
         />
         <Routes>
           <Route path="/" element={

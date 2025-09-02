@@ -22,14 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { SmartLabelSearch } from '@/components/SmartLabelSearch';
-import { AdvancedFilters } from '@/components/AdvancedFilters';
-import { DateFilters } from '@/components/DateFilters';
-import { AdvancedFiltersCollapsible } from '@/components/AdvancedFiltersCollapsible';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import type { Label, PhotoFilters } from '@/types/photo';
 
 const navigation = [
   { title: 'Home', url: '/', icon: Library },
@@ -40,40 +33,15 @@ const navigation = [
 ];
 
 interface AppSidebarProps {
-  labels?: Label[];
-  selectedLabels?: string[];
-  onLabelToggle?: (labelId: string) => void;
-  onClearFilters?: () => void;
   onUpload?: () => void;
   onManageLabels?: () => void;
   onManageCollections?: () => void;
-  showSearch?: boolean;
-  // Advanced filters props
-  filters?: PhotoFilters;
-  showFavorites?: boolean;
-  onUpdateFilters?: (updates: Partial<PhotoFilters>) => void;
-  onToggleFileType?: (fileType: string) => void;
-  onToggleMediaType?: (mediaType: string) => void;
-  onToggleFavorites?: () => void;
-  photos?: any[];
 }
 
 export function AppSidebar({
-  labels = [],
-  selectedLabels = [],
-  onLabelToggle,
-  onClearFilters,
   onUpload,
   onManageLabels,
-  onManageCollections,
-  showSearch = false,
-  filters,
-  showFavorites = false,
-  onUpdateFilters,
-  onToggleFileType,
-  onToggleMediaType,
-  onToggleFavorites,
-  photos = []
+  onManageCollections
 }: AppSidebarProps) {
   const { open, setOpen } = useSidebar();
   const location = useLocation();
@@ -191,85 +159,6 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Smart Label Search and Advanced Filters - only show on main library page and when not collapsed */}
-        {showSearch && open && (currentPath === '/' || currentPath === '/explore') && (
-          <SidebarGroup className="mt-6">
-            <SidebarGroupLabel className="text-sidebar-foreground/60 text-xs flex items-center gap-2">
-              <Search className="h-3 w-3" />
-              Pesquisar Labels
-            </SidebarGroupLabel>
-            <SidebarGroupContent className="space-y-3">
-              <div className="px-1">
-                <SmartLabelSearch
-                  labels={labels}
-                  selectedLabels={selectedLabels}
-                  onLabelToggle={onLabelToggle}
-                  onClearFilters={onClearFilters}
-                  compact
-                />
-              </div>
-              
-              {/* Applied Labels Chips */}
-              {selectedLabels.length > 0 && (
-                <div className="px-1">
-                  <div className="text-xs text-sidebar-foreground/60 mb-2">Filtros ativos:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedLabels.map((labelId) => {
-                      const label = labels.find(l => l.id === labelId);
-                      if (!label) return null;
-                      
-                      return (
-                        <Badge
-                          key={labelId}
-                          variant="secondary"
-                          className="text-xs bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80 cursor-pointer flex items-center gap-1"
-                          onClick={() => onLabelToggle?.(labelId)}
-                        >
-                          {label.name}
-                          <X className="h-3 w-3" />
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                  
-                  {selectedLabels.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onClearFilters}
-                      className="text-xs mt-2 h-6 text-sidebar-foreground/60 hover:text-sidebar-foreground"
-                    >
-                      Limpar todos
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {/* Date Filters */}
-              {filters && onUpdateFilters && photos.length > 0 && (
-                <div className="px-1">
-                  <DateFilters
-                    photos={photos}
-                    filters={filters}
-                    onUpdateFilters={onUpdateFilters}
-                  />
-                </div>
-              )}
-
-              {/* Advanced Filters - Now collapsible */}
-              {filters && onUpdateFilters && onToggleFavorites && (
-                <div className="px-1">
-                  <AdvancedFiltersCollapsible
-                    filters={filters}
-                    showFavorites={showFavorites}
-                    onUpdateFilters={onUpdateFilters}
-                    onToggleFavorites={onToggleFavorites}
-                  />
-                </div>
-              )}
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
 
       </SidebarContent>
     </Sidebar>
