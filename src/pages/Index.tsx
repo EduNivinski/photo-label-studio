@@ -94,6 +94,7 @@ const Index = () => {
   const [isBulkLabelDialogOpen, setIsBulkLabelDialogOpen] = useState(false);
   const [isLabelSuggestionsOpen, setIsLabelSuggestionsOpen] = useState(false);
   const [isCreateAlbumOpen, setIsCreateAlbumOpen] = useState(false);
+  const [isCreateCollectionFromSelectionOpen, setIsCreateCollectionFromSelectionOpen] = useState(false);
   const [isEditAlbumOpen, setIsEditAlbumOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
@@ -171,6 +172,10 @@ const Index = () => {
 
   const handleBulkLabelManage = () => {
     setIsBulkLabelDialogOpen(true);
+  };
+
+  const handleCreateCollectionFromSelection = () => {
+    setIsCreateCollectionFromSelectionOpen(true);
   };
 
   const handleSelectAll = () => {
@@ -430,6 +435,7 @@ const Index = () => {
         onManageLabels={handleBulkLabelManage}
         onDeleteSelected={handleBulkDelete}
         onClearSelection={clearSelection}
+        onCreateCollection={handleCreateCollectionFromSelection}
       />
 
       {/* Upload Dialog */}
@@ -493,6 +499,26 @@ const Index = () => {
           if (album) {
             toast.success('Coleção criada com sucesso!');
             setIsCreateAlbumOpen(false);
+          } else {
+            toast.error('Erro ao criar coleção');
+          }
+        }}
+      />
+
+      {/* Create Collection from Selection Dialog */}
+      <CreateAlbumDialog
+        isOpen={isCreateCollectionFromSelectionOpen}
+        onClose={() => setIsCreateCollectionFromSelectionOpen(false)}
+        labels={labels}
+        selectedLabels={[]}
+        filteredPhotos={getSelectedPhotos(photos)}
+        onCreateLabel={createLabel}
+        onCreateAlbum={async (name, labels, coverPhotoUrl) => {
+          const album = await createAlbum(name, labels, coverPhotoUrl);
+          if (album) {
+            toast.success('Coleção criada com sucesso!');
+            setIsCreateCollectionFromSelectionOpen(false);
+            clearSelection();
           } else {
             toast.error('Erro ao criar coleção');
           }
