@@ -385,9 +385,10 @@ const Index = () => {
               </SelectContent>
             </Select>
 
-            <span className="text-sm text-muted-foreground">
-              {photos.length.toLocaleString()} fotos • 0 vídeos
-            </span>
+            <PhotoStats 
+              photos={filteredPhotos} 
+              onCreateCollection={() => setIsCreateAlbumOpen(true)}
+            />
           </div>
           
           <div className="flex items-center gap-2">
