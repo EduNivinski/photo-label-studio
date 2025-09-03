@@ -21,6 +21,7 @@ const buttonVariants = cva(
         upload: "bg-upload-primary text-upload-primary-foreground hover:bg-upload-hover shadow-lg hover:shadow-xl transition-all duration-200",
         fab: "fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-upload-primary text-upload-primary-foreground hover:bg-upload-hover shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105",
         unlabeled: "bg-unlabeled-alert-bg text-unlabeled-alert border border-unlabeled-alert/20 hover:bg-unlabeled-alert/10",
+        create: "bg-create-emphasis text-create-emphasis-foreground hover:bg-create-emphasis-hover shadow-md hover:shadow-lg transition-all duration-200 font-medium",
       },
       size: {
         default: "h-10 px-4 py-2",

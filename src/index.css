@@ -48,6 +48,11 @@ All colors MUST be HSL.
     /* Enhanced UI colors */
     --upload-primary: 260 85% 60%;
     --upload-primary-foreground: 0 0% 100%;
+    
+    /* Create collection emphasis colors */
+    --create-emphasis: 142 76% 36%;
+    --create-emphasis-foreground: 0 0% 100%;
+    --create-emphasis-hover: 142 76% 32%;
     --upload-hover: 260 85% 55%;
     --fab-shadow: 0 8px 25px hsl(260 85% 60% / 0.3);
     --unlabeled-alert: 0 84% 60%;

@@ -31,7 +31,7 @@ export function PhotoStats({ photos, onCreateCollection }: PhotoStatsProps) {
       {onCreateCollection && (
         <Button
           onClick={onCreateCollection}
-          variant="outline"
+          variant="create"
           size="sm"
           className="flex items-center gap-2"
         >
