@@ -6,6 +6,8 @@ export function usePhotoFilters(photos: Photo[]) {
     labels: [],
     searchTerm: '',
     showUnlabeled: false,
+    dateRange: undefined,
+    year: undefined,
     fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
     mediaTypes: ['photo', 'video'],
     sortBy: 'date-desc'
@@ -174,6 +176,8 @@ export function usePhotoFilters(photos: Photo[]) {
       labels: [], 
       searchTerm: '', 
       showUnlabeled: false,
+      dateRange: undefined,
+      year: undefined,
       fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
       mediaTypes: ['photo', 'video'],
       sortBy: 'date-desc'
