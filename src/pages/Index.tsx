@@ -331,31 +331,51 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Collection Filter */}
+        {/* Collection Filter - Nova funcionalidade no topo */}
         <CollectionFilter
           collections={albums}
           selectedCollectionId={selectedCollectionId}
           onCollectionChange={handleCollectionChange}
         />
 
-        {/* Search Bar */}
-        <SearchBar
-          searchTerm={filters.searchTerm}
-          onSearchChange={updateSearchTerm}
-          onUpload={handleUpload}
-          onToggleUnlabeled={toggleUnlabeled}
-          showUnlabeled={filters.showUnlabeled}
-          onLabelToggle={(labelId) => toggleLabel(labelId)}
-          labels={labels}
-          selectedLabels={filters.labels}
-          onClearFilters={clearFilters}
-          onManageLabels={() => setIsLabelManagerOpen(true)}
-          onIncludeLabel={includeLabel}
-          includedLabels={includedLabels}
-          excludedLabels={excludedLabels}
+        {/* Home Filters Bar - Filtros principais */}
+        <HomeFiltersBar
+          filters={filters}
+          showFavorites={showFavorites}
+          onUpdateFilters={updateFilters}
+          onToggleFavorites={toggleFavorites}
         />
 
-        {/* Related Labels Bar */}
+        {/* Date Filters - Filtros de data */}
+        <DateFilters
+          photos={selectedCollectionId ? collectionPhotos : photos}
+          filters={filters}
+          onUpdateFilters={updateFilters}
+        />
+
+        {/* Advanced Filters - Filtros avançados */}
+        <AdvancedFilters
+          filters={filters}
+          showFavorites={showFavorites}
+          onUpdateFilters={updateFilters}
+          onToggleFileType={(fileType) => {
+            const currentTypes = filters.fileTypes;
+            const newTypes = currentTypes.includes(fileType)
+              ? currentTypes.filter(t => t !== fileType)
+              : [...currentTypes, fileType];
+            updateFilters({ fileTypes: newTypes });
+          }}
+          onToggleMediaType={(mediaType) => {
+            const currentTypes = filters.mediaTypes;
+            const newTypes = currentTypes.includes(mediaType)
+              ? currentTypes.filter(t => t !== mediaType)
+              : [...currentTypes, mediaType];
+            updateFilters({ mediaTypes: newTypes });
+          }}
+          onToggleFavorites={toggleFavorites}
+        />
+
+        {/* Related Labels Bar - Labels relacionadas */}
         <RelatedLabelsBar
           relatedLabels={getRelatedLabels}
           allLabels={labels}
