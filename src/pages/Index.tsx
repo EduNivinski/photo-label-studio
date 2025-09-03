@@ -1,5 +1,5 @@
 // Force rebuild to fix updateFilters caching issue - timestamp: 1756513884740
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -294,6 +294,22 @@ const Index = () => {
   const hasActiveFilters = filters.labels.length > 0 || filters.showUnlabeled || filters.searchTerm.trim() !== '' || 
     includedLabels.length > 0 || excludedLabels.length > 0 || showFavorites;
 
+  // Check if there are active filters (more comprehensive)
+  const hasActiveFiltersDetailed = useMemo(() => {
+    return (
+      filters.labels.length > 0 ||
+      filters.searchTerm.trim() !== '' ||
+      filters.showUnlabeled ||
+      showFavorites ||
+      selectedCollectionId !== null ||
+      filters.dateRange?.start || 
+      filters.dateRange?.end ||
+      filters.year ||
+      filters.fileTypes.length > 0 ||
+      filters.mediaTypes.length > 0
+    );
+  }, [filters, showFavorites, selectedCollectionId]);
+
   const handlePhotoDelete = async () => {
     if (!selectedPhoto) return;
     
@@ -389,7 +405,7 @@ const Index = () => {
         <div className="flex justify-between items-center mb-6">
           <PhotoStats 
             photos={filteredPhotos}
-            onCreateCollection={handleCreateCollectionFromStats}
+            onCreateCollection={hasActiveFiltersDetailed ? handleCreateCollectionFromStats : undefined}
           />
           
           <div className="flex items-center gap-4">
