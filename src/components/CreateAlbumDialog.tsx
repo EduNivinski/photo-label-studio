@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Play } from 'lucide-react';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import type { Photo } from '@/types/photo';
@@ -29,6 +30,26 @@ export function CreateAlbumDialog({
 
   // Use selectedPhotos prop if provided, otherwise use global selection
   const photosToUse = selectedPhotos.length > 0 ? selectedPhotos : getSelectedPhotos(photos);
+
+  // Calculate counts for photos and videos
+  const mediaStats = useMemo(() => {
+    const photos = photosToUse.filter(item => item.mediaType === 'photo').length;
+    const videos = photosToUse.filter(item => item.mediaType === 'video').length;
+    return { photos, videos, total: photos + videos };
+  }, [photosToUse]);
+
+  // Generate summary text
+  const summaryText = useMemo(() => {
+    const { photos, videos, total } = mediaStats;
+    if (total === 0) return '';
+    
+    const parts = [];
+    if (photos > 0) parts.push(`${photos} foto${photos !== 1 ? 's' : ''}`);
+    if (videos > 0) parts.push(`${videos} vídeo${videos !== 1 ? 's' : ''}`);
+    
+    const itemsText = parts.join(' e ');
+    return `${itemsText} será${total !== 1 ? 'ão' : ''} adicionada${total !== 1 ? 's' : ''} à coleção`;
+  }, [mediaStats]);
 
   const handleCreate = async () => {
     if (!albumName.trim()) return;
@@ -70,11 +91,11 @@ export function CreateAlbumDialog({
             />
           </div>
 
-          {/* Selected Photos Summary */}
+          {/* Selected Media Summary */}
           <div className="space-y-2">
-            <Label>Fotos Selecionadas</Label>
+            <Label>Arquivos Selecionados</Label>
             <div className="text-sm text-muted-foreground">
-              {photosToUse.length} foto{photosToUse.length !== 1 ? 's' : ''} será{photosToUse.length !== 1 ? 'ão' : ''} adicionada{photosToUse.length !== 1 ? 's' : ''} à coleção
+              {summaryText}
             </div>
           </div>
 
@@ -95,30 +116,35 @@ export function CreateAlbumDialog({
                     >
                       <span className="text-xs text-center">Sem capa</span>
                     </button>
-                    {photosToUse.slice(0, 11).map(photo => (
-                      <button
-                        key={photo.id}
-                        onClick={() => setSelectedCoverPhoto(
-                          selectedCoverPhoto === photo.url ? '' : photo.url
-                        )}
-                        className={`relative aspect-square rounded overflow-hidden border-2 transition-all ${
-                          selectedCoverPhoto === photo.url 
-                            ? 'border-primary' 
-                            : 'border-border hover:border-muted-foreground'
-                        }`}
-                      >
-                        <img
-                          src={photo.url}
-                          alt={photo.name}
-                          className="w-full h-full object-cover"
-                        />
-                        {selectedCoverPhoto === photo.url && (
-                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                            <div className="w-4 h-4 bg-primary rounded-full" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                     {photosToUse.slice(0, 11).map(photo => (
+                       <button
+                         key={photo.id}
+                         onClick={() => setSelectedCoverPhoto(
+                           selectedCoverPhoto === photo.url ? '' : photo.url
+                         )}
+                         className={`relative aspect-square rounded overflow-hidden border-2 transition-all ${
+                           selectedCoverPhoto === photo.url 
+                             ? 'border-primary' 
+                             : 'border-border hover:border-muted-foreground'
+                         }`}
+                       >
+                         <img
+                           src={photo.url}
+                           alt={photo.name}
+                           className="w-full h-full object-cover"
+                         />
+                         {photo.mediaType === 'video' && (
+                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                             <Play className="h-6 w-6 text-white" fill="white" />
+                           </div>
+                         )}
+                         {selectedCoverPhoto === photo.url && (
+                           <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                             <div className="w-4 h-4 bg-primary rounded-full" />
+                           </div>
+                         )}
+                       </button>
+                     ))}
                   </div>
                 </ScrollArea>
               </div>
@@ -128,7 +154,7 @@ export function CreateAlbumDialog({
           {photosToUse.length === 0 && (
             <div className="text-center py-8">
               <p className="text-muted-foreground">
-                Selecione algumas fotos na página inicial antes de criar uma coleção.
+                Selecione alguns arquivos na página inicial antes de criar uma coleção.
               </p>
             </div>
           )}
