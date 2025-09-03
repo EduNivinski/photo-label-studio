@@ -341,46 +341,22 @@ const Index = () => {
         />
       </div>
 
-      {/* Home Filters Bar - Filtros principais */}
+      {/* Search Bar com Labels - Barra horizontal principal */}
       <div className="container mx-auto px-4 max-w-7xl">
-        <HomeFiltersBar
-          filters={filters}
-          showFavorites={showFavorites}
-          onUpdateFilters={updateFilters}
-          onToggleFavorites={toggleFavorites}
-        />
-      </div>
-
-      {/* Date Filters - Filtros de data */}
-      <div className="container mx-auto px-4 max-w-7xl">
-        <DateFilters
-          photos={selectedCollectionId ? collectionPhotos : photos}
-          filters={filters}
-          onUpdateFilters={updateFilters}
-        />
-      </div>
-
-      {/* Advanced Filters - Filtros avançados */}
-      <div className="container mx-auto px-4 max-w-7xl">
-        <AdvancedFilters
-          filters={filters}
-          showFavorites={showFavorites}
-          onUpdateFilters={updateFilters}
-          onToggleFileType={(fileType) => {
-            const currentTypes = filters.fileTypes;
-            const newTypes = currentTypes.includes(fileType)
-              ? currentTypes.filter(t => t !== fileType)
-              : [...currentTypes, fileType];
-            updateFilters({ fileTypes: newTypes });
-          }}
-          onToggleMediaType={(mediaType) => {
-            const currentTypes = filters.mediaTypes;
-            const newTypes = currentTypes.includes(mediaType)
-              ? currentTypes.filter(t => t !== mediaType)
-              : [...currentTypes, mediaType];
-            updateFilters({ mediaTypes: newTypes });
-          }}
-          onToggleFavorites={toggleFavorites}
+        <SearchBar
+          searchTerm={filters.searchTerm}
+          onSearchChange={updateSearchTerm}
+          onUpload={handleUpload}
+          onToggleUnlabeled={toggleUnlabeled}
+          showUnlabeled={filters.showUnlabeled}
+          onLabelToggle={(labelId) => toggleLabel(labelId)}
+          labels={labels}
+          selectedLabels={filters.labels}
+          onClearFilters={clearFilters}
+          onManageLabels={() => setIsLabelManagerOpen(true)}
+          onIncludeLabel={includeLabel}
+          includedLabels={includedLabels}
+          excludedLabels={excludedLabels}
         />
       </div>
 
@@ -394,6 +370,16 @@ const Index = () => {
           onIncludeLabel={includeLabel}
           onExcludeLabel={excludeLabel}
           onRemoveLabel={removeLabel}
+        />
+      </div>
+
+      {/* Home Filters Bar - Filtros principais (data, avançados, favoritos) */}
+      <div className="container mx-auto px-4 max-w-7xl">
+        <HomeFiltersBar
+          filters={filters}
+          showFavorites={showFavorites}
+          onUpdateFilters={updateFilters}
+          onToggleFavorites={toggleFavorites}
         />
       </div>
 
