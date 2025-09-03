@@ -580,6 +580,7 @@ const Index = () => {
             toast.error('Erro ao criar coleção');
           }
         }}
+        selectedPhotos={filteredPhotos}
       />
 
       {/* Create Collection from Selection Dialog */}
