@@ -18,12 +18,12 @@ export function CollectionFilter({
   return (
     <div className="flex items-center gap-2 mb-4">
       <span className="text-sm font-medium text-foreground">Coleção:</span>
-      <Select value={selectedCollectionId || ""} onValueChange={(value) => onCollectionChange(value || null)}>
+      <Select value={selectedCollectionId || "all"} onValueChange={(value) => onCollectionChange(value === "all" ? null : value)}>
         <SelectTrigger className="w-60">
           <SelectValue placeholder="Todas as fotos" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todas as fotos</SelectItem>
+          <SelectItem value="all">Todas as fotos</SelectItem>
           {collections.map((collection) => (
             <SelectItem key={collection.id} value={collection.id}>
               {collection.name}
