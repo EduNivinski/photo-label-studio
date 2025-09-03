@@ -62,13 +62,13 @@ export function MyAlbumsSection({
             >
               <div className="group cursor-pointer hover:scale-105 transition-transform duration-200">
                 <Card className="shadow-md hover:shadow-xl transition-all duration-300 border hover:border-primary/40">
+                <div onClick={() => onAlbumClick(album)}>
                   <AlbumCard
                     album={album}
-                    labels={labels}
-                    onClick={() => onAlbumClick(album)}
                     onEdit={() => onEditAlbum(album)}
                     onDelete={() => onDeleteAlbum(album.id)}
                   />
+                </div>
                 </Card>
               </div>
             </div>

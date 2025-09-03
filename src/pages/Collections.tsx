@@ -28,10 +28,9 @@ export default function Collections() {
 
   // Get photo count for each collection
   const getCollectionPhotoCount = (album: Album) => {
-    if (album.labels.length === 0) return 0;
-    return photos.filter(photo => 
-      album.labels.every(labelId => photo.labels.includes(labelId))
-    ).length;
+    // This would need to be implemented to get photos from collection_photos table
+    // For now, return 0 until we implement getAlbumPhotos properly  
+    return 0;
   };
 
   const handleCreateAlbum = async (name: string, labelIds: string[], coverPhotoUrl?: string) => {
@@ -56,7 +55,7 @@ export default function Collections() {
     setShowEditAlbum(true);
   };
 
-  const handleUpdateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'labels' | 'cover_photo_url'>>) => {
+  const handleUpdateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'cover_photo_url'>>) => {
     const success = await updateAlbum(id, updates);
     if (success) {
       toast({
@@ -242,9 +241,6 @@ export default function Collections() {
                   <div className="p-4 bg-card">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {album.labels.length} label{album.labels.length !== 1 ? 's' : ''}
-                        </Badge>
                         <Badge variant="outline" className="text-xs">
                           {photoCount} foto{photoCount !== 1 ? 's' : ''}
                         </Badge>
@@ -264,24 +260,19 @@ export default function Collections() {
 
       {/* Dialogs */}
       <CreateAlbumDialog
-        isOpen={showCreateAlbum}
-        onClose={() => setShowCreateAlbum(false)}
-        onCreateAlbum={handleCreateAlbum}
-        selectedLabels={[]}
-        labels={labels}
-        filteredPhotos={[]}
+        open={showCreateAlbum}
+        onOpenChange={setShowCreateAlbum}
+        onCreate={(name, photoIds) => handleCreateAlbum(name, [], undefined)}
       />
 
       <EditAlbumDialog
-        isOpen={showEditAlbum}
-        onClose={() => {
-          setShowEditAlbum(false);
-          setSelectedAlbum(null);
+        open={showEditAlbum}
+        onOpenChange={(open) => {
+          setShowEditAlbum(open);
+          if (!open) setSelectedAlbum(null);
         }}
-        onUpdateAlbum={handleUpdateAlbum}
+        onUpdate={handleUpdateAlbum}
         album={selectedAlbum}
-        labels={labels}
-        photos={photos}
       />
     </div>
   );

@@ -121,20 +121,30 @@ const Index = () => {
     currentPage,
     totalPages,
     paginatedItems: paginatedPhotos,
-    goToPage,
-    resetPagination
+    reset
   } = usePagination(filteredPhotos, itemsPerPage);
 
   // Reset pagination when filtered photos change
   useEffect(() => {
-    resetPagination();
-  }, [filteredPhotos, resetPagination]);
+    reset();
+  }, [filteredPhotos, reset]);
 
   // Collection filter effect
   useEffect(() => {
     const fetchCollectionPhotos = async () => {
       if (selectedCollectionId) {
-        const photos = await getAlbumPhotos(selectedCollectionId);
+        const albumPhotos = await getAlbumPhotos(selectedCollectionId);
+        // Convert to Photo type format
+        const photos = albumPhotos.map(p => ({
+          id: p.id,
+          name: p.name,
+          url: p.url,
+          labels: p.labels,
+          uploadDate: p.upload_date,
+          originalDate: p.original_date,
+          alias: p.alias,
+          userId: ''
+        }));
         setCollectionPhotos(photos);
       } else {
         setCollectionPhotos([]);
@@ -258,9 +268,9 @@ const Index = () => {
       const firstPhoto = uploadedPhotos[0];
       try {
         const suggestions = await getSuggestedLabels(firstPhoto.url);
-        setLabelSuggestions({
+          setLabelSuggestions({
           suggestions: suggestions.suggestions,
-          source: suggestions.source,
+          source: suggestions.source as 'mock' | 'ai',
           photo: firstPhoto
         });
         setIsLabelSuggestionsOpen(true);
@@ -330,21 +340,25 @@ const Index = () => {
 
         {/* Search Bar */}
         <SearchBar
-          onSearch={updateSearchTerm}
+          searchTerm={filters.searchTerm}
+          onSearchChange={updateSearchTerm}
           onUpload={handleUpload}
           onToggleUnlabeled={toggleUnlabeled}
           showUnlabeled={filters.showUnlabeled}
-          onLabelFilter={(labelId) => toggleLabel(labelId)}
+          onLabelToggle={(labelId) => toggleLabel(labelId)}
           labels={labels}
           selectedLabels={filters.labels}
-          searchTerm={filters.searchTerm}
-          onCreateCollection={() => setIsCreateAlbumOpen(true)}
+          onClearFilters={clearFilters}
+          onManageLabels={() => setIsLabelManagerOpen(true)}
+          onIncludeLabel={includeLabel}
+          includedLabels={includedLabels}
+          excludedLabels={excludedLabels}
         />
 
         {/* Related Labels Bar */}
         <RelatedLabelsBar
-          relatedLabels={getRelatedLabels()}
-          onLabelToggle={includeLabel}
+          relatedLabels={getRelatedLabels}
+          allLabels={labels}
           includedLabels={includedLabels}
           excludedLabels={excludedLabels}
           onIncludeLabel={includeLabel}
@@ -403,8 +417,8 @@ const Index = () => {
           <SelectionPanel
             selectedCount={selectedCount}
             onManageLabels={handleBulkLabelManage}
-            onDelete={handleBulkDelete}
-            onClear={clearSelection}
+            onDeleteSelected={handleBulkDelete}
+            onClearSelection={clearSelection}
             onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
           />
         )}
@@ -412,33 +426,23 @@ const Index = () => {
         {/* Photo Gallery */}
         <PhotoGallery
           photos={paginatedPhotos}
-          viewMode={viewMode}
+          labels={labels}
           selectedPhotoIds={selectedPhotoIds}
           onPhotoClick={handlePhotoClick}
-          onPhotoSelect={toggleSelection}
           onLabelManage={handleLabelManage}
-          isLoading={loading}
+          onSelectionToggle={(photoId, isShiftPressed) => toggleSelection(photoId)}
+          onUpdateLabels={updatePhotoLabels}
         />
 
         {/* Load More / Pagination */}
         {totalPages > 1 && (
-          <div className="mt-8 flex justify-center items-center gap-4">
+          <div className="mt-8 flex justify-center">
             <Button
               variant="outline"
-              onClick={() => goToPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
+              onClick={() => reset()}
+              disabled={currentPage >= totalPages}
             >
-              Anterior
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Página {currentPage} de {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Próxima
+              Carregar Mais
             </Button>
           </div>
         )}
@@ -479,7 +483,9 @@ const Index = () => {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onUpload={handleUploadFiles}
-        onLabelManage={handleLabelManage}
+        labels={labels}
+        onCreateLabel={createLabel}
+        onApplyLabelsToPhotos={applyLabelsToPhotos}
       />
 
       {/* Label Manager */}
@@ -585,7 +591,7 @@ const Index = () => {
           }}
           photo={labelSuggestions.photo}
           suggestions={labelSuggestions.suggestions}
-          source={labelSuggestions.source}
+          source={labelSuggestions.source as 'mock' | 'ai'}
           existingLabels={labels}
           onApplyLabels={applyLabelSuggestions}
         />

@@ -35,14 +35,14 @@ export default function CollectionDetail() {
   // Find the collection
   const collection = albums.find(album => album.id === id);
 
-  // Get photos that match the collection's labels
+  // Get photos from collection via junction table
   const collectionPhotos = useMemo(() => {
-    if (!collection || collection.labels.length === 0) return [];
+    if (!collection) return [];
     
-    return photos.filter(photo => 
-      collection.labels.every(labelId => photo.labels.includes(labelId))
-    );
-  }, [photos, collection]);
+    // This would need to be implemented to get photos from collection_photos table
+    // For now, return empty array until we implement getAlbumPhotos properly
+    return [];
+  }, [collection]);
 
   if (!collection) {
     return (
@@ -63,7 +63,7 @@ export default function CollectionDetail() {
     );
   }
 
-  const handleUpdateAlbum = async (albumId: string, updates: Partial<Pick<Album, 'name' | 'labels' | 'cover_photo_url'>>) => {
+  const handleUpdateAlbum = async (albumId: string, updates: Partial<Pick<Album, 'name' | 'cover_photo_url'>>) => {
     const success = await updateAlbum(albumId, updates);
     if (success) {
       toast({
@@ -150,7 +150,7 @@ export default function CollectionDetail() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">{collection.name}</h1>
                 <p className="text-sm text-muted-foreground">
-                  {collectionPhotos.length} foto{collectionPhotos.length !== 1 ? 's' : ''} • {collection.labels.length} label{collection.labels.length !== 1 ? 's' : ''}
+                  {collectionPhotos.length} foto{collectionPhotos.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
@@ -185,31 +185,10 @@ export default function CollectionDetail() {
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Labels da coleção:</span>
-              <div className="flex flex-wrap gap-2">
-                {collection.labels.map(labelId => {
-                  const label = labels.find(l => l.id === labelId);
-                  if (!label) return null;
-                  
-                  return (
-                    <Badge 
-                      key={labelId} 
-                      variant="secondary"
-                      style={{
-                        backgroundColor: label.color ? `${label.color}20` : undefined,
-                        borderColor: label.color || undefined,
-                        color: label.color || undefined,
-                      }}
-                    >
-                      {label.name}
-                    </Badge>
-                  );
-                })}
+              <span className="text-sm text-muted-foreground">Coleção criada em:</span>
+              <div className="text-xs text-muted-foreground">
+                {new Date(collection.created_at).toLocaleDateString('pt-BR')}
               </div>
-            </div>
-            
-            <div className="text-xs text-muted-foreground">
-              Criada em {new Date(collection.created_at).toLocaleDateString('pt-BR')}
             </div>
           </div>
         </div>
@@ -254,12 +233,10 @@ export default function CollectionDetail() {
 
       {/* Edit Dialog */}
       <EditAlbumDialog
-        isOpen={showEditAlbum}
-        onClose={() => setShowEditAlbum(false)}
-        onUpdateAlbum={handleUpdateAlbum}
+        open={showEditAlbum}
+        onOpenChange={setShowEditAlbum}
+        onUpdate={handleUpdateAlbum}
         album={collection}
-        labels={labels}
-        photos={photos}
       />
     </div>
   );

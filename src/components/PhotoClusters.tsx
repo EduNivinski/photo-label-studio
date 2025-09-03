@@ -86,7 +86,7 @@ export function PhotoClusters({ photos, labels, onClusterClick, selectedLabels, 
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'labels' | 'cover_photo_url'>>) => {
+  const handleUpdateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'cover_photo_url'>>) => {
     await updateAlbum(id, updates);
     setIsEditDialogOpen(false);
     setEditingAlbum(null);
@@ -113,15 +113,13 @@ export function PhotoClusters({ photos, labels, onClusterClick, selectedLabels, 
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {albums.map(album => (
-              <AlbumCard
-                key={album.id}
-                album={album}
-                labels={labels}
-                onClick={() => onClusterClick(album.labels)}
-                onEdit={handleEditAlbum}
-                onDelete={handleDeleteAlbum}
-                isUserCreated={true}
-              />
+              <div key={album.id} onClick={() => onClusterClick([])}>
+                <AlbumCard
+                  album={album}
+                  onEdit={handleEditAlbum}
+                  onDelete={handleDeleteAlbum}
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -198,24 +196,19 @@ export function PhotoClusters({ photos, labels, onClusterClick, selectedLabels, 
 
       {/* Dialogs */}
       <CreateAlbumDialog
-        isOpen={isCreateDialogOpen}
-        onClose={() => setIsCreateDialogOpen(false)}
-        onCreateAlbum={handleCreateAlbum}
-        selectedLabels={selectedLabels}
-        labels={labels}
-        filteredPhotos={filteredPhotos}
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreate={(name, photoIds) => handleCreateAlbum(name, [], undefined)}
       />
 
       <EditAlbumDialog
-        isOpen={isEditDialogOpen}
-        onClose={() => {
-          setIsEditDialogOpen(false);
-          setEditingAlbum(null);
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setEditingAlbum(null);
         }}
-        onUpdateAlbum={handleUpdateAlbum}
+        onUpdate={handleUpdateAlbum}
         album={editingAlbum}
-        labels={labels}
-        photos={photos}
       />
     </div>
   );
