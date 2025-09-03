@@ -159,31 +159,55 @@ All colors MUST be HSL.
     display: none;
   }
 
-  /* PhotoCard grid improvements */
+  /* PhotoCard grid improvements - Responsive and optimized */
   .photo-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem; /* Reduced gap for better screen utilization */
-    padding: 2rem 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    padding: 2rem;
     max-width: 100%;
     justify-items: center;
+    align-items: start;
   }
 
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
+  /* Responsive adjustments for different screen sizes */
+  @media (max-width: 640px) {
     .photo-grid {
       grid-template-columns: repeat(2, 1fr);
-      gap: 1.25rem;
-      padding: 1.5rem 1rem;
-      max-width: none;
+      gap: 1rem;
+      padding: 1rem;
     }
   }
 
-  @media (min-width: 1200px) {
+  @media (min-width: 641px) and (max-width: 768px) {
+    .photo-grid {
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.25rem;
+      padding: 1.5rem;
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .photo-grid {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      padding: 2rem;
+    }
+  }
+
+  @media (min-width: 1025px) and (max-width: 1400px) {
+    .photo-grid {
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      padding: 2.5rem;
+    }
+  }
+
+  @media (min-width: 1401px) {
     .photo-grid {
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 2.5rem;
-      padding: 3rem 2.5rem;
+      padding: 3rem;
     }
   }
 

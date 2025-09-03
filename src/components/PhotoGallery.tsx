@@ -28,7 +28,7 @@ export function PhotoGallery({
   
   if (photos.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gallery-background">
+      <div className="w-full min-h-[400px] flex items-center justify-center bg-gallery-background">
         <div className="text-center">
           <div className="text-4xl mb-4">📷</div>
           <h3 className="text-lg font-medium text-foreground mb-2">
@@ -43,10 +43,10 @@ export function PhotoGallery({
   }
 
   return (
-    <div className="flex-1 bg-gallery-background">
+    <div className="w-full bg-gallery-background">
       {/* Relatório sutil no canto superior esquerdo */}
       {totalItems !== undefined && totalItems > 0 && (
-        <div className="px-4 py-1">
+        <div className="container mx-auto px-4 pt-4 max-w-7xl">
           <span className="text-sm text-muted-foreground">
             {totalItems} arquivo{totalItems !== 1 ? 's' : ''} encontrado{totalItems !== 1 ? 's' : ''}
           </span>

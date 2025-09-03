@@ -331,31 +331,37 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Collection Filter - Nova funcionalidade no topo */}
+    <div className="min-h-screen w-full bg-background">
+      {/* Collection Filter - Nova funcionalidade no topo */}
+      <div className="container mx-auto px-4 pt-6 max-w-7xl">
         <CollectionFilter
           collections={albums}
           selectedCollectionId={selectedCollectionId}
           onCollectionChange={handleCollectionChange}
         />
+      </div>
 
-        {/* Home Filters Bar - Filtros principais */}
+      {/* Home Filters Bar - Filtros principais */}
+      <div className="container mx-auto px-4 max-w-7xl">
         <HomeFiltersBar
           filters={filters}
           showFavorites={showFavorites}
           onUpdateFilters={updateFilters}
           onToggleFavorites={toggleFavorites}
         />
+      </div>
 
-        {/* Date Filters - Filtros de data */}
+      {/* Date Filters - Filtros de data */}
+      <div className="container mx-auto px-4 max-w-7xl">
         <DateFilters
           photos={selectedCollectionId ? collectionPhotos : photos}
           filters={filters}
           onUpdateFilters={updateFilters}
         />
+      </div>
 
-        {/* Advanced Filters - Filtros avançados */}
+      {/* Advanced Filters - Filtros avançados */}
+      <div className="container mx-auto px-4 max-w-7xl">
         <AdvancedFilters
           filters={filters}
           showFavorites={showFavorites}
@@ -376,8 +382,10 @@ const Index = () => {
           }}
           onToggleFavorites={toggleFavorites}
         />
+      </div>
 
-        {/* Related Labels Bar - Labels relacionadas */}
+      {/* Related Labels Bar - Labels relacionadas */}
+      <div className="container mx-auto px-4 max-w-7xl">
         <RelatedLabelsBar
           relatedLabels={getRelatedLabels}
           allLabels={labels}
@@ -387,8 +395,10 @@ const Index = () => {
           onExcludeLabel={excludeLabel}
           onRemoveLabel={removeLabel}
         />
+      </div>
 
-        {/* Stats and View Controls */}
+      {/* Stats and View Controls */}
+      <div className="container mx-auto px-4 max-w-7xl">
         <div className="flex justify-between items-center mb-6">
           <PhotoStats 
             photos={filteredPhotos}
@@ -433,19 +443,21 @@ const Index = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Selection Panel */}
-        {selectedCount > 0 && (
-          <SelectionPanel
-            selectedCount={selectedCount}
-            onManageLabels={handleBulkLabelManage}
-            onDeleteSelected={handleBulkDelete}
-            onClearSelection={clearSelection}
-            onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
-          />
-        )}
+      {/* Selection Panel */}
+      {selectedCount > 0 && (
+        <SelectionPanel
+          selectedCount={selectedCount}
+          onManageLabels={handleBulkLabelManage}
+          onDeleteSelected={handleBulkDelete}
+          onClearSelection={clearSelection}
+          onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
+        />
+      )}
 
-        {/* Photo Gallery */}
+      {/* Photo Gallery - Full width */}
+      <div className="w-full">
         <PhotoGallery
           photos={paginatedPhotos}
           labels={labels}
@@ -455,9 +467,11 @@ const Index = () => {
           onSelectionToggle={(photoId, isShiftPressed) => toggleSelection(photoId)}
           onUpdateLabels={updatePhotoLabels}
         />
+      </div>
 
-        {/* Load More / Pagination */}
-        {totalPages > 1 && (
+      {/* Load More / Pagination */}
+      {totalPages > 1 && (
+        <div className="container mx-auto px-4 max-w-7xl">
           <div className="mt-8 flex justify-center">
             <Button
               variant="outline"
@@ -467,10 +481,12 @@ const Index = () => {
               Carregar Mais
             </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* No photos state */}
-        {!loading && filteredPhotos.length === 0 && (
+      {/* No photos state */}
+      {!loading && filteredPhotos.length === 0 && (
+        <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center py-16">
             {photos.length === 0 ? (
               <div>
@@ -497,8 +513,8 @@ const Index = () => {
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Upload Dialog */}
       <UploadDialog
