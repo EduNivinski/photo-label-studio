@@ -157,14 +157,16 @@ const Index = () => {
   // Handle collection change
   const handleCollectionChange = (collectionId: string | null) => {
     setSelectedCollectionId(collectionId);
-    // Clear filters when changing collection
+    // Clear filters when changing collection to start fresh within the collection scope
     updateFilters({
       labels: [],
       searchTerm: '',
       showUnlabeled: false,
+      dateRange: undefined,
+      year: undefined,
       sortBy: 'date-desc',
-      fileTypes: [],
-      mediaTypes: []
+      fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
+      mediaTypes: ['photo', 'video']
     });
     clearSelection();
   };
@@ -389,7 +391,7 @@ const Index = () => {
         {/* Stats and View Controls */}
         <div className="flex justify-between items-center mb-6">
           <PhotoStats 
-            photos={filteredPhotos} 
+            photos={filteredPhotos}
             onCreateCollection={handleCreateCollectionFromStats}
           />
           
@@ -553,7 +555,7 @@ const Index = () => {
         onCreate={async (name, photoIds) => {
           const album = await createAlbum(name, photoIds);
           if (album) {
-            toast.success('Coleção criada com sucesso!');
+            toast.success(`Coleção "${name}" criada com sucesso!`);
             setIsCreateAlbumOpen(false);
           } else {
             toast.error('Erro ao criar coleção');
@@ -569,7 +571,7 @@ const Index = () => {
           const selectedPhotosList = getSelectedPhotos(photos);
           const album = await createAlbum(name, selectedPhotosList.map(p => p.id));
           if (album) {
-            toast.success('Coleção criada com sucesso!');
+            toast.success(`Coleção "${name}" criada com ${selectedPhotosList.length} foto${selectedPhotosList.length !== 1 ? 's' : ''}!`);
             setIsCreateCollectionFromSelectionOpen(false);
             clearSelection();
           } else {
