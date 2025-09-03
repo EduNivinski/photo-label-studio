@@ -58,12 +58,6 @@ export function CollectionFilter({
             ))}
           </SelectContent>
         </Select>
-        
-        {!selectedCollectionId && (
-          <span className="text-xs text-muted-foreground">
-            Labels funcionam em todas as fotos
-          </span>
-        )}
       </div>
     </div>
   );
