@@ -384,7 +384,7 @@ const Index = () => {
       </div>
 
       {/* CONTAINER 4: Relatório de Fotos/Vídeos e Controles */}
-      <div className="container mx-auto px-4 max-w-7xl mb-6">
+      <div className="container mx-auto px-4 max-w-7xl mb-6 mt-8">
         <div className="flex justify-between items-center mb-6">
           <PhotoStats 
             photos={filteredPhotos}
