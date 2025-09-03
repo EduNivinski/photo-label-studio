@@ -332,8 +332,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen w-full bg-background">
-      {/* Collection Filter - Nova funcionalidade no topo */}
-      <div className="container mx-auto px-4 pt-6 max-w-7xl">
+      {/* CONTAINER 1: Coleções de Projetos */}
+      <div className="container mx-auto px-4 pt-6 max-w-7xl mb-4">
         <CollectionFilter
           collections={albums}
           selectedCollectionId={selectedCollectionId}
@@ -341,8 +341,8 @@ const Index = () => {
         />
       </div>
 
-      {/* Search Bar com Labels - Barra horizontal principal */}
-      <div className="container mx-auto px-4 max-w-7xl">
+      {/* CONTAINER 2: Buscar Labels */}
+      <div className="container mx-auto px-4 max-w-7xl mb-4">
         <SearchBar
           searchTerm={filters.searchTerm}
           onSearchChange={updateSearchTerm}
@@ -358,23 +358,23 @@ const Index = () => {
           includedLabels={includedLabels}
           excludedLabels={excludedLabels}
         />
+        
+        {/* Related Labels Bar - Parte do container de labels */}
+        <div className="mt-2">
+          <RelatedLabelsBar
+            relatedLabels={getRelatedLabels}
+            allLabels={labels}
+            includedLabels={includedLabels}
+            excludedLabels={excludedLabels}
+            onIncludeLabel={includeLabel}
+            onExcludeLabel={excludeLabel}
+            onRemoveLabel={removeLabel}
+          />
+        </div>
       </div>
 
-      {/* Related Labels Bar - Labels relacionadas */}
-      <div className="container mx-auto px-4 max-w-7xl">
-        <RelatedLabelsBar
-          relatedLabels={getRelatedLabels}
-          allLabels={labels}
-          includedLabels={includedLabels}
-          excludedLabels={excludedLabels}
-          onIncludeLabel={includeLabel}
-          onExcludeLabel={excludeLabel}
-          onRemoveLabel={removeLabel}
-        />
-      </div>
-
-      {/* Home Filters Bar - Filtros principais (data, avançados, favoritos) */}
-      <div className="container mx-auto px-4 max-w-7xl">
+      {/* CONTAINER 3: Filtros por Data e Avançados */}
+      <div className="container mx-auto px-4 max-w-7xl mb-4">
         <HomeFiltersBar
           filters={filters}
           showFavorites={showFavorites}
@@ -383,8 +383,8 @@ const Index = () => {
         />
       </div>
 
-      {/* Stats and View Controls */}
-      <div className="container mx-auto px-4 max-w-7xl mt-6">
+      {/* CONTAINER 4: Relatório de Fotos/Vídeos e Controles */}
+      <div className="container mx-auto px-4 max-w-7xl mb-6">
         <div className="flex justify-between items-center mb-6">
           <PhotoStats 
             photos={filteredPhotos}
