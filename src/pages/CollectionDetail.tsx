@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,14 +12,17 @@ import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useToast } from '@/hooks/use-toast';
 import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import type { Album } from '@/types/album';
+import type { Photo } from '@/types/photo';
 
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>();
-  const { albums, updateAlbum, deleteAlbum } = useAlbums();
+  const { albums, updateAlbum, deleteAlbum, getAlbumPhotos } = useAlbums();
   const { photos, labels, updatePhotoLabels, deletePhoto } = useSupabaseData();
   const { toast } = useToast();
   
   const [showEditAlbum, setShowEditAlbum] = useState(false);
+  const [collectionPhotos, setCollectionPhotos] = useState<Photo[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Photo selection state
   const {
@@ -35,14 +38,40 @@ export default function CollectionDetail() {
   // Find the collection
   const collection = albums.find(album => album.id === id);
 
-  // Get photos from collection via junction table
-  const collectionPhotos = useMemo(() => {
-    if (!collection) return [];
-    
-    // This would need to be implemented to get photos from collection_photos table
-    // For now, return empty array until we implement getAlbumPhotos properly
-    return [];
-  }, [collection]);
+  // Load collection photos
+  useEffect(() => {
+    const loadCollectionPhotos = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const photos = await getAlbumPhotos(id);
+        // Convert to Photo type format
+        const formattedPhotos = photos.map(p => ({
+          id: p.id,
+          name: p.name,
+          url: p.url,
+          labels: p.labels,
+          uploadDate: p.upload_date,
+          originalDate: p.original_date,
+          alias: p.alias,
+          userId: '',
+          mediaType: (p.media_type === 'video' ? 'video' : 'photo') as 'photo' | 'video'
+        }));
+        setCollectionPhotos(formattedPhotos);
+      } catch (error) {
+        console.error('Error loading collection photos:', error);
+        setCollectionPhotos([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCollectionPhotos();
+  }, [id, getAlbumPhotos]);
 
   if (!collection) {
     return (
@@ -150,7 +179,14 @@ export default function CollectionDetail() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">{collection.name}</h1>
                 <p className="text-sm text-muted-foreground">
-                  {collectionPhotos.length} foto{collectionPhotos.length !== 1 ? 's' : ''}
+                  {loading ? 'Carregando...' : (() => {
+                    const photos = collectionPhotos.filter(p => p.mediaType === 'photo').length;
+                    const videos = collectionPhotos.filter(p => p.mediaType === 'video').length;
+                    const parts = [];
+                    if (photos > 0) parts.push(`${photos} foto${photos !== 1 ? 's' : ''}`);
+                    if (videos > 0) parts.push(`${videos} vídeo${videos !== 1 ? 's' : ''}`);
+                    return parts.length > 0 ? parts.join(' • ') : 'Vazio';
+                  })()}
                 </p>
               </div>
             </div>
@@ -196,17 +232,24 @@ export default function CollectionDetail() {
 
       {/* Photos Grid */}
       <main className="flex-1">
-        {collectionPhotos.length === 0 ? (
+        {loading ? (
+          <div className="p-12 text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              Carregando arquivos...
+            </h3>
+          </div>
+        ) : collectionPhotos.length === 0 ? (
           <div className="p-12 text-center">
             <Archive className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-foreground mb-2">
-              Nenhuma foto encontrada
+              Coleção vazia
             </h3>
             <p className="text-muted-foreground mb-4">
-              Esta coleção não possui fotos que correspondam às labels selecionadas.
+              Esta coleção ainda não possui nenhum arquivo.
             </p>
-            <Link to="/explore">
-              <Button>Explorar Biblioteca</Button>
+            <Link to="/">
+              <Button>Voltar à Biblioteca</Button>
             </Link>
           </div>
         ) : (
