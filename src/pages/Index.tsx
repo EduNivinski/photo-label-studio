@@ -143,7 +143,8 @@ const Index = () => {
           uploadDate: p.upload_date,
           originalDate: p.original_date,
           alias: p.alias,
-          userId: ''
+          userId: '',
+          mediaType: (p.media_type === 'video' ? 'video' : 'photo') as 'photo' | 'video'
         }));
         setCollectionPhotos(photos);
       } else {

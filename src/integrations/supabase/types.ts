@@ -103,6 +103,7 @@ export type Database = {
           alias: string | null
           id: string
           labels: string[] | null
+          media_type: string
           name: string
           original_date: string | null
           upload_date: string
@@ -113,6 +114,7 @@ export type Database = {
           alias?: string | null
           id?: string
           labels?: string[] | null
+          media_type?: string
           name: string
           original_date?: string | null
           upload_date?: string
@@ -123,6 +125,7 @@ export type Database = {
           alias?: string | null
           id?: string
           labels?: string[] | null
+          media_type?: string
           name?: string
           original_date?: string | null
           upload_date?: string

@@ -25,7 +25,8 @@ export function useSupabaseData() {
       uploadDate: photo.upload_date,
       originalDate: photo.original_date,
       labels: photo.labels || [],
-      alias: photo.alias || undefined
+      alias: photo.alias || undefined,
+      mediaType: photo.media_type || 'photo'
     }));
     
     setPhotos(formattedPhotos);
@@ -243,6 +244,8 @@ export function useSupabaseData() {
             originalDate = file.lastModified ? new Date(file.lastModified).toISOString() : null;
           }
         }
+        // Determine media type based on file MIME type
+        const mediaType = file.type.startsWith('video/') ? 'video' : 'photo';
         
         // Upload to storage
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -259,7 +262,7 @@ export function useSupabaseData() {
           .from('photos')
           .getPublicUrl(fileName);
 
-        // Save to database with user_id and original_date
+        // Save to database with user_id, original_date, and media_type
         const { data: photoData, error: dbError } = await (supabase as any)
           .from('photos')
           .insert({
@@ -267,7 +270,8 @@ export function useSupabaseData() {
             name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
             labels: [],
             user_id: user.id,
-            original_date: originalDate
+            original_date: originalDate,
+            media_type: mediaType
           })
           .select()
           .single();
@@ -286,7 +290,8 @@ export function useSupabaseData() {
           uploadDate: photoData.upload_date,
           originalDate: photoData.original_date,
           labels: photoData.labels || [],
-          alias: photoData.alias || undefined
+          alias: photoData.alias || undefined,
+          mediaType: photoData.media_type || 'photo'
         } as Photo;
       });
 

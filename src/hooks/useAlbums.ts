@@ -182,7 +182,8 @@ export function useAlbums() {
             labels,
             upload_date,
             original_date,
-            alias
+            alias,
+            media_type
           )
         `)
         .eq('collection_id', albumId);

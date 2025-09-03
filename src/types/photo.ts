@@ -6,6 +6,7 @@ export interface Photo {
   originalDate?: string;
   labels: string[];
   alias?: string;
+  mediaType: 'photo' | 'video';
 }
 
 export interface Label {

@@ -11,10 +11,8 @@ interface PhotoStatsProps {
 
 export function PhotoStats({ photos, onCreateCollection }: PhotoStatsProps) {
   const stats = useMemo(() => {
-    // Por enquanto, consideramos todas como fotos
-    // No futuro, podemos adicionar detecção por extensão ou tipo MIME
-    const totalPhotos = photos.length;
-    const totalVideos = 0; // Placeholder para futura implementação
+    const totalPhotos = photos.filter(photo => photo.mediaType === 'photo').length;
+    const totalVideos = photos.filter(photo => photo.mediaType === 'video').length;
     
     return {
       totalPhotos,
