@@ -384,7 +384,7 @@ const Index = () => {
       </div>
 
       {/* Stats and View Controls */}
-      <div className="container mx-auto px-4 max-w-7xl">
+      <div className="container mx-auto px-4 max-w-7xl mt-6">
         <div className="flex justify-between items-center mb-6">
           <PhotoStats 
             photos={filteredPhotos}
