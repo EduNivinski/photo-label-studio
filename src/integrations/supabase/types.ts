@@ -14,12 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      collection_photos: {
+        Row: {
+          collection_id: string
+          created_at: string
+          id: string
+          photo_id: string
+        }
+        Insert: {
+          collection_id: string
+          created_at?: string
+          id?: string
+          photo_id: string
+        }
+        Update: {
+          collection_id?: string
+          created_at?: string
+          id?: string
+          photo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collection_photos_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collection_photos_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "photos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collections: {
         Row: {
           cover_photo_url: string | null
           created_at: string
           id: string
-          labels: string[]
           name: string
           updated_at: string
           user_id: string
@@ -28,7 +63,6 @@ export type Database = {
           cover_photo_url?: string | null
           created_at?: string
           id?: string
-          labels?: string[]
           name: string
           updated_at?: string
           user_id: string
@@ -37,7 +71,6 @@ export type Database = {
           cover_photo_url?: string | null
           created_at?: string
           id?: string
-          labels?: string[]
           name?: string
           updated_at?: string
           user_id?: string

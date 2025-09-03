@@ -1,23 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { LabelChip } from '@/components/LabelChip';
+import { useAlbums } from '@/hooks/useAlbums';
 import type { Album } from '@/types/album';
-import type { Label } from '@/types/photo';
 
 interface AlbumCardProps {
   album: Album;
-  labels: Label[];
-  onClick: () => void;
+  photoCount?: number;
   onEdit: (album: Album) => void;
   onDelete: (albumId: string) => void;
-  isUserCreated?: boolean;
 }
 
-export function AlbumCard({ album, labels, onClick, onEdit, onDelete, isUserCreated = true }: AlbumCardProps) {
+export function AlbumCard({ album, photoCount = 0, onEdit, onDelete }: AlbumCardProps) {
   const [imageError, setImageError] = useState(false);
+  const [actualPhotoCount, setActualPhotoCount] = useState(photoCount);
+  const { getAlbumPhotos } = useAlbums();
+
+  useEffect(() => {
+    const fetchPhotoCount = async () => {
+      const photos = await getAlbumPhotos(album.id);
+      setActualPhotoCount(photos.length);
+    };
+
+    if (photoCount === 0) {
+      fetchPhotoCount();
+    }
+  }, [album.id, photoCount, getAlbumPhotos]);
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -34,10 +44,7 @@ export function AlbumCard({ album, labels, onClick, onEdit, onDelete, isUserCrea
   };
 
   return (
-    <Card 
-      className="group cursor-pointer hover:shadow-md transition-all border border-border bg-card"
-      onClick={onClick}
-    >
+    <Card className="group cursor-pointer hover:shadow-md transition-all border border-border bg-card">
       <CardContent className="p-4">
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
@@ -45,34 +52,32 @@ export function AlbumCard({ album, labels, onClick, onEdit, onDelete, isUserCrea
             <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
               {album.name}
             </h3>
-            {isUserCreated && (
-              <span className="text-xs text-muted-foreground">Álbum personalizado</span>
-            )}
+            <span className="text-xs text-muted-foreground">
+              {actualPhotoCount} {actualPhotoCount === 1 ? 'foto' : 'fotos'}
+            </span>
           </div>
           
-          {isUserCreated && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={handleMenuClick}>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleEdit}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={handleMenuClick}>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleEdit}>
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Cover Image with Gradient Overlay */}
@@ -94,7 +99,7 @@ export function AlbumCard({ album, labels, onClick, onEdit, onDelete, isUserCrea
                   {album.name}
                 </h4>
                 <div className="text-xs text-white/80 drop-shadow-sm">
-                  Coleção
+                  {actualPhotoCount} {actualPhotoCount === 1 ? 'foto' : 'fotos'}
                 </div>
               </div>
             </>
@@ -102,27 +107,10 @@ export function AlbumCard({ album, labels, onClick, onEdit, onDelete, isUserCrea
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <div className="text-2xl mb-1">📸</div>
-                <div className="text-sm">Sem capa</div>
+                <div className="text-sm">{actualPhotoCount} {actualPhotoCount === 1 ? 'foto' : 'fotos'}</div>
               </div>
             </div>
           )}
-        </div>
-
-        {/* Labels */}
-        <div className="flex flex-wrap gap-1">
-          {album.labels.map(labelId => {
-            const label = labels.find(l => l.id === labelId);
-            return label ? (
-              <LabelChip
-                key={labelId}
-                label={label}
-                isSelected={false}
-                onClick={() => {}}
-                showCount={undefined}
-                size="sm"
-              />
-            ) : null;
-          })}
         </div>
       </CardContent>
     </Card>

@@ -24,30 +24,45 @@ export function useAlbums() {
     }
   };
 
-  const createAlbum = async (name: string, labels: string[], coverPhotoUrl?: string): Promise<Album | null> => {
+  const createAlbum = async (name: string, photoIds: string[] = [], coverPhotoUrl?: string): Promise<Album | null> => {
     try {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (!user) {
         throw new Error('User not authenticated');
       }
 
-      const { data, error } = await supabase
+      const { data: album, error: albumError } = await supabase
         .from('collections')
         .insert({
           name,
-          labels,
           cover_photo_url: coverPhotoUrl,
-          user_id: user.id
+          user_id: user.id,
         })
         .select()
         .single();
 
-      if (error) throw error;
-      
-      setAlbums(prev => [data, ...prev]);
+      if (albumError) throw albumError;
+
+      // Add photos to the collection if any were provided
+      if (photoIds.length > 0) {
+        const collectionPhotos = photoIds.map(photoId => ({
+          collection_id: album.id,
+          photo_id: photoId
+        }));
+
+        const { error: relationError } = await supabase
+          .from('collection_photos')
+          .insert(collectionPhotos);
+
+        if (relationError) {
+          console.error('Error adding photos to collection:', relationError);
+        }
+      }
+
+      setAlbums(prev => [album, ...prev]);
       toast.success('Coleção criada com sucesso!');
-      return data;
+      return album;
     } catch (error) {
       console.error('Error creating album:', error);
       toast.error('Erro ao criar coleção');
@@ -55,7 +70,7 @@ export function useAlbums() {
     }
   };
 
-  const updateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'labels' | 'cover_photo_url'>>): Promise<boolean> => {
+  const updateAlbum = async (id: string, updates: Partial<Pick<Album, 'name' | 'cover_photo_url'>>): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('collections')
@@ -115,12 +130,80 @@ export function useAlbums() {
     };
   }, []);
 
+  const addPhotosToAlbum = async (albumId: string, photoIds: string[]): Promise<boolean> => {
+    try {
+      const collectionPhotos = photoIds.map(photoId => ({
+        collection_id: albumId,
+        photo_id: photoId
+      }));
+
+      const { error } = await supabase
+        .from('collection_photos')
+        .insert(collectionPhotos);
+
+      if (error) throw error;
+      toast.success('Fotos adicionadas à coleção!');
+      return true;
+    } catch (error) {
+      console.error('Error adding photos to album:', error);
+      toast.error('Erro ao adicionar fotos à coleção');
+      return false;
+    }
+  };
+
+  const removePhotosFromAlbum = async (albumId: string, photoIds: string[]): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('collection_photos')
+        .delete()
+        .eq('collection_id', albumId)
+        .in('photo_id', photoIds);
+
+      if (error) throw error;
+      toast.success('Fotos removidas da coleção!');
+      return true;
+    } catch (error) {
+      console.error('Error removing photos from album:', error);
+      toast.error('Erro ao remover fotos da coleção');
+      return false;
+    }
+  };
+
+  const getAlbumPhotos = async (albumId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('collection_photos')
+        .select(`
+          photo_id,
+          photos!inner (
+            id,
+            name,
+            url,
+            labels,
+            upload_date,
+            original_date,
+            alias
+          )
+        `)
+        .eq('collection_id', albumId);
+
+      if (error) throw error;
+      return data?.map(item => item.photos) || [];
+    } catch (error) {
+      console.error('Error fetching album photos:', error);
+      return [];
+    }
+  };
+
   return {
     albums,
     loading,
     createAlbum,
     updateAlbum,
     deleteAlbum,
+    addPhotosToAlbum,
+    removePhotosFromAlbum,
+    getAlbumPhotos,
     refetch: fetchAlbums
   };
 }

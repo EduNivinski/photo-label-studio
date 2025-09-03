@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toggle } from '@/components/ui/toggle';
+import { CollectionFilter } from '@/components/CollectionFilter';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePhotoFilters } from '@/hooks/usePhotoFilters';
 import { usePhotoSelection } from '@/hooks/usePhotoSelection';
@@ -55,8 +56,13 @@ const Index = () => {
     loading: albumsLoading,
     createAlbum,
     updateAlbum,
-    deleteAlbum
+    deleteAlbum,
+    getAlbumPhotos
   } = useAlbums();
+
+  // Collection filter state
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [collectionPhotos, setCollectionPhotos] = useState<Photo[]>([]);
 
   const {
     filters,
@@ -74,7 +80,7 @@ const Index = () => {
     getRelatedLabels,
     showFavorites,
     toggleFavorites
-  } = usePhotoFilters(photos);
+  } = usePhotoFilters(selectedCollectionId ? collectionPhotos : photos);
 
   // Photo selection state
   const {
@@ -98,64 +104,65 @@ const Index = () => {
   const [isEditAlbumOpen, setIsEditAlbumOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+
+  // View mode state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [itemsPerPage, setItemsPerPage] = useState(24);
+
+  // Label suggestions state
   const [labelSuggestions, setLabelSuggestions] = useState<{
     suggestions: string[];
-    source: 'ai' | 'mock';
+    source: string;
     photo: Photo | null;
   }>({ suggestions: [], source: 'mock', photo: null });
-  
-  // Estados para UI
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [itemsPerPage, setItemsPerPage] = useState(30);
-  
+
   // Pagination
   const {
+    currentPage,
+    totalPages,
     paginatedItems: paginatedPhotos,
-    hasMoreItems,
-    loadMore,
-    reset: resetPagination,
-    changeItemsPerPage,
-    totalItems,
-    currentlyShowing
+    goToPage,
+    resetPagination
   } = usePagination(filteredPhotos, itemsPerPage);
 
-  // Update pagination when filters change
+  // Reset pagination when filtered photos change
   useEffect(() => {
     resetPagination();
   }, [filteredPhotos, resetPagination]);
 
-  const handleCreateCollection = () => {
-    setIsCreateAlbumOpen(true);
+  // Collection filter effect
+  useEffect(() => {
+    const fetchCollectionPhotos = async () => {
+      if (selectedCollectionId) {
+        const photos = await getAlbumPhotos(selectedCollectionId);
+        setCollectionPhotos(photos);
+      } else {
+        setCollectionPhotos([]);
+      }
+    };
+
+    fetchCollectionPhotos();
+  }, [selectedCollectionId, getAlbumPhotos]);
+
+  // Handle collection change
+  const handleCollectionChange = (collectionId: string | null) => {
+    setSelectedCollectionId(collectionId);
+    // Clear filters when changing collection
+    updateFilters({
+      labels: [],
+      searchTerm: '',
+      showUnlabeled: false,
+      sortBy: 'date-desc',
+      fileTypes: [],
+      mediaTypes: []
+    });
+    clearSelection();
   };
 
-  const handleEditCollection = (album: Album) => {
-    setSelectedAlbum(album);
-    setIsEditAlbumOpen(true);
-  };
-
-  const handleDeleteCollection = async (albumId: string) => {
-    try {
-      await deleteAlbum(albumId);
-      toast.success('Álbum excluído com sucesso!');
-    } catch (error) {
-      console.error('Erro ao excluir álbum:', error);
-      toast.error('Erro ao excluir álbum');
-    }
-  };
-
-  const handleItemsPerPageChange = (newItemsPerPage: string) => {
-    const numItems = parseInt(newItemsPerPage);
-    setItemsPerPage(numItems);
-    changeItemsPerPage(numItems);
-  };
-
-  // Event handlers
   const handlePhotoClick = (photo: Photo) => {
     if (selectedCount > 0) {
-      // If there are selected photos, treat click as selection toggle
-      toggleSelection(photo.id, false, filteredPhotos);
+      toggleSelection(photo.id);
     } else {
-      // Normal behavior: open modal
       setSelectedPhoto(photo);
       setIsModalOpen(true);
     }
@@ -166,28 +173,25 @@ const Index = () => {
     setSelectedPhoto(null);
   };
 
-  const handleSelectionToggle = (photoId: string, isShiftPressed: boolean) => {
-    toggleSelection(photoId, isShiftPressed, filteredPhotos);
-  };
-
   const handleBulkLabelManage = () => {
     setIsBulkLabelDialogOpen(true);
   };
 
-  const handleCreateCollectionFromSelection = () => {
-    setIsCreateCollectionFromSelectionOpen(true);
-  };
-
   const handleSelectAll = () => {
-    selectAll(filteredPhotos);
+    if (selectedCount === filteredPhotos.length && filteredPhotos.length > 0) {
+      clearSelection();
+    } else {
+      selectAll(filteredPhotos);
+    }
   };
 
   const handleBulkDelete = async () => {
     const selectedPhotos = getSelectedPhotos(photos);
     if (selectedPhotos.length === 0) return;
-
-    const confirmed = confirm(`Tem certeza que deseja deletar ${selectedPhotos.length} foto${selectedPhotos.length !== 1 ? 's' : ''}?`);
-    if (!confirmed) return;
+    
+    if (!confirm(`Tem certeza que deseja excluir ${selectedPhotos.length} foto${selectedPhotos.length !== 1 ? 's' : ''}?`)) {
+      return;
+    }
 
     let successCount = 0;
     for (const photo of selectedPhotos) {
@@ -289,6 +293,11 @@ const Index = () => {
     }
   };
 
+  // Handle Create Collection from Stats
+  const handleCreateCollectionFromStats = () => {
+    setIsCreateAlbumOpen(true);
+  };
+
   // Setup keyboard shortcuts
   useKeyboardShortcuts({
     onSelectAll: handleSelectAll,
@@ -300,153 +309,177 @@ const Index = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            Carregando PhotoLabel...
-          </h3>
-          <p className="text-muted-foreground">
-            Conectando ao banco de dados
-          </p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+          <p className="mt-4 text-muted-foreground">Carregando fotos...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 min-h-screen bg-background">
-      {/* Hero Section - Simplified */}
-      <section className="px-6 py-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            {/* Custom logo from user profile or default text */}
-            {/* TODO: Get customLogo from user profile data */}
-            <h1 className="text-2xl font-bold text-foreground">PhotoLabel</h1>
-          </div>
-        </div>
-      </section>
-
-      {/* Search Bar - Always visible */}
-      <SearchBar
-        searchTerm={filters.searchTerm}
-        onSearchChange={updateSearchTerm}
-        onUpload={handleUpload}
-        labels={labels}
-        selectedLabels={filters.labels}
-        showUnlabeled={filters.showUnlabeled}
-        onLabelToggle={toggleLabel}
-        onToggleUnlabeled={toggleUnlabeled}
-        onClearFilters={clearFilters}
-        onManageLabels={() => handleLabelManage()}
-        onIncludeLabel={includeLabel}
-        includedLabels={includedLabels}
-        excludedLabels={excludedLabels}
-      />
-
-      {/* Related Labels Bar - Sales Navigator style */}
-      <RelatedLabelsBar
-        relatedLabels={getRelatedLabels}
-        allLabels={labels}
-        includedLabels={includedLabels}
-        excludedLabels={excludedLabels}
-        onIncludeLabel={includeLabel}
-        onExcludeLabel={excludeLabel}
-        onRemoveLabel={removeLabel}
-      />
-
-      {/* Home Filters Bar - Date, Favorites, Sort */}
-      <div className="px-6 py-3">
-        <HomeFiltersBar
-          filters={filters}
-          showFavorites={showFavorites}
-          onUpdateFilters={updateFilters}
-          onToggleFavorites={toggleFavorites}
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Collection Filter */}
+        <CollectionFilter
+          collections={albums}
+          selectedCollectionId={selectedCollectionId}
+          onCollectionChange={handleCollectionChange}
         />
-      </div>
 
-      {/* Pagination Controls */}
-      <div className="px-6 py-3 bg-card border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Mostrando {currentlyShowing} de {totalItems} fotos
-            </span>
-            
-            <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30 por página</SelectItem>
-                <SelectItem value="60">60 por página</SelectItem>
-                <SelectItem value="100">100 por página</SelectItem>
-                <SelectItem value="200">200 por página</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* Search Bar */}
+        <SearchBar
+          onSearch={updateSearchTerm}
+          onUpload={handleUpload}
+          onToggleUnlabeled={toggleUnlabeled}
+          showUnlabeled={filters.showUnlabeled}
+          onLabelFilter={(labelId) => toggleLabel(labelId)}
+          labels={labels}
+          selectedLabels={filters.labels}
+          searchTerm={filters.searchTerm}
+          onCreateCollection={() => setIsCreateAlbumOpen(true)}
+        />
 
-            <PhotoStats 
-              photos={filteredPhotos} 
-              onCreateCollection={() => setIsCreateAlbumOpen(true)}
-            />
-          </div>
+        {/* Related Labels Bar */}
+        <RelatedLabelsBar
+          relatedLabels={getRelatedLabels()}
+          onLabelToggle={includeLabel}
+          includedLabels={includedLabels}
+          excludedLabels={excludedLabels}
+          onIncludeLabel={includeLabel}
+          onExcludeLabel={excludeLabel}
+          onRemoveLabel={removeLabel}
+        />
+
+        {/* Stats and View Controls */}
+        <div className="flex justify-between items-center mb-6">
+          <PhotoStats 
+            photos={filteredPhotos} 
+            onCreateCollection={handleCreateCollectionFromStats}
+          />
           
-          <div className="flex items-center gap-2">
-            <Toggle
-              pressed={viewMode === 'grid'}
-              onPressedChange={() => setViewMode('grid')}
-              aria-label="Grid view"
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </Toggle>
-            <Toggle
-              pressed={viewMode === 'list'}
-              onPressedChange={() => setViewMode('list')}
-              aria-label="List view"
-            >
-              <List className="h-4 w-4" />
-            </Toggle>
+          <div className="flex items-center gap-4">
+            {/* View Toggle */}
+            <div className="flex items-center gap-2">
+              <Toggle
+                pressed={viewMode === 'grid'}
+                onPressedChange={(pressed) => setViewMode(pressed ? 'grid' : 'list')}
+                size="sm"
+                aria-label="Vista em grade"
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </Toggle>
+              <Toggle
+                pressed={viewMode === 'list'}
+                onPressedChange={(pressed) => setViewMode(pressed ? 'list' : 'grid')}
+                size="sm"
+                aria-label="Vista em lista"
+              >
+                <List className="h-4 w-4" />
+              </Toggle>
+            </div>
+
+            {/* Items per page selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Por página:</span>
+              <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(parseInt(value))}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="12">12</SelectItem>
+                  <SelectItem value="24">24</SelectItem>
+                  <SelectItem value="48">48</SelectItem>
+                  <SelectItem value="96">96</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
+
+        {/* Selection Panel */}
+        {selectedCount > 0 && (
+          <SelectionPanel
+            selectedCount={selectedCount}
+            onManageLabels={handleBulkLabelManage}
+            onDelete={handleBulkDelete}
+            onClear={clearSelection}
+            onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
+          />
+        )}
+
+        {/* Photo Gallery */}
+        <PhotoGallery
+          photos={paginatedPhotos}
+          viewMode={viewMode}
+          selectedPhotoIds={selectedPhotoIds}
+          onPhotoClick={handlePhotoClick}
+          onPhotoSelect={toggleSelection}
+          onLabelManage={handleLabelManage}
+          isLoading={loading}
+        />
+
+        {/* Load More / Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-8 flex justify-center items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => goToPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Próxima
+            </Button>
+          </div>
+        )}
+
+        {/* No photos state */}
+        {!loading && filteredPhotos.length === 0 && (
+          <div className="text-center py-16">
+            {photos.length === 0 ? (
+              <div>
+                <Library className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhuma foto encontrada</h3>
+                <p className="text-muted-foreground mb-4">
+                  Comece fazendo upload das suas primeiras fotos!
+                </p>
+                <Button onClick={handleUpload}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Fazer Upload
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhuma foto corresponde aos filtros</h3>
+                <p className="text-muted-foreground mb-4">
+                  Tente ajustar seus filtros ou remova algumas labels
+                </p>
+                <Button variant="outline" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Photo Gallery */}
-      <PhotoGallery
-        photos={paginatedPhotos}
-        labels={labels}
-        selectedPhotoIds={selectedPhotoIds}
-        onPhotoClick={handlePhotoClick}
-        onLabelManage={handleLabelManage}
-        onSelectionToggle={handleSelectionToggle}
-        onUpdateLabels={updatePhotoLabels}
-      />
-
-      {/* Load More Button */}
-      {hasMoreItems && (
-        <div className="px-6 py-4 text-center">
-          <Button onClick={loadMore} variant="outline">
-            Carregar mais fotos
-          </Button>
-        </div>
-      )}
-
-      {/* Selection Panel */}
-      <SelectionPanel
-        selectedCount={selectedCount}
-        onManageLabels={handleBulkLabelManage}
-        onDeleteSelected={handleBulkDelete}
-        onClearSelection={clearSelection}
-        onCreateCollection={handleCreateCollectionFromSelection}
-      />
 
       {/* Upload Dialog */}
       <UploadDialog
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onUpload={uploadPhotos}
-        labels={labels}
-        onCreateLabel={createLabel}
-        onApplyLabelsToPhotos={applyLabelsToPhotos}
+        onUpload={handleUploadFiles}
+        onLabelManage={handleLabelManage}
       />
 
       {/* Label Manager */}
@@ -489,14 +522,10 @@ const Index = () => {
 
       {/* Create Album Dialog */}
       <CreateAlbumDialog
-        isOpen={isCreateAlbumOpen}
-        onClose={() => setIsCreateAlbumOpen(false)}
-        labels={labels}
-        selectedLabels={filters.labels}
-        filteredPhotos={filteredPhotos}
-        onCreateLabel={createLabel}
-        onCreateAlbum={async (name, labels, coverPhotoUrl) => {
-          const album = await createAlbum(name, labels, coverPhotoUrl);
+        open={isCreateAlbumOpen}
+        onOpenChange={setIsCreateAlbumOpen}
+        onCreate={async (name, photoIds) => {
+          const album = await createAlbum(name, photoIds);
           if (album) {
             toast.success('Coleção criada com sucesso!');
             setIsCreateAlbumOpen(false);
@@ -508,14 +537,11 @@ const Index = () => {
 
       {/* Create Collection from Selection Dialog */}
       <CreateAlbumDialog
-        isOpen={isCreateCollectionFromSelectionOpen}
-        onClose={() => setIsCreateCollectionFromSelectionOpen(false)}
-        labels={labels}
-        selectedLabels={[]}
-        filteredPhotos={getSelectedPhotos(photos)}
-        onCreateLabel={createLabel}
-        onCreateAlbum={async (name, labels, coverPhotoUrl) => {
-          const album = await createAlbum(name, labels, coverPhotoUrl);
+        open={isCreateCollectionFromSelectionOpen}
+        onOpenChange={setIsCreateCollectionFromSelectionOpen}
+        onCreate={async (name, photoIds) => {
+          const selectedPhotosList = getSelectedPhotos(photos);
+          const album = await createAlbum(name, selectedPhotosList.map(p => p.id));
           if (album) {
             toast.success('Coleção criada com sucesso!');
             setIsCreateCollectionFromSelectionOpen(false);
@@ -524,20 +550,19 @@ const Index = () => {
             toast.error('Erro ao criar coleção');
           }
         }}
+        selectedPhotos={getSelectedPhotos(photos)}
       />
 
       {/* Edit Album Dialog */}
       {selectedAlbum && (
         <EditAlbumDialog
-          isOpen={isEditAlbumOpen}
-          onClose={() => {
-            setIsEditAlbumOpen(false);
-            setSelectedAlbum(null);
+          open={isEditAlbumOpen}
+          onOpenChange={(open) => {
+            setIsEditAlbumOpen(open);
+            if (!open) setSelectedAlbum(null);
           }}
           album={selectedAlbum}
-          labels={labels}
-          photos={photos}
-          onUpdateAlbum={async (id, updates) => {
+          onUpdate={async (id, updates) => {
             const success = await updateAlbum(id, updates);
             if (success) {
               toast.success('Coleção atualizada com sucesso!');
