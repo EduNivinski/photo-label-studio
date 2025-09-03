@@ -14,6 +14,14 @@ export function PhotoStats({ photos, onCreateCollection }: PhotoStatsProps) {
     const totalPhotos = photos.filter(photo => photo.mediaType === 'photo').length;
     const totalVideos = photos.filter(photo => photo.mediaType === 'video').length;
     
+    // Debug logging
+    console.log('PhotoStats Debug:', {
+      totalItems: photos.length,
+      photos: totalPhotos,
+      videos: totalVideos,
+      mediaTypes: photos.map(p => ({ id: p.id, name: p.name, mediaType: p.mediaType }))
+    });
+    
     return {
       totalPhotos,
       totalVideos
