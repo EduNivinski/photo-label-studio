@@ -75,9 +75,9 @@ export function usePhotoFilters(photos: Photo[]) {
         matchesYear = photoYear === filters.year;
       }
 
-      // Filter by file types
+      // Filter by file types - only filter if specific types are selected
       let matchesFileType = true;
-      if (filters.fileTypes.length > 0) {
+      if (filters.fileTypes.length > 0 && filters.fileTypes.length < 6) { // Only filter if not all types are selected
         const photoExtension = photo.name.split('.').pop()?.toLowerCase();
         if (photoExtension) {
           matchesFileType = filters.fileTypes.some(type => 
@@ -198,7 +198,7 @@ export function usePhotoFilters(photos: Photo[]) {
       showUnlabeled: false,
       dateRange: undefined,
       year: undefined,
-      fileTypes: [],
+      fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'], // Reset to all types
       mediaTypes: ['photo', 'video'],
       sortBy: 'date-desc'
     });
