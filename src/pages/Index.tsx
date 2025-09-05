@@ -168,7 +168,7 @@ const Index = () => {
       dateRange: undefined,
       year: undefined,
       sortBy: 'date-desc',
-      fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
+      fileTypes: [],
       mediaTypes: ['photo', 'video']
     });
     clearSelection();
