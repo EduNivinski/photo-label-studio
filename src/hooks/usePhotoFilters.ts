@@ -83,8 +83,6 @@ export function usePhotoFilters(photos: Photo[]) {
           matchesFileType = filters.fileTypes.some(type => 
             type.toLowerCase() === photoExtension
           );
-        } else {
-          matchesFileType = false;
         }
       }
 
