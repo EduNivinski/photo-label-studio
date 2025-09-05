@@ -65,7 +65,7 @@ export function CollectionFilter({
               onClick={() => setIsOpen(!isOpen)}
             >
               <Search className="mr-2 h-4 w-4 text-muted-foreground" />
-              {selectedCollection ? selectedCollection.name : "Todas as fotos"}
+              {selectedCollection ? selectedCollection.name : "Todos os arquivos"}
             </Button>
           </PopoverTrigger>
           
@@ -94,7 +94,7 @@ export function CollectionFilter({
                     className="flex items-center gap-2 cursor-pointer bg-background hover:bg-accent"
                   >
                     <Folder className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Todas as fotos</span>
+                    <span className="font-medium">Todos os arquivos</span>
                   </CommandItem>
                   {filteredCollections.map((collection) => (
                     <CommandItem
