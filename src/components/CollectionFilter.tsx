@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Album } from '@/types/album';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { X, FolderOpen } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { X, FolderOpen, Search, Folder } from 'lucide-react';
 
 interface CollectionFilterProps {
   collections: Album[];
@@ -15,6 +16,18 @@ export function CollectionFilter({
   selectedCollectionId, 
   onCollectionChange 
 }: CollectionFilterProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const filteredCollections = useMemo(() => {
+    if (!searchTerm) return collections;
+    return collections.filter(collection => 
+      collection.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [collections, searchTerm]);
+
+  const selectedCollection = collections.find(c => c.id === selectedCollectionId);
+
   return (
     <div className="bg-card border border-border rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
@@ -43,21 +56,65 @@ export function CollectionFilter({
       
       <div className="flex items-center gap-3">
         <span className="text-sm text-muted-foreground min-w-fit">Selecionar projeto:</span>
-        <Select value={selectedCollectionId || "all"} onValueChange={(value) => onCollectionChange(value === "all" ? null : value)}>
-          <SelectTrigger className="flex-1 max-w-xs bg-background">
-            <SelectValue placeholder="Todas as fotos" />
-          </SelectTrigger>
-          <SelectContent className="bg-background border border-border">
-            <SelectItem value="all" className="font-medium">
-              📂 Todas as fotos
-            </SelectItem>
-            {collections.map((collection) => (
-              <SelectItem key={collection.id} value={collection.id}>
-                🗂️ {collection.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="outline" 
+              className="flex-1 max-w-xs justify-start text-left font-normal h-10"
+              onClick={() => setIsOpen(!isOpen)}
+            >
+              <Search className="mr-2 h-4 w-4 text-muted-foreground" />
+              {selectedCollection ? `🗂️ ${selectedCollection.name}` : "📂 Todas as fotos"}
+            </Button>
+          </PopoverTrigger>
+          
+          <PopoverContent 
+            className="p-0 w-80 z-50 bg-background border border-border" 
+            align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            sideOffset={4}
+          >
+            <Command className="bg-background">
+              <CommandInput 
+                placeholder="Buscar coleções..." 
+                value={searchTerm}
+                onValueChange={setSearchTerm}
+                className="bg-background"
+              />
+              <CommandList className="bg-background">
+                <CommandEmpty>Nenhuma coleção encontrada.</CommandEmpty>
+                <CommandGroup heading="Coleções disponíveis" className="bg-background">
+                  <CommandItem
+                    onSelect={() => {
+                      onCollectionChange(null);
+                      setSearchTerm('');
+                      setIsOpen(false);
+                    }}
+                    className="flex items-center gap-2 cursor-pointer bg-background hover:bg-accent"
+                  >
+                    <Folder className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">📂 Todas as fotos</span>
+                  </CommandItem>
+                  {filteredCollections.map((collection) => (
+                    <CommandItem
+                      key={collection.id}
+                      onSelect={() => {
+                        onCollectionChange(collection.id);
+                        setSearchTerm('');
+                        setIsOpen(false);
+                      }}
+                      className="flex items-center gap-2 cursor-pointer bg-background hover:bg-accent"
+                    >
+                      <FolderOpen className="h-4 w-4 text-primary" />
+                      <span>🗂️ {collection.name}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
     </div>
   );
