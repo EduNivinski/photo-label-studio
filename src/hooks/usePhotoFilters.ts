@@ -75,7 +75,18 @@ export function usePhotoFilters(photos: Photo[]) {
         matchesYear = photoYear === filters.year;
       }
 
-      return matchesSearch && matchesAdvancedLabels && matchesLabels && matchesUnlabeled && matchesFavorites && matchesDateRange && matchesYear;
+      // Filter by file types
+      let matchesFileType = true;
+      if (filters.fileTypes.length > 0) {
+        const photoExtension = photo.name.split('.').pop()?.toLowerCase();
+        if (photoExtension) {
+          matchesFileType = filters.fileTypes.some(type => 
+            type.toLowerCase() === photoExtension
+          );
+        }
+      }
+
+      return matchesSearch && matchesAdvancedLabels && matchesLabels && matchesUnlabeled && matchesFavorites && matchesDateRange && matchesYear && matchesFileType;
     });
 
     // Sort photos by original date (or upload date as fallback)
@@ -171,6 +182,15 @@ export function usePhotoFilters(photos: Photo[]) {
     setFilters(prev => ({ ...prev, ...updates }));
   };
 
+  const toggleFileType = (fileType: string) => {
+    setFilters(prev => ({
+      ...prev,
+      fileTypes: prev.fileTypes.includes(fileType)
+        ? prev.fileTypes.filter(type => type !== fileType)
+        : [...prev.fileTypes, fileType]
+    }));
+  };
+
   const clearFilters = () => {
     setFilters({ 
       labels: [], 
@@ -178,7 +198,7 @@ export function usePhotoFilters(photos: Photo[]) {
       showUnlabeled: false,
       dateRange: undefined,
       year: undefined,
-      fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
+      fileTypes: [],
       mediaTypes: ['photo', 'video'],
       sortBy: 'date-desc'
     });
@@ -200,6 +220,7 @@ export function usePhotoFilters(photos: Photo[]) {
     toggleLabel,
     toggleUnlabeled,
     toggleFavorites,
+    toggleFileType,
     clearFilters,
     // Advanced filtering
     includedLabels,

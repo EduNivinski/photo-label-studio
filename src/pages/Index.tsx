@@ -19,6 +19,7 @@ import { SearchBar } from '@/components/SearchBar';
 import { RelatedLabelsBar } from '@/components/RelatedLabelsBar';
 import { PhotoGallery } from '@/components/PhotoGallery';
 import { PhotoStats } from '@/components/PhotoStats';
+import { ActiveFileTypesFilter } from '@/components/ActiveFileTypesFilter';
 import { SelectionPanel } from '@/components/SelectionPanel';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { UploadDialog } from '@/components/UploadDialog';
@@ -79,7 +80,8 @@ const Index = () => {
     removeLabel,
     getRelatedLabels,
     showFavorites,
-    toggleFavorites
+    toggleFavorites,
+    toggleFileType
   } = usePhotoFilters(selectedCollectionId ? collectionPhotos : photos);
 
   // Photo selection state
@@ -431,6 +433,12 @@ const Index = () => {
                 Criar Coleção
               </Button>
             )}
+            
+            <ActiveFileTypesFilter
+              photos={filteredPhotos}
+              onToggleFileType={toggleFileType}
+              activeFileTypes={filters.fileTypes}
+            />
           </div>
           
           <div className="flex items-center gap-6">
