@@ -431,12 +431,13 @@ const Index = () => {
                 Criar Coleção
               </Button>
             )}
+          </div>
+          
+          <div className="flex items-center gap-6">
             <PhotoStats 
               photos={filteredPhotos}
             />
-          </div>
-          
-          <div className="flex items-center gap-4">
+            
             {/* View Toggle */}
             <div className="flex items-center gap-2">
               <Toggle
