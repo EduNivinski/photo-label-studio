@@ -55,7 +55,7 @@ export function CollectionFilter({
       </div>
       
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground min-w-fit">Selecionar projeto:</span>
+        <span className="text-sm text-muted-foreground min-w-fit">Selecionar coleção:</span>
         
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
