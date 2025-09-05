@@ -327,6 +327,22 @@ const Index = () => {
     setIsCreateAlbumOpen(true);
   };
 
+  // Filter labels based on selected collection
+  const availableLabels = useMemo(() => {
+    if (!selectedCollectionId || collectionPhotos.length === 0) {
+      return labels;
+    }
+
+    // Get unique label IDs from collection photos
+    const collectionLabelIds = new Set<string>();
+    collectionPhotos.forEach(photo => {
+      photo.labels.forEach(labelId => collectionLabelIds.add(labelId));
+    });
+
+    // Filter labels to only include those present in the collection
+    return labels.filter(label => collectionLabelIds.has(label.id));
+  }, [labels, selectedCollectionId, collectionPhotos]);
+
   // Setup keyboard shortcuts
   useKeyboardShortcuts({
     onSelectAll: handleSelectAll,
@@ -367,7 +383,7 @@ const Index = () => {
           onToggleUnlabeled={toggleUnlabeled}
           showUnlabeled={filters.showUnlabeled}
           onLabelToggle={(labelId) => toggleLabel(labelId)}
-          labels={labels}
+          labels={availableLabels}
           selectedLabels={filters.labels}
           onClearFilters={clearFilters}
           onManageLabels={() => setIsLabelManagerOpen(true)}
@@ -380,7 +396,7 @@ const Index = () => {
         <div className="mt-2">
           <RelatedLabelsBar
             relatedLabels={getRelatedLabels}
-            allLabels={labels}
+            allLabels={availableLabels}
             includedLabels={includedLabels}
             excludedLabels={excludedLabels}
             onIncludeLabel={includeLabel}
