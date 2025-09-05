@@ -419,10 +419,22 @@ const Index = () => {
       {/* CONTAINER 4: Relatório de Fotos/Vídeos e Controles */}
       <div className="container mx-auto px-4 max-w-7xl mb-6 mt-8">
         <div className="flex justify-between items-center mb-6">
-          <PhotoStats 
-            photos={filteredPhotos}
-            onCreateCollection={hasActiveFiltersDetailed ? handleCreateCollectionFromStats : undefined}
-          />
+          <div className="flex items-center gap-4">
+            {hasActiveFiltersDetailed && (
+              <Button
+                onClick={handleCreateCollectionFromStats}
+                variant="create"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <FolderPlus size={16} />
+                Criar Coleção
+              </Button>
+            )}
+            <PhotoStats 
+              photos={filteredPhotos}
+            />
+          </div>
           
           <div className="flex items-center gap-4">
             {/* View Toggle */}
