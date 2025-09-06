@@ -53,18 +53,43 @@ export function useGoogleDrive() {
       setLoading(true);
       const headers = await getAuthHeaders();
       
+      console.log('🔍 Checking Google Drive status...');
       const response = await supabase.functions.invoke('google-drive-auth/status', {
         headers,
       });
 
+      console.log('📊 Status response:', response);
+
       if (response.error) {
-        console.error('Failed to check Google Drive status:', response.error);
+        console.error('❌ Failed to check Google Drive status:', response.error);
+        // Don't set loading false here to avoid infinite loops
+        setStatus({
+          isConnected: false,
+          isExpired: false,
+          dedicatedFolder: null,
+        });
         return;
       }
 
-      setStatus(response.data);
+      const statusData = response.data;
+      console.log('✅ Status data received:', statusData);
+      
+      // Ensure isConnected is a boolean
+      const isConnected = Boolean(statusData?.isConnected);
+      const isExpired = Boolean(statusData?.isExpired);
+      
+      setStatus({
+        isConnected,
+        isExpired,
+        dedicatedFolder: statusData?.dedicatedFolder || null,
+      });
     } catch (error) {
-      console.error('Error checking Google Drive status:', error);
+      console.error('💥 Error checking Google Drive status:', error);
+      setStatus({
+        isConnected: false,
+        isExpired: false,
+        dedicatedFolder: null,
+      });
     } finally {
       setLoading(false);
     }

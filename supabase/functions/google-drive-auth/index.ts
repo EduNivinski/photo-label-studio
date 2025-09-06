@@ -356,12 +356,19 @@ async function handleStatus(req: Request) {
     .eq('user_id', user.id)
     .single();
 
-  const isConnected = !tokenError && tokenData;
+  const isConnected = !tokenError && !!tokenData;
   const isExpired = tokenData && new Date(tokenData.expires_at) < new Date();
+
+  console.log('Status check:', {
+    isConnected,
+    isExpired,
+    hasTokenData: !!tokenData,
+    tokenError: tokenError?.message
+  });
 
   return new Response(JSON.stringify({
     isConnected,
-    isExpired,
+    isExpired: !!isExpired,
     dedicatedFolder: tokenData ? {
       id: tokenData.dedicated_folder_id,
       name: tokenData.dedicated_folder_name,

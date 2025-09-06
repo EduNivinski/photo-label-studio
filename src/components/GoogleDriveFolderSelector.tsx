@@ -81,13 +81,42 @@ export function GoogleDriveFolderSelector({ onFolderSelected, onClose }: GoogleD
               <p className="font-medium">Erro ao carregar pastas</p>
               <p className="text-sm text-muted-foreground mt-1">{error}</p>
             </div>
-            <Button 
-              onClick={() => window.location.reload()} 
-              variant="outline" 
-              size="sm"
-            >
-              Tentar Novamente
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button 
+                onClick={() => {
+                  setError(null);
+                  setFolders([]);
+                  const fetchFolders = async () => {
+                    try {
+                      setFetchingFolders(true);
+                      setError(null);
+                      console.log('🔄 Retrying folder fetch...');
+                      const folderList = await listFolders();
+                      console.log('📋 Retry successful:', folderList);
+                      setFolders(folderList);
+                    } catch (error) {
+                      console.error('❌ Retry failed:', error);
+                      setError(error instanceof Error ? error.message : 'Erro desconhecido');
+                      setFolders([]);
+                    } finally {
+                      setFetchingFolders(false);
+                    }
+                  };
+                  fetchFolders();
+                }} 
+                variant="outline" 
+                size="sm"
+              >
+                Tentar Novamente
+              </Button>
+              <Button 
+                onClick={onClose} 
+                variant="ghost" 
+                size="sm"
+              >
+                Fechar
+              </Button>
+            </div>
           </div>
         ) : (
           <>
