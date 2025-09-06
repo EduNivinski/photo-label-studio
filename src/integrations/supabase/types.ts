@@ -244,45 +244,7 @@ export type Database = {
       }
     }
     Views: {
-      google_drive_connections_secure: {
-        Row: {
-          access_attempts: number | null
-          created_at: string | null
-          dedicated_folder_id: string | null
-          dedicated_folder_name: string | null
-          expires_at: string | null
-          last_accessed: string | null
-          token_last_rotated: string | null
-          token_status: string | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          access_attempts?: number | null
-          created_at?: string | null
-          dedicated_folder_id?: string | null
-          dedicated_folder_name?: string | null
-          expires_at?: string | null
-          last_accessed?: string | null
-          token_last_rotated?: string | null
-          token_status?: never
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          access_attempts?: number | null
-          created_at?: string | null
-          dedicated_folder_id?: string | null
-          dedicated_folder_name?: string | null
-          expires_at?: string | null
-          last_accessed?: string | null
-          token_last_rotated?: string | null
-          token_status?: never
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       decrypt_token: {
@@ -301,6 +263,17 @@ export type Database = {
           dedicated_folder_name: string
           expires_at: string
           refresh_token: string
+        }[]
+      }
+      get_my_google_drive_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          created_at: string
+          dedicated_folder_id: string
+          dedicated_folder_name: string
+          expires_at: string
+          last_accessed: string
+          token_status: string
         }[]
       }
       log_token_access: {
