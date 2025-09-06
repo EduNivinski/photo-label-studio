@@ -40,7 +40,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in google-drive-api function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Don't expose internal error details to clients
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

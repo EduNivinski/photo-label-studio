@@ -42,7 +42,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in google-drive-auth function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Don't expose internal error details to clients
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -201,9 +202,9 @@ async function handleCallback(req: Request) {
 async function handleRefresh(req: Request) {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response('Unauthorized', { 
+    return new Response(JSON.stringify({ error: 'Authentication required' }), { 
       status: 401, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
@@ -211,73 +212,105 @@ async function handleRefresh(req: Request) {
   const { data: { user }, error: userError } = await supabase.auth.getUser(token);
   
   if (userError || !user) {
-    return new Response('Unauthorized', { 
+    return new Response(JSON.stringify({ error: 'Invalid authentication' }), { 
       status: 401, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
-  // Get stored refresh token
-  const { data: tokenData, error: tokenError } = await supabase
-    .from('google_drive_tokens')
-    .select('refresh_token')
-    .eq('user_id', user.id)
-    .single();
+  try {
+    // Get encrypted refresh token using secure function
+    const { data: tokenData, error: tokenError } = await supabase
+      .rpc('get_decrypted_tokens', { p_user_id: user.id });
 
-  if (tokenError || !tokenData) {
-    return new Response('No Google Drive connection found', { 
-      status: 404, 
-      headers: corsHeaders 
+    if (tokenError || !tokenData || tokenData.length === 0) {
+      console.log('No Google Drive connection found for user:', user.id);
+      return new Response(JSON.stringify({ error: 'Google Drive not connected' }), { 
+        status: 404, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { refresh_token } = tokenData[0];
+    
+    if (!refresh_token) {
+      console.log('No refresh token available for user:', user.id);
+      return new Response(JSON.stringify({ error: 'Token refresh not available' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Refresh the access token
+    const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: googleClientId,
+        client_secret: googleClientSecret,
+        refresh_token: refresh_token,
+        grant_type: 'refresh_token',
+      }),
     });
-  }
 
-  // Refresh the access token
-  const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: googleClientId,
-      client_secret: googleClientSecret,
-      refresh_token: tokenData.refresh_token,
-      grant_type: 'refresh_token',
-    }),
-  });
+    const refreshTokens = await refreshResponse.json();
 
-  const refreshTokens = await refreshResponse.json();
+    if (!refreshResponse.ok) {
+      console.error('Token refresh failed for user:', user.id, refreshTokens.error);
+      // Log security event for failed refresh
+      await supabase.rpc('log_token_access', {
+        p_user_id: user.id,
+        p_action: 'TOKEN_REFRESH_FAILED',
+        p_success: false
+      });
+      
+      return new Response(JSON.stringify({ error: 'Token refresh failed' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
-  if (!refreshResponse.ok) {
-    console.error('Token refresh failed:', refreshTokens);
-    return new Response('Failed to refresh token', { 
-      status: 400, 
-      headers: corsHeaders 
+    // Store the new tokens securely
+    const expiresAt = new Date(Date.now() + refreshTokens.expires_in * 1000);
+    
+    const { error: storeError } = await supabase.rpc('store_encrypted_tokens', {
+      p_user_id: user.id,
+      p_access_token: refreshTokens.access_token,
+      p_refresh_token: refreshTokens.refresh_token || refresh_token, // Use new refresh token if provided
+      p_expires_at: expiresAt.toISOString(),
+      p_scopes: ['https://www.googleapis.com/auth/drive.file']
     });
-  }
 
-  // Update stored tokens
-  const expiresAt = new Date(Date.now() + refreshTokens.expires_in * 1000);
-  
-  const { error: updateError } = await supabase
-    .from('google_drive_tokens')
-    .update({
-      access_token: refreshTokens.access_token,
+    if (storeError) {
+      console.error('Failed to store refreshed tokens:', storeError);
+      return new Response(JSON.stringify({ error: 'Failed to store tokens' }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Log successful refresh
+    await supabase.rpc('log_token_access', {
+      p_user_id: user.id,
+      p_action: 'TOKEN_REFRESHED',
+      p_success: true
+    });
+
+    console.log('Tokens refreshed successfully for user:', user.id);
+
+    return new Response(JSON.stringify({
+      success: true,
       expires_at: expiresAt.toISOString(),
-    })
-    .eq('user_id', user.id);
-
-  if (updateError) {
-    console.error('Failed to update tokens:', updateError);
-    return new Response('Failed to update tokens', { 
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Unexpected error during token refresh:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), { 
       status: 500, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-
-  return new Response(JSON.stringify({
-    access_token: refreshTokens.access_token,
-    expires_at: expiresAt.toISOString(),
-  }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
 }
 
 async function handleDisconnect(req: Request) {

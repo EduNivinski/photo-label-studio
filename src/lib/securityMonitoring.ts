@@ -36,6 +36,24 @@ export const logSecurityEvent = async (event: SecurityEvent) => {
     }
     
     localStorage.setItem(auditKey, JSON.stringify(existingLogs));
+
+    // Also store critical events in the database for server-side monitoring
+    if (event.event_type === 'rate_limit_exceeded' || event.event_type === 'sensitive_operation') {
+      try {
+        await supabase.from('security_events').insert({
+          event_type: event.event_type,
+          user_id: event.user_id,
+          metadata: {
+            ...event.metadata,
+            user_agent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+          }
+        });
+      } catch (dbError) {
+        // Don't fail the operation if database logging fails
+        console.warn('Failed to log security event to database:', dbError);
+      }
+    }
   } catch (error) {
     console.error('Failed to log security event:', error);
   }
