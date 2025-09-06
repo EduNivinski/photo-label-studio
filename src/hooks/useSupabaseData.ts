@@ -54,6 +54,15 @@ export function useSupabaseData() {
 
   const createLabel = async (name: string, color?: string): Promise<void> => {
     try {
+      // Validate input
+      const { validateLabel } = await import('@/lib/validation');
+      const { sanitizeError } = await import('@/lib/errorHandling');
+      
+      const validation = validateLabel(name, color);
+      if (!validation.isValid) {
+        throw new Error(validation.errors[0]);
+      }
+
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -62,13 +71,17 @@ export function useSupabaseData() {
 
       const { data, error } = await (supabase as any)
         .from('labels')
-        .insert({ name, color, user_id: user.id })
+        .insert({ 
+          name: validation.sanitized, 
+          color, 
+          user_id: user.id 
+        })
         .select()
         .single();
       
       if (error) {
-        console.error('Error creating label:', error);
-        return;
+        const safeError = sanitizeError(error);
+        throw new Error(safeError.message);
       }
       
       if (!data) return;
@@ -81,8 +94,10 @@ export function useSupabaseData() {
       
       setLabels(prev => [...prev, newLabel]);
     } catch (error) {
-      console.error('Error creating label:', error);
-      throw error;
+      const { sanitizeError } = await import('@/lib/errorHandling');
+      const safeError = sanitizeError(error);
+      console.error('Error creating label:', safeError.message);
+      throw new Error(safeError.message);
     }
   };
 
@@ -160,21 +175,37 @@ export function useSupabaseData() {
   };
 
   const updatePhotoAlias = async (photoId: string, alias: string): Promise<void> => {
-    const { error } = await (supabase as any)
-      .from('photos')
-      .update({ alias })
-      .eq('id', photoId);
-    
-    if (error) {
-      console.error('Error updating photo alias:', error);
-      return;
+    try {
+      // Validate input
+      const { validatePhotoAlias } = await import('@/lib/validation');
+      const validation = validatePhotoAlias(alias);
+      
+      if (!validation.isValid) {
+        throw new Error(validation.errors[0]);
+      }
+
+      const { error } = await (supabase as any)
+        .from('photos')
+        .update({ alias: validation.sanitized })
+        .eq('id', photoId);
+      
+      if (error) {
+        const { sanitizeError } = await import('@/lib/errorHandling');
+        const safeError = sanitizeError(error);
+        throw new Error(safeError.message);
+      }
+      
+      setPhotos(prev => prev.map(photo => 
+        photo.id === photoId 
+          ? { ...photo, alias: validation.sanitized }
+          : photo
+      ));
+    } catch (error) {
+      const { sanitizeError } = await import('@/lib/errorHandling');
+      const safeError = sanitizeError(error);
+      console.error('Error updating photo alias:', safeError.message);
+      throw error;
     }
-    
-    setPhotos(prev => prev.map(photo => 
-      photo.id === photoId 
-        ? { ...photo, alias }
-        : photo
-    ));
   };
 
   const deletePhoto = async (photoId: string) => {
@@ -220,79 +251,115 @@ export function useSupabaseData() {
       }
 
       const uploadPromises = files.map(async (file) => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-        
-        // Extract EXIF data for original date
-        let originalDate = null;
-        if (file.type.startsWith('image/')) {
-          try {
-            const exifr = await import('exifr');
-            const exifData = await exifr.parse(file);
-            
-            // Try to get the original date from EXIF data
-            if (exifData?.DateTimeOriginal) {
-              originalDate = new Date(exifData.DateTimeOriginal).toISOString();
-            } else if (exifData?.DateTime) {
-              originalDate = new Date(exifData.DateTime).toISOString();
-            } else if (exifData?.CreateDate) {
-              originalDate = new Date(exifData.CreateDate).toISOString();
-            }
-          } catch (error) {
-            console.log('Could not extract EXIF data:', error);
-            // Fallback to file modification date or current date
-            originalDate = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+        try {
+          // Client-side file validation
+          const { validateFileName } = await import('@/lib/validation');
+          const fileNameValidation = validateFileName(file.name);
+          
+          if (!fileNameValidation.isValid) {
+            throw new Error(`Invalid file name: ${fileNameValidation.errors[0]}`);
           }
-        }
-        // Determine media type based on file MIME type
-        const mediaType = file.type.startsWith('video/') ? 'video' : 'photo';
-        
-        // Upload to storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('photos')
-          .upload(fileName, file);
 
-        if (uploadError) {
-          console.error('Error uploading file:', uploadError);
+          // Server-side validation via edge function
+          const validationResponse = await supabase.functions.invoke('validate-file', {
+            body: {
+              fileName: file.name,
+              fileSize: file.size,
+              mimeType: file.type,
+              fileExtension: '.' + file.name.split('.').pop()?.toLowerCase()
+            }
+          });
+
+          if (validationResponse.error || !validationResponse.data.isValid) {
+            const errors = validationResponse.data?.errors || ['File validation failed'];
+            throw new Error(errors[0]);
+          }
+
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+          
+          // Extract EXIF data for original date
+          let originalDate = null;
+          if (file.type.startsWith('image/')) {
+            try {
+              const exifr = await import('exifr');
+              const exifData = await exifr.parse(file);
+              
+              // Try to get the original date from EXIF data
+              if (exifData?.DateTimeOriginal) {
+                originalDate = new Date(exifData.DateTimeOriginal).toISOString();
+              } else if (exifData?.DateTime) {
+                originalDate = new Date(exifData.DateTime).toISOString();
+              } else if (exifData?.CreateDate) {
+                originalDate = new Date(exifData.CreateDate).toISOString();
+              }
+            } catch (error) {
+              console.log('Could not extract EXIF data:', error);
+              // Fallback to file modification date or current date
+              originalDate = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+            }
+          }
+          // Determine media type based on file MIME type
+          const mediaType = file.type.startsWith('video/') ? 'video' : 'photo';
+          
+          // Upload to storage
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('photos')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            const { sanitizeError } = await import('@/lib/errorHandling');
+            const safeError = sanitizeError(uploadError);
+            throw new Error(safeError.message);
+          }
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('photos')
+            .getPublicUrl(fileName);
+
+          // Sanitize filename for database storage
+          const sanitizedName = validationResponse.data.sanitizedFileName || 
+                               file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+
+          // Save to database with user_id, original_date, and media_type
+          const { data: photoData, error: dbError } = await (supabase as any)
+            .from('photos')
+            .insert({
+              url: publicUrl,
+              name: sanitizedName,
+              labels: [],
+              user_id: user.id,
+              original_date: originalDate,
+              media_type: mediaType
+            })
+            .select()
+            .single();
+
+          if (dbError) {
+            const { sanitizeError } = await import('@/lib/errorHandling');
+            const safeError = sanitizeError(dbError);
+            throw new Error(safeError.message);
+          }
+
+          if (!photoData) return null;
+
+          return {
+            id: photoData.id,
+            url: photoData.url,
+            name: photoData.name,
+            uploadDate: photoData.upload_date,
+            originalDate: photoData.original_date,
+            labels: photoData.labels || [],
+            alias: photoData.alias || undefined,
+            mediaType: photoData.media_type || 'photo'
+          } as Photo;
+        } catch (error) {
+          const { sanitizeError } = await import('@/lib/errorHandling');
+          const safeError = sanitizeError(error);
+          console.error('Error uploading file:', safeError.message);
           return null;
         }
-
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('photos')
-          .getPublicUrl(fileName);
-
-        // Save to database with user_id, original_date, and media_type
-        const { data: photoData, error: dbError } = await (supabase as any)
-          .from('photos')
-          .insert({
-            url: publicUrl,
-            name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-            labels: [],
-            user_id: user.id,
-            original_date: originalDate,
-            media_type: mediaType
-          })
-          .select()
-          .single();
-
-        if (dbError) {
-          console.error('Error saving to database:', dbError);
-          return null;
-        }
-
-        if (!photoData) return null;
-
-        return {
-          id: photoData.id,
-          url: photoData.url,
-          name: photoData.name,
-          uploadDate: photoData.upload_date,
-          originalDate: photoData.original_date,
-          labels: photoData.labels || [],
-          alias: photoData.alias || undefined,
-          mediaType: photoData.media_type || 'photo'
-        } as Photo;
       });
 
       const results = await Promise.all(uploadPromises);
@@ -301,8 +368,10 @@ export function useSupabaseData() {
       setPhotos(prev => [...successfulUploads, ...prev]);
       return successfulUploads;
     } catch (error) {
-      console.error('Error uploading photos:', error);
-      throw error;
+      const { sanitizeError } = await import('@/lib/errorHandling');
+      const safeError = sanitizeError(error);
+      console.error('Error uploading photos:', safeError.message);
+      throw new Error(safeError.message);
     }
   };
 
