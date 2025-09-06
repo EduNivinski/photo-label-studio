@@ -125,16 +125,30 @@ export function GoogleDriveIntegration() {
                 </div>
               </div>
 
-              {status.dedicatedFolder && (
-                <div className="border-t pt-4">
+              <div className="border-t pt-4">
+                {status.dedicatedFolder ? (
                   <Button
                     onClick={() => setShowFileViewer(true)}
                     className="w-full"
                   >
                     Visualizar Arquivos do Drive
                   </Button>
-                </div>
-              )}
+                ) : (
+                  <div className="text-center p-4 bg-muted/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Para visualizar seus arquivos, primeiro escolha uma pasta dedicada do Google Drive
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFolderSelector(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Escolher Pasta Dedicada
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

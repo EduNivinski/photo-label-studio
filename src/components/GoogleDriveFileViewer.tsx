@@ -99,9 +99,14 @@ export function GoogleDriveFileViewer({ onClose }: GoogleDriveFileViewerProps) {
               )}
 
               {files.length === 0 && folders.length === 0 && (
-                <p className="text-center text-muted-foreground py-8">
-                  Nenhum arquivo ou pasta encontrada
-                </p>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-2">
+                    Nenhum arquivo ou pasta encontrada na pasta dedicada
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Certifique-se de que há arquivos na pasta selecionada ou escolha uma pasta diferente
+                  </p>
+                </div>
               )}
             </div>
           </ScrollArea>
