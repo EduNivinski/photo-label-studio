@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Loader2, Lock, Mail, User as UserIcon, ArrowLeft } from 'lucide-react';
 import type { User, Session } from '@supabase/supabase-js';
 import { logSecurityEvent, checkRateLimit, validateSecureInput, sanitizeUserInput } from '@/lib/securityMonitoring';
+import { Link } from 'react-router-dom';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -20,140 +21,85 @@ export default function Auth() {
   const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Redirect to main page if signed in
-        if (session?.user) {
-          const from = location.state?.from?.pathname || '/';
-          navigate(from);
-        }
+    // Configurar listener de mudanças de auth PRIMEIRO
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        // Usuário autenticado, redirecionar para home
+        navigate('/', { replace: true });
       }
-    );
+    });
 
-    // Check for existing session
+    // DEPOIS verificar sessão existente
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        const from = location.state?.from?.pathname || '/';
-        navigate(from);
+        navigate('/', { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, location]);
+  }, [navigate]);
 
   const cleanupAuthState = () => {
-    // Clear all auth-related keys
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        localStorage.removeItem(key);
-      }
-    });
-    
-    Object.keys(sessionStorage || {}).forEach((key) => {
-      if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-        sessionStorage.removeItem(key);
-      }
-    });
+    localStorage.removeItem('supabase.auth.token');
+    sessionStorage.removeItem('supabase.auth.token');
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Input validation and sanitization
-    const sanitizedEmail = sanitizeUserInput(email);
-    const sanitizedPassword = password; // Don't sanitize passwords
-    
-    if (!sanitizedEmail || !sanitizedPassword) {
-      toast({
-        title: "Erro",
-        description: "Por favor, preencha email e senha.",
-        variant: "destructive",
-      });
+    if (!validateSecureInput(email, 254) || !validateSecureInput(password, 128)) {
+      toast.error('Dados de entrada inválidos. Verifique e tente novamente.');
       return;
     }
+
+    const sanitizedEmail = sanitizeUserInput(email);
     
-    if (!validateSecureInput(sanitizedEmail, 254)) { // RFC standard email max length
-      toast({
-        title: "Erro",
-        description: "Email contém caracteres inválidos.",
-        variant: "destructive",
+    if (!checkRateLimit('signin_' + sanitizedEmail, 5, 15 * 60 * 1000)) {
+      toast.error('Muitas tentativas de login. Tente novamente em alguns minutos.');
+      logSecurityEvent({
+        event_type: 'rate_limit_exceeded',
+        metadata: { action: 'signin_attempt', email: sanitizedEmail }
       });
       return;
     }
 
-    // Rate limiting for login attempts
-    const rateLimitKey = `auth_signin_${sanitizedEmail}`;
-    if (!checkRateLimit(rateLimitKey, 5, 300000)) { // 5 attempts per 5 minutes
-      toast({
-        title: "Muitas tentativas",
-        description: "Muitas tentativas de login. Tente novamente em 5 minutos.",
-        variant: "destructive",
-      });
-      return;
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
-      
-      // Log authentication attempt
-      logSecurityEvent({
-        event_type: 'auth_attempt',
-        metadata: { action: 'signin', email: sanitizedEmail }
-      });
-      
-      // Clean up existing state
+      // Limpar estado de auth antes de fazer signin
+      await supabase.auth.signOut({ scope: 'global' });
       cleanupAuthState();
-      
-      // Attempt global sign out
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        // Continue even if this fails
-      }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Fazer signin
+      const { error } = await supabase.auth.signInWithPassword({
         email: sanitizedEmail,
-        password: sanitizedPassword,
+        password: password,
       });
 
-      if (error) throw error;
-
-      if (data.user) {
-        // Log successful authentication
+      if (error) {
         logSecurityEvent({
-          event_type: 'auth_attempt',
-          user_id: data.user.id,
+          event_type: 'sensitive_operation',
+          metadata: { action: 'signin_failed', email: sanitizedEmail, error: error.message }
+        });
+        toast.error(error.message);
+      } else {
+        logSecurityEvent({
+          event_type: 'sensitive_operation',
           metadata: { action: 'signin_success', email: sanitizedEmail }
         });
-        
-        toast({
-          title: "Sucesso",
-          description: "Login realizado com sucesso!",
-        });
-        // Navigation will be handled by the auth state change listener
+        toast.success('Login realizado com sucesso!');
       }
     } catch (error: any) {
-      // Log failed authentication
-      logSecurityEvent({
-        event_type: 'auth_attempt',
-        metadata: { action: 'signin_failed', email: sanitizedEmail, error: error.message }
-      });
-      
-      toast({
-        title: "Erro no login",
-        description: error.message || "Erro ao fazer login. Tente novamente.",
-        variant: "destructive",
-      });
+      console.error('Erro no login:', error);
+      toast.error('Erro inesperado no login. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -162,57 +108,33 @@ export default function Auth() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Input validation and sanitization
+    if (!validateSecureInput(email, 254) || 
+        !validateSecureInput(password, 128) || 
+        !validateSecureInput(displayName, 100)) {
+      toast.error('Dados de entrada inválidos. Verifique e tente novamente.');
+      return;
+    }
+
     const sanitizedEmail = sanitizeUserInput(email);
     const sanitizedDisplayName = sanitizeUserInput(displayName);
-    const sanitizedPassword = password; // Don't sanitize passwords
     
-    if (!sanitizedEmail || !sanitizedPassword || !sanitizedDisplayName) {
-      toast({
-        title: "Erro",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!validateSecureInput(sanitizedEmail, 254) || !validateSecureInput(sanitizedDisplayName, 100)) {
-      toast({
-        title: "Erro",
-        description: "Email ou nome contém caracteres inválidos.",
-        variant: "destructive",
+    if (!checkRateLimit('signup_' + sanitizedEmail, 3, 60 * 60 * 1000)) {
+      toast.error('Muitas tentativas de cadastro. Tente novamente em uma hora.');
+      logSecurityEvent({
+        event_type: 'rate_limit_exceeded',
+        metadata: { action: 'signup_attempt', email: sanitizedEmail }
       });
       return;
     }
 
-    // Rate limiting for signup attempts
-    const rateLimitKey = `auth_signup_${sanitizedEmail}`;
-    if (!checkRateLimit(rateLimitKey, 3, 600000)) { // 3 attempts per 10 minutes
-      toast({
-        title: "Muitas tentativas",
-        description: "Muitas tentativas de cadastro. Tente novamente em 10 minutos.",
-        variant: "destructive",
-      });
-      return;
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
-      
-      // Log authentication attempt
-      logSecurityEvent({
-        event_type: 'auth_attempt',
-        metadata: { action: 'signup', email: sanitizedEmail }
-      });
-      
-      // Clean up existing state
-      cleanupAuthState();
-      
       const redirectUrl = `${window.location.origin}/`;
       
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: sanitizedEmail,
-        password: sanitizedPassword,
+        password: password,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
@@ -221,65 +143,53 @@ export default function Auth() {
         }
       });
 
-      if (error) throw error;
-
-      if (data.user) {
-        // Log successful signup
+      if (error) {
         logSecurityEvent({
-          event_type: 'auth_attempt',
-          user_id: data.user.id,
+          event_type: 'sensitive_operation',
+          metadata: { action: 'signup_failed', email: sanitizedEmail, error: error.message }
+        });
+        toast.error(error.message);
+      } else {
+        logSecurityEvent({
+          event_type: 'sensitive_operation',
           metadata: { action: 'signup_success', email: sanitizedEmail }
         });
-        
-        toast({
-          title: "Conta criada",
-          description: "Conta criada com sucesso! Verifique seu email para confirmar.",
-        });
+        toast.success('Conta criada com sucesso! Verifique seu email para confirmar.');
       }
     } catch (error: any) {
-      // Log failed signup
-      logSecurityEvent({
-        event_type: 'auth_attempt',
-        metadata: { action: 'signup_failed', email: sanitizedEmail, error: error.message }
-      });
-      
-      toast({
-        title: "Erro no cadastro",
-        description: error.message || "Erro ao criar conta. Tente novamente.",
-        variant: "destructive",
-      });
+      console.error('Erro no cadastro:', error);
+      toast.error('Erro inesperado no cadastro. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignOut = async () => {
-    try {
-      cleanupAuthState();
-      await supabase.auth.signOut({ scope: 'global' });
-      window.location.href = '/auth';
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    cleanupAuthState();
+    await supabase.auth.signOut({ scope: 'global' });
+    navigate('/auth');
   };
 
+  // Se usuário está logado, mostrar opções de logout
   if (user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Bem-vindo!</CardTitle>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Bem-vindo!</CardTitle>
             <CardDescription>
-              Você está conectado como {user.email}
+              Você está logado como {user.email}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={() => navigate('/')} className="w-full">
-              Ir para a Biblioteca
-            </Button>
-            <Button onClick={handleSignOut} variant="outline" className="w-full">
-              Sair
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => navigate('/')} className="w-full">
+                Ir para o App
+              </Button>
+              <Button variant="outline" onClick={handleSignOut} className="w-full">
+                Fazer Logout
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -287,96 +197,138 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>PhotoLabel</CardTitle>
-          <CardDescription>
-            Entre na sua conta ou crie uma nova para gerenciar suas fotos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Entrar</TabsTrigger>
-              <TabsTrigger value="signup">Cadastrar</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Senha</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    placeholder="Sua senha"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Entrar
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nome</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Seu nome"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="Crie uma senha"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Criar Conta
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="mb-4">
+          <Link to="/">
+            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar ao App
+            </Button>
+          </Link>
+        </div>
+        
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Autenticação Segura</CardTitle>
+            <CardDescription>
+              Entre com sua conta ou crie uma nova para acessar suas fotos com segurança
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Entrar</TabsTrigger>
+                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="signin" className="space-y-4 mt-6">
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signin-email"
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={loading}
+                        required
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-password">Senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signin-password"
+                        type="password"
+                        placeholder="Senha"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={loading}
+                        required
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Entrar
+                  </Button>
+                </form>
+              </TabsContent>
+              
+              <TabsContent value="signup" className="space-y-4 mt-6">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Nome completo</Label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signup-name"
+                        type="text"
+                        placeholder="Nome completo"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        disabled={loading}
+                        required
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={loading}
+                        required
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signup-password"
+                        type="password"
+                        placeholder="Senha (mín. 6 caracteres)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={loading}
+                        required
+                        minLength={6}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Criar Conta
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
