@@ -292,6 +292,17 @@ export type Database = {
           tokens_encrypted: boolean
         }[]
       }
+      get_google_drive_connection_info: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          dedicated_folder_id: string
+          dedicated_folder_name: string
+          expires_at: string
+          has_connection: boolean
+          is_expired: boolean
+        }[]
+      }
       get_google_drive_token_status: {
         Args: { p_user_id: string }
         Returns: {
@@ -321,7 +332,7 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      store_encrypted_tokens: {
+      store_google_drive_tokens: {
         Args: {
           p_access_token: string
           p_expires_at: string
