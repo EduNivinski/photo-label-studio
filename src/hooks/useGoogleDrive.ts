@@ -176,24 +176,52 @@ export function useGoogleDrive() {
   const listFolders = async (): Promise<GoogleDriveFolder[]> => {
     try {
       const headers = await getAuthHeaders();
-      console.log('Calling listFolders with headers:', headers);
+      console.log('🔍 Calling listFolders with headers:', headers);
       
       const response = await supabase.functions.invoke('google-drive-api/folders', {
         headers,
       });
 
-      console.log('listFolders response:', response);
+      console.log('📁 listFolders response:', response);
 
       if (response.error) {
-        console.error('listFolders error:', response.error);
-        throw new Error('Failed to fetch folders');
+        console.error('❌ listFolders error:', response.error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao buscar pastas',
+          description: response.error.message || 'Falha ao buscar pastas do Google Drive',
+        });
+        throw new Error(response.error.message || 'Failed to fetch folders');
       }
 
-      const folders = response.data?.folders || [];
-      console.log('Parsed folders:', folders);
+      if (!response.data) {
+        console.error('❌ No data in response');
+        toast({
+          variant: 'destructive',
+          title: 'Erro',
+          description: 'Resposta vazia do Google Drive',
+        });
+        return [];
+      }
+
+      const folders = response.data.folders || response.data || [];
+      console.log('✅ Parsed folders:', folders, 'Count:', folders.length);
+      
+      if (folders.length === 0) {
+        toast({
+          title: 'Nenhuma pasta encontrada',
+          description: 'Não foram encontradas pastas no seu Google Drive',
+        });
+      }
+      
       return folders;
     } catch (error) {
-      console.error('Error listing folders:', error);
+      console.error('💥 Error listing folders:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de conexão',
+        description: 'Falha ao conectar com Google Drive. Tente novamente.',
+      });
       throw error;
     }
   };
