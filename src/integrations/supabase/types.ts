@@ -265,6 +265,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_google_drive_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       decrypt_token: {
         Args: { secret_id: string }
         Returns: string
@@ -313,6 +317,16 @@ export type Database = {
           is_expired: boolean
         }[]
       }
+      get_google_drive_tokens_secure: {
+        Args: { p_user_id: string }
+        Returns: {
+          access_token: string
+          dedicated_folder_id: string
+          dedicated_folder_name: string
+          expires_at: string
+          refresh_token: string
+        }[]
+      }
       get_my_google_drive_status: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -333,6 +347,16 @@ export type Database = {
         Returns: undefined
       }
       store_google_drive_tokens: {
+        Args: {
+          p_access_token: string
+          p_expires_at: string
+          p_refresh_token: string
+          p_scopes: string[]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      store_google_drive_tokens_secure: {
         Args: {
           p_access_token: string
           p_expires_at: string

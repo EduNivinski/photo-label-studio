@@ -144,9 +144,9 @@ async function handleCallback(req: Request) {
   
   if (state) {
     try {
-      // Store tokens using simpler approach without vault dependency
+      // Store tokens using secure encrypted storage
       const { error: storeError } = await supabase
-        .rpc('store_google_drive_tokens', {
+        .rpc('store_google_drive_tokens_secure', {
           p_user_id: state,
           p_access_token: tokens.access_token,
           p_refresh_token: tokens.refresh_token,
@@ -219,7 +219,7 @@ async function handleRefresh(req: Request) {
   }
 
     try {
-      // Get connection info using new simplified function
+      // Get connection info using secure function
       const { data: connectionData, error: connectionError } = await supabase
         .rpc('get_google_drive_connection_info', { p_user_id: user.id });
 

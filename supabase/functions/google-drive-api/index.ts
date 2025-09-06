@@ -51,7 +51,7 @@ serve(async (req) => {
 async function getAccessToken(userId: string): Promise<string | null> {
   // Get decrypted tokens using the secure function
   const { data, error } = await supabase
-    .rpc('get_decrypted_tokens', { p_user_id: userId });
+    .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
 
   if (error || !data || data.length === 0) {
     console.error('Failed to get access token:', error);
