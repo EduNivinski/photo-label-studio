@@ -48,30 +48,47 @@ serve(async (req) => {
   }
 });
 
+// Get access token for a user with detailed logging
 async function getAccessToken(userId: string): Promise<string | null> {
-  // Get decrypted tokens using the secure function
-  const { data, error } = await supabase
-    .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+  try {
+    console.log('Getting access token for user:', userId);
+    
+    const { data: tokens, error } = await supabase.rpc('get_google_drive_tokens_secure', {
+      p_user_id: userId
+    });
 
-  if (error || !data || data.length === 0) {
-    console.error('Failed to get access token:', error);
+    if (error) {
+      console.error('Error getting tokens:', error);
+      console.error('Token error details:', JSON.stringify(error, null, 2));
+      return null;
+    }
+
+    if (!tokens || tokens.length === 0) {
+      console.log('No tokens found for user:', userId);
+      return null;
+    }
+
+    const tokenData = tokens[0];
+    console.log('Token data retrieved, expires at:', tokenData.expires_at);
+    
+    // Check if token is expired (with 5 minute buffer)
+    const expiresAt = new Date(tokenData.expires_at);
+    const now = new Date();
+    const bufferTime = 5 * 60 * 1000; // 5 minutes
+
+    if (expiresAt.getTime() - now.getTime() < bufferTime) {
+      console.log('Token expired for user:', userId, 'expired at:', tokenData.expires_at, 'current time:', now.toISOString());
+      return null;
+    }
+
+    console.log('Valid access token found for user:', userId);
+    return tokenData.access_token;
+    
+  } catch (error) {
+    console.error('Exception getting access token:', error);
+    console.error('Exception details:', error.message, error.stack);
     return null;
   }
-
-  const tokenData = data[0];
-  
-  // Check if token is expired (with 5 minute buffer)
-  const expiresAt = new Date(tokenData.expires_at);
-  const now = new Date();
-  const bufferTime = 5 * 60 * 1000; // 5 minutes
-
-  if (expiresAt.getTime() - now.getTime() < bufferTime) {
-    // Token is expired or about to expire, need to refresh
-    console.log('Token expired, need to refresh');
-    return null;
-  }
-
-  return tokenData.access_token;
 }
 
 async function handleListFolders(req: Request) {

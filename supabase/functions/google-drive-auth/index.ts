@@ -144,6 +144,8 @@ async function handleCallback(req: Request) {
   
   if (state) {
     try {
+      console.log('Attempting to store tokens for user:', state);
+      
       // Store tokens using secure encrypted storage
       const { error: storeError } = await supabase
         .rpc('store_google_drive_tokens_secure', {
@@ -156,15 +158,60 @@ async function handleCallback(req: Request) {
         
       if (storeError) {
         console.error('Failed to store tokens:', storeError);
-        throw storeError;
+        console.error('Database error details:', JSON.stringify(storeError, null, 2));
+        
+        return new Response(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Connection Failed</title>
+          </head>
+          <body>
+            <h1>Google Drive Connection Failed</h1>
+            <p>There was an error storing your Google Drive credentials securely.</p>
+            <p><strong>Error:</strong> ${storeError.message || 'Unknown error'}</p>
+            <p><strong>Code:</strong> ${storeError.code || 'N/A'}</p>
+            <p>Please try connecting again. If the problem persists, contact support.</p>
+            <script>
+              setTimeout(() => {
+                window.close();
+              }, 5000);
+            </script>
+          </body>
+          </html>
+        `, {
+          headers: { 'Content-Type': 'text/html' },
+          status: 500
+        });
       }
       
-      console.log('Tokens stored securely for user:', state);
+      console.log('Tokens stored successfully for user:', state);
+      
     } catch (error) {
-      console.error('Database error:', error);
-      return new Response(`Database error: ${error.message}`, { 
-        status: 500, 
-        headers: corsHeaders 
+      console.error('Exception during token storage:', error);
+      console.error('Exception details:', error.message, error.stack);
+      
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Connection Failed</title>
+        </head>
+        <body>
+          <h1>Google Drive Connection Failed</h1>
+          <p>There was an unexpected error storing your Google Drive credentials.</p>
+          <p><strong>Error:</strong> ${error.message}</p>
+          <p>Please try connecting again. If the problem persists, contact support.</p>
+          <script>
+            setTimeout(() => {
+              window.close();
+            }, 5000);
+          </script>
+        </body>
+        </html>
+      `, {
+        headers: { 'Content-Type': 'text/html' },
+        status: 500
       });
     }
   }
@@ -328,7 +375,7 @@ async function handleDisconnect(req: Request) {
 async function handleStatus(req: Request) {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response('Unauthorized', { 
+    return Response.json({ error: 'Unauthorized' }, { 
       status: 401, 
       headers: corsHeaders 
     });
@@ -338,33 +385,72 @@ async function handleStatus(req: Request) {
   const { data: { user }, error: userError } = await supabase.auth.getUser(token);
   
   if (userError || !user) {
-    return new Response('Unauthorized', { 
+    console.error('User authentication failed:', userError);
+    return Response.json({ error: 'Unauthorized' }, { 
       status: 401, 
       headers: corsHeaders 
     });
   }
 
-  // Check if user has Google Drive connected using new function
-  const { data: connectionData, error: connectionError } = await supabase
-    .rpc('get_google_drive_connection_info', { p_user_id: user.id });
+  try {
+    console.log('Checking connection status for user:', user.id);
+    
+    // Use the new secure RPC function to get connection status
+    const { data: connectionInfo, error: connectionError } = await supabase.rpc('get_google_drive_connection_status', {
+      p_user_id: user.id
+    });
 
-  const hasConnection = !connectionError && connectionData && connectionData.length > 0;
-  const connectionInfo = hasConnection ? connectionData[0] : null;
+    if (connectionError) {
+      console.error('Connection status error:', connectionError);
+      console.error('Connection error details:', JSON.stringify(connectionError, null, 2));
+      return Response.json({
+        error: connectionError,
+        data: null,
+        response: {}
+      }, { 
+        status: 500,
+        headers: corsHeaders 
+      });
+    }
 
-  console.log('Status check:', {
-    hasConnection,
-    isExpired: connectionInfo?.is_expired || null,
-    connectionError: connectionError?.message
-  });
+    const hasConnection = connectionInfo && connectionInfo.length > 0;
+    const connectionData = hasConnection ? connectionInfo[0] : null;
 
-  return new Response(JSON.stringify({
-    isConnected: hasConnection,
-    isExpired: connectionInfo?.is_expired || false,
-    dedicatedFolder: connectionInfo?.dedicated_folder_id ? {
-      id: connectionInfo.dedicated_folder_id,
-      name: connectionInfo.dedicated_folder_name,
-    } : null,
-  }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+    console.log('Status check result:', {
+      hasConnection,
+      isExpired: connectionData?.is_expired || false,
+      dedicatedFolder: connectionData ? {
+        id: connectionData.dedicated_folder_id,
+        name: connectionData.dedicated_folder_name
+      } : null
+    });
+
+    return Response.json({
+      data: {
+        isConnected: hasConnection,
+        isExpired: connectionData?.is_expired || false,
+        dedicatedFolder: connectionData ? {
+          id: connectionData.dedicated_folder_id,
+          name: connectionData.dedicated_folder_name
+        } : null
+      },
+      error: null,
+      response: {}
+    }, { 
+      status: 200,
+      headers: corsHeaders 
+    });
+    
+  } catch (error) {
+    console.error('Exception during status check:', error);
+    console.error('Exception details:', error.message, error.stack);
+    return Response.json({
+      error: { message: error.message },
+      data: null,
+      response: {}
+    }, { 
+      status: 500,
+      headers: corsHeaders 
+    });
+  }
 }

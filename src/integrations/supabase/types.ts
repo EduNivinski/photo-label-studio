@@ -269,24 +269,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      decrypt_token: {
-        Args: { secret_id: string }
-        Returns: string
-      }
-      encrypt_token: {
-        Args: { token_value: string }
-        Returns: string
-      }
-      get_decrypted_tokens: {
-        Args: { p_user_id: string }
-        Returns: {
-          access_token: string
-          dedicated_folder_id: string
-          dedicated_folder_name: string
-          expires_at: string
-          refresh_token: string
-        }[]
-      }
       get_final_security_status: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -303,6 +285,16 @@ export type Database = {
           dedicated_folder_id: string
           dedicated_folder_name: string
           expires_at: string
+          has_connection: boolean
+          is_expired: boolean
+        }[]
+      }
+      get_google_drive_connection_status: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          dedicated_folder_id: string
+          dedicated_folder_name: string
           has_connection: boolean
           is_expired: boolean
         }[]
@@ -344,16 +336,6 @@ export type Database = {
       }
       rotate_expired_tokens: {
         Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      store_google_drive_tokens: {
-        Args: {
-          p_access_token: string
-          p_expires_at: string
-          p_refresh_token: string
-          p_scopes: string[]
-          p_user_id: string
-        }
         Returns: undefined
       }
       store_google_drive_tokens_secure: {
