@@ -369,7 +369,7 @@ const Index = () => {
     <div className="min-h-screen w-full bg-background">
       {/* HEADER: Photo Label Title */}
       <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className="container mx-auto px-4 p-4 max-w-7xl">
           <div className="flex items-center gap-3">
             <div>
               <h1 className="text-3xl font-bold text-foreground tracking-tight">
