@@ -111,7 +111,7 @@ export type Database = {
         Row: {
           access_attempts: number | null
           access_token: string
-          access_token_secret_id: string | null
+          access_token_secret_id: string
           created_at: string
           dedicated_folder_id: string | null
           dedicated_folder_name: string | null
@@ -119,7 +119,7 @@ export type Database = {
           id: string
           last_accessed: string | null
           refresh_token: string
-          refresh_token_secret_id: string | null
+          refresh_token_secret_id: string
           scopes: string[]
           token_last_rotated: string | null
           updated_at: string
@@ -127,16 +127,16 @@ export type Database = {
         }
         Insert: {
           access_attempts?: number | null
-          access_token: string
-          access_token_secret_id?: string | null
+          access_token?: string
+          access_token_secret_id: string
           created_at?: string
           dedicated_folder_id?: string | null
           dedicated_folder_name?: string | null
           expires_at: string
           id?: string
           last_accessed?: string | null
-          refresh_token: string
-          refresh_token_secret_id?: string | null
+          refresh_token?: string
+          refresh_token_secret_id: string
           scopes?: string[]
           token_last_rotated?: string | null
           updated_at?: string
@@ -145,7 +145,7 @@ export type Database = {
         Update: {
           access_attempts?: number | null
           access_token?: string
-          access_token_secret_id?: string | null
+          access_token_secret_id?: string
           created_at?: string
           dedicated_folder_id?: string | null
           dedicated_folder_name?: string | null
@@ -153,7 +153,7 @@ export type Database = {
           id?: string
           last_accessed?: string | null
           refresh_token?: string
-          refresh_token_secret_id?: string | null
+          refresh_token_secret_id?: string
           scopes?: string[]
           token_last_rotated?: string | null
           updated_at?: string
@@ -244,7 +244,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      google_drive_connections_secure: {
+        Row: {
+          access_attempts: number | null
+          created_at: string | null
+          dedicated_folder_id: string | null
+          dedicated_folder_name: string | null
+          expires_at: string | null
+          last_accessed: string | null
+          token_last_rotated: string | null
+          token_status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          access_attempts?: number | null
+          created_at?: string | null
+          dedicated_folder_id?: string | null
+          dedicated_folder_name?: string | null
+          expires_at?: string | null
+          last_accessed?: string | null
+          token_last_rotated?: string | null
+          token_status?: never
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          access_attempts?: number | null
+          created_at?: string | null
+          dedicated_folder_id?: string | null
+          dedicated_folder_name?: string | null
+          expires_at?: string | null
+          last_accessed?: string | null
+          token_last_rotated?: string | null
+          token_status?: never
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       decrypt_token: {
@@ -282,6 +320,14 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      verify_token_security: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          all_encrypted: boolean
+          security_status: string
+          total_tokens: number
+        }[]
       }
     }
     Enums: {
