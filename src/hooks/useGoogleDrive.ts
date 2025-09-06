@@ -176,16 +176,22 @@ export function useGoogleDrive() {
   const listFolders = async (): Promise<GoogleDriveFolder[]> => {
     try {
       const headers = await getAuthHeaders();
+      console.log('Calling listFolders with headers:', headers);
       
       const response = await supabase.functions.invoke('google-drive-api/folders', {
         headers,
       });
 
+      console.log('listFolders response:', response);
+
       if (response.error) {
+        console.error('listFolders error:', response.error);
         throw new Error('Failed to fetch folders');
       }
 
-      return response.data.folders || [];
+      const folders = response.data?.folders || [];
+      console.log('Parsed folders:', folders);
+      return folders;
     } catch (error) {
       console.error('Error listing folders:', error);
       throw error;
