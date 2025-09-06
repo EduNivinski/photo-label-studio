@@ -50,6 +50,24 @@ serve(async (req) => {
 });
 
 async function handleAuthorize(req: Request) {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response('Unauthorized', { 
+      status: 401, 
+      headers: corsHeaders 
+    });
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  
+  if (userError || !user) {
+    return new Response('Unauthorized', { 
+      status: 401, 
+      headers: corsHeaders 
+    });
+  }
+
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   
   authUrl.searchParams.set('client_id', googleClientId);
@@ -58,6 +76,7 @@ async function handleAuthorize(req: Request) {
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('state', user.id); // Pass user ID in state parameter
 
   return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -68,6 +87,9 @@ async function handleCallback(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
   const error = url.searchParams.get('error');
+  const state = url.searchParams.get('state'); // User ID passed in state
+
+  console.log('Callback received - code:', !!code, 'error:', error, 'state:', state);
 
   if (error) {
     return new Response(`OAuth Error: ${error}`, { 
@@ -106,17 +128,54 @@ async function handleCallback(req: Request) {
     });
   }
 
+  console.log('Tokens received successfully');
+
   // Get user info from Google
   const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
 
   const userInfo = await userResponse.json();
+  console.log('User info retrieved:', userInfo.email);
   
-  // Store tokens (this is a simplified version - in production you'd link to actual user)
+  // Store tokens in database if we have a user ID
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+  
+  if (state) {
+    try {
+      // First, delete any existing tokens for this user
+      await supabase
+        .from('google_drive_tokens')
+        .delete()
+        .eq('user_id', state);
 
-  // Return success page with tokens for the frontend to handle
+      // Insert new tokens
+      const { error: insertError } = await supabase
+        .from('google_drive_tokens')
+        .insert({
+          user_id: state,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_at: expiresAt.toISOString(),
+          scopes: tokens.scope ? tokens.scope.split(' ') : ['https://www.googleapis.com/auth/drive.file']
+        });
+        
+      if (insertError) {
+        console.error('Failed to store tokens:', insertError);
+        throw insertError;
+      }
+      
+      console.log('Tokens stored successfully for user:', state);
+    } catch (error) {
+      console.error('Database error:', error);
+      return new Response(`Database error: ${error.message}`, { 
+        status: 500, 
+        headers: corsHeaders 
+      });
+    }
+  }
+
+  // Return success page
   const html = `
     <!DOCTYPE html>
     <html>
@@ -129,7 +188,8 @@ async function handleCallback(req: Request) {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             expires_at: expiresAt.toISOString(),
-            user_email: userInfo.email
+            user_email: userInfo.email,
+            success: true
           })}
         }, '*');
         

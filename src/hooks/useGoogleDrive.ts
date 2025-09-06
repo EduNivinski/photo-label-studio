@@ -73,8 +73,11 @@ export function useGoogleDrive() {
   const connect = async () => {
     try {
       setLoading(true);
+      const headers = await getAuthHeaders();
       
-      const response = await supabase.functions.invoke('google-drive-auth/authorize');
+      const response = await supabase.functions.invoke('google-drive-auth/authorize', {
+        headers,
+      });
 
       if (response.error) {
         toast({
@@ -96,10 +99,6 @@ export function useGoogleDrive() {
       const handleMessage = async (event: MessageEvent) => {
         if (event.data.type === 'GOOGLE_DRIVE_AUTH_SUCCESS') {
           popup?.close();
-          
-          // Store tokens in database
-          const { tokens } = event.data;
-          await storeTokens(tokens);
           
           toast({
             title: 'Conectado com sucesso!',
@@ -131,31 +130,6 @@ export function useGoogleDrive() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const storeTokens = async (tokens: any) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not found');
-
-      const { error } = await supabase
-        .from('google_drive_tokens')
-        .upsert({
-          user_id: user.id,
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: tokens.expires_at,
-          scopes: ['https://www.googleapis.com/auth/drive.file'],
-        });
-
-      if (error) {
-        console.error('Failed to store tokens:', error);
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error storing tokens:', error);
-      throw error;
     }
   };
 
