@@ -360,6 +360,40 @@ export function useGoogleDrive() {
     }
   };
 
+  // Import file from Google Drive to Photo Label
+  const importFileToPhotoLabel = async (fileId: string, fileName: string): Promise<File> => {
+    try {
+      setLoading(true);
+      
+      const headers = await getAuthHeaders();
+      
+      // Download file from Google Drive
+      const response = await fetch(`https://tcupxcxyylxfgsbhfdhw.supabase.co/functions/v1/google-drive-api/download?fileId=${fileId}`, {
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download file from Google Drive');
+      }
+
+      // Convert response to File object
+      const blob = await response.blob();
+      const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
+
+      return file;
+    } catch (error) {
+      console.error('Error importing file from Google Drive:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro na importação',
+        description: `Falha ao importar ${fileName} do Google Drive`,
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     checkStatus();
   }, []);
@@ -374,6 +408,7 @@ export function useGoogleDrive() {
     listFiles,
     downloadFile,
     uploadFile,
+    importFileToPhotoLabel,
     checkStatus,
   };
 }
