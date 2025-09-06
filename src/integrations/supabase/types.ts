@@ -77,6 +77,45 @@ export type Database = {
         }
         Relationships: []
       }
+      google_drive_tokens: {
+        Row: {
+          access_token: string
+          created_at: string
+          dedicated_folder_id: string | null
+          dedicated_folder_name: string | null
+          expires_at: string
+          id: string
+          refresh_token: string
+          scopes: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          dedicated_folder_id?: string | null
+          dedicated_folder_name?: string | null
+          expires_at: string
+          id?: string
+          refresh_token: string
+          scopes?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          dedicated_folder_id?: string | null
+          dedicated_folder_name?: string | null
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          scopes?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       labels: {
         Row: {
           color: string | null

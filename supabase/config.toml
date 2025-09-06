@@ -61,3 +61,9 @@ enable_password_signup = true
 
 [functions.suggest-labels]
 verify_jwt = false
+
+[functions.google-drive-auth]
+verify_jwt = false
+
+[functions.google-drive-api]
+verify_jwt = false
