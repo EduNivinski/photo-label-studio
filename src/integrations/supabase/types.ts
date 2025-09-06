@@ -110,7 +110,6 @@ export type Database = {
       google_drive_tokens: {
         Row: {
           access_attempts: number | null
-          access_token: string
           access_token_secret_id: string
           created_at: string
           dedicated_folder_id: string | null
@@ -118,7 +117,6 @@ export type Database = {
           expires_at: string
           id: string
           last_accessed: string | null
-          refresh_token: string
           refresh_token_secret_id: string
           scopes: string[]
           token_last_rotated: string | null
@@ -127,7 +125,6 @@ export type Database = {
         }
         Insert: {
           access_attempts?: number | null
-          access_token?: string
           access_token_secret_id: string
           created_at?: string
           dedicated_folder_id?: string | null
@@ -135,7 +132,6 @@ export type Database = {
           expires_at: string
           id?: string
           last_accessed?: string | null
-          refresh_token?: string
           refresh_token_secret_id: string
           scopes?: string[]
           token_last_rotated?: string | null
@@ -144,7 +140,6 @@ export type Database = {
         }
         Update: {
           access_attempts?: number | null
-          access_token?: string
           access_token_secret_id?: string
           created_at?: string
           dedicated_folder_id?: string | null
@@ -152,7 +147,6 @@ export type Database = {
           expires_at?: string
           id?: string
           last_accessed?: string | null
-          refresh_token?: string
           refresh_token_secret_id?: string
           scopes?: string[]
           token_last_rotated?: string | null
@@ -263,6 +257,15 @@ export type Database = {
           dedicated_folder_name: string
           expires_at: string
           refresh_token: string
+        }[]
+      }
+      get_final_security_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          message: string
+          plaintext_columns_removed: boolean
+          security_level: string
+          tokens_encrypted: boolean
         }[]
       }
       get_my_google_drive_status: {
