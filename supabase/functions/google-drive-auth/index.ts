@@ -138,34 +138,27 @@ async function handleCallback(req: Request) {
   const userInfo = await userResponse.json();
   console.log('User info retrieved:', userInfo.email);
   
-  // Store tokens in database if we have a user ID
+  // Store tokens securely using the new encrypted system
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
   
   if (state) {
     try {
-      // First, delete any existing tokens for this user
-      await supabase
-        .from('google_drive_tokens')
-        .delete()
-        .eq('user_id', state);
-
-      // Insert new tokens
-      const { error: insertError } = await supabase
-        .from('google_drive_tokens')
-        .insert({
-          user_id: state,
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expires_at: expiresAt.toISOString(),
-          scopes: tokens.scope ? tokens.scope.split(' ') : ['https://www.googleapis.com/auth/drive.file']
+      // Use the secure function to store encrypted tokens
+      const { error: storeError } = await supabase
+        .rpc('store_encrypted_tokens', {
+          p_user_id: state,
+          p_access_token: tokens.access_token,
+          p_refresh_token: tokens.refresh_token,
+          p_expires_at: expiresAt.toISOString(),
+          p_scopes: tokens.scope ? tokens.scope.split(' ') : ['https://www.googleapis.com/auth/drive.file']
         });
         
-      if (insertError) {
-        console.error('Failed to store tokens:', insertError);
-        throw insertError;
+      if (storeError) {
+        console.error('Failed to store encrypted tokens:', storeError);
+        throw storeError;
       }
       
-      console.log('Tokens stored successfully for user:', state);
+      console.log('Tokens stored securely for user:', state);
     } catch (error) {
       console.error('Database error:', error);
       return new Response(`Database error: ${error.message}`, { 
@@ -184,13 +177,8 @@ async function handleCallback(req: Request) {
       <script>
         window.postMessage({
           type: 'GOOGLE_DRIVE_AUTH_SUCCESS',
-          tokens: ${JSON.stringify({
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_at: expiresAt.toISOString(),
-            user_email: userInfo.email,
-            success: true
-          })}
+          success: true,
+          user_email: '${userInfo.email}'
         }, '*');
         
         setTimeout(() => {
@@ -311,13 +299,49 @@ async function handleDisconnect(req: Request) {
     });
   }
 
-  // Delete stored tokens
-  const { error } = await supabase
-    .from('google_drive_tokens')
-    .delete()
-    .eq('user_id', user.id);
+  try {
+    // Get the secret IDs before deleting the record
+    const { data: tokenData } = await supabase
+      .from('google_drive_tokens')
+      .select('access_token_secret_id, refresh_token_secret_id')
+      .eq('user_id', user.id)
+      .single();
 
-  if (error) {
+    // Delete the token record from our table
+    const { error: deleteError } = await supabase
+      .from('google_drive_tokens')
+      .delete()
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      console.error('Failed to delete token record:', deleteError);
+      throw deleteError;
+    }
+
+    // Clean up encrypted secrets from vault if they exist
+    if (tokenData?.access_token_secret_id) {
+      await supabase
+        .from('vault.secrets')
+        .delete()
+        .eq('id', tokenData.access_token_secret_id);
+    }
+
+    if (tokenData?.refresh_token_secret_id) {
+      await supabase
+        .from('vault.secrets')
+        .delete()
+        .eq('id', tokenData.refresh_token_secret_id);
+    }
+
+    // Log the disconnection
+    await supabase.rpc('log_token_access', {
+      p_user_id: user.id,
+      p_action: 'TOKEN_DISCONNECTED',
+      p_success: true
+    });
+
+    console.log('Successfully disconnected and cleaned up tokens for user:', user.id);
+  } catch (error) {
     console.error('Failed to disconnect:', error);
     return new Response('Failed to disconnect', { 
       status: 500, 

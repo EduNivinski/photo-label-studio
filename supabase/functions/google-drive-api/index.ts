@@ -48,16 +48,17 @@ serve(async (req) => {
 });
 
 async function getAccessToken(userId: string): Promise<string | null> {
-  const { data: tokenData, error } = await supabase
-    .from('google_drive_tokens')
-    .select('access_token, expires_at')
-    .eq('user_id', userId)
-    .single();
+  // Get decrypted tokens using the secure function
+  const { data, error } = await supabase
+    .rpc('get_decrypted_tokens', { p_user_id: userId });
 
-  if (error || !tokenData) {
+  if (error || !data || data.length === 0) {
+    console.error('Failed to get access token:', error);
     return null;
   }
 
+  const tokenData = data[0];
+  
   // Check if token is expired (with 5 minute buffer)
   const expiresAt = new Date(tokenData.expires_at);
   const now = new Date();
