@@ -20,18 +20,22 @@ export const logSecurityEvent = async (event: SecurityEvent) => {
       ...event
     };
 
-    // Log to console in development
+    // Log to console in development and store locally for audit
     if (import.meta.env.DEV) {
       console.log('[Security Event]', clientInfo);
     }
 
-    // Store security events in database for audit trail
-    await supabase.from('security_events').insert({
-      event_type: event.event_type,
-      user_id: event.user_id,
-      metadata: clientInfo,
-      created_at: new Date().toISOString()
-    });
+    // Store in localStorage for client-side audit trail
+    const auditKey = 'security_audit_log';
+    const existingLogs = JSON.parse(localStorage.getItem(auditKey) || '[]');
+    existingLogs.push(clientInfo);
+    
+    // Keep only last 100 events to prevent storage bloat
+    if (existingLogs.length > 100) {
+      existingLogs.splice(0, existingLogs.length - 100);
+    }
+    
+    localStorage.setItem(auditKey, JSON.stringify(existingLogs));
   } catch (error) {
     console.error('Failed to log security event:', error);
   }

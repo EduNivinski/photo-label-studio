@@ -7,6 +7,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useSupabaseData } from "@/hooks/useSupabaseData";
 import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
+import { useSecurityInit } from "@/hooks/useSecurityInit";
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
@@ -69,6 +70,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation();
+  
+  // Initialize security monitoring
+  useSecurityInit();
+  
   const { photos, labels } = useSupabaseData();
   const { 
     filters, 

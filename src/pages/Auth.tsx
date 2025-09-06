@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { User, Session } from '@supabase/supabase-js';
+import { logSecurityEvent, checkRateLimit, validateSecureInput, sanitizeUserInput } from '@/lib/securityMonitoring';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -67,7 +68,12 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    
+    // Input validation and sanitization
+    const sanitizedEmail = sanitizeUserInput(email);
+    const sanitizedPassword = password; // Don't sanitize passwords
+    
+    if (!sanitizedEmail || !sanitizedPassword) {
       toast({
         title: "Erro",
         description: "Por favor, preencha email e senha.",
@@ -75,9 +81,35 @@ export default function Auth() {
       });
       return;
     }
+    
+    if (!validateSecureInput(sanitizedEmail, 254)) { // RFC standard email max length
+      toast({
+        title: "Erro",
+        description: "Email contém caracteres inválidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Rate limiting for login attempts
+    const rateLimitKey = `auth_signin_${sanitizedEmail}`;
+    if (!checkRateLimit(rateLimitKey, 5, 300000)) { // 5 attempts per 5 minutes
+      toast({
+        title: "Muitas tentativas",
+        description: "Muitas tentativas de login. Tente novamente em 5 minutos.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       setLoading(true);
+      
+      // Log authentication attempt
+      logSecurityEvent({
+        event_type: 'auth_attempt',
+        metadata: { action: 'signin', email: sanitizedEmail }
+      });
       
       // Clean up existing state
       cleanupAuthState();
@@ -90,13 +122,20 @@ export default function Auth() {
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: sanitizedEmail,
+        password: sanitizedPassword,
       });
 
       if (error) throw error;
 
       if (data.user) {
+        // Log successful authentication
+        logSecurityEvent({
+          event_type: 'auth_attempt',
+          user_id: data.user.id,
+          metadata: { action: 'signin_success', email: sanitizedEmail }
+        });
+        
         toast({
           title: "Sucesso",
           description: "Login realizado com sucesso!",
@@ -104,6 +143,12 @@ export default function Auth() {
         // Navigation will be handled by the auth state change listener
       }
     } catch (error: any) {
+      // Log failed authentication
+      logSecurityEvent({
+        event_type: 'auth_attempt',
+        metadata: { action: 'signin_failed', email: sanitizedEmail, error: error.message }
+      });
+      
       toast({
         title: "Erro no login",
         description: error.message || "Erro ao fazer login. Tente novamente.",
@@ -116,10 +161,36 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !displayName) {
+    
+    // Input validation and sanitization
+    const sanitizedEmail = sanitizeUserInput(email);
+    const sanitizedDisplayName = sanitizeUserInput(displayName);
+    const sanitizedPassword = password; // Don't sanitize passwords
+    
+    if (!sanitizedEmail || !sanitizedPassword || !sanitizedDisplayName) {
       toast({
         title: "Erro",
         description: "Por favor, preencha todos os campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!validateSecureInput(sanitizedEmail, 254) || !validateSecureInput(sanitizedDisplayName, 100)) {
+      toast({
+        title: "Erro",
+        description: "Email ou nome contém caracteres inválidos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Rate limiting for signup attempts
+    const rateLimitKey = `auth_signup_${sanitizedEmail}`;
+    if (!checkRateLimit(rateLimitKey, 3, 600000)) { // 3 attempts per 10 minutes
+      toast({
+        title: "Muitas tentativas",
+        description: "Muitas tentativas de cadastro. Tente novamente em 10 minutos.",
         variant: "destructive",
       });
       return;
@@ -128,18 +199,24 @@ export default function Auth() {
     try {
       setLoading(true);
       
+      // Log authentication attempt
+      logSecurityEvent({
+        event_type: 'auth_attempt',
+        metadata: { action: 'signup', email: sanitizedEmail }
+      });
+      
       // Clean up existing state
       cleanupAuthState();
       
       const redirectUrl = `${window.location.origin}/`;
       
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: sanitizedEmail,
+        password: sanitizedPassword,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            display_name: displayName,
+            display_name: sanitizedDisplayName,
           }
         }
       });
@@ -147,12 +224,25 @@ export default function Auth() {
       if (error) throw error;
 
       if (data.user) {
+        // Log successful signup
+        logSecurityEvent({
+          event_type: 'auth_attempt',
+          user_id: data.user.id,
+          metadata: { action: 'signup_success', email: sanitizedEmail }
+        });
+        
         toast({
           title: "Conta criada",
           description: "Conta criada com sucesso! Verifique seu email para confirmar.",
         });
       }
     } catch (error: any) {
+      // Log failed signup
+      logSecurityEvent({
+        event_type: 'auth_attempt',
+        metadata: { action: 'signup_failed', email: sanitizedEmail, error: error.message }
+      });
+      
       toast({
         title: "Erro no cadastro",
         description: error.message || "Erro ao criar conta. Tente novamente.",

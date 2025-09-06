@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { StandardLabelCreator } from './StandardLabelCreator';
 import { useToast } from '@/hooks/use-toast';
 import type { Label, Photo } from '@/types/photo';
+import { validateSecureInput, sanitizeUserInput, logSecurityEvent, checkRateLimit } from '@/lib/securityMonitoring';
 
 const PRESET_COLORS = [
   '#10B981', '#8B5CF6', '#F59E0B', '#EF4444', 
@@ -67,16 +68,56 @@ export function LabelManager({
   };
 
   const handleCreateNewLabel = async (name: string, color?: string) => {
-    await onCreateLabel(name, color);
-    // The new label will be available after the component re-renders with updated labels
-    toast({
-      title: "Label criada",
-      description: `Label "${name}" foi criada com sucesso.`
-    });
-    setShowCreateDialog(false);
-    setShowColorSelector(false);
-    setSearchQuery('');
-    setIsComboboxOpen(false);
+    // Validate and sanitize label name
+    const sanitizedName = sanitizeUserInput(name);
+    if (!validateSecureInput(sanitizedName, 50)) {
+      toast({
+        title: "Nome inválido",
+        description: "O nome da label contém caracteres inválidos ou é muito longo.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Rate limiting for label creation
+    const rateLimitKey = 'label_creation';
+    if (!checkRateLimit(rateLimitKey, 5, 60000)) { // 5 labels per minute
+      toast({
+        title: "Muitas labels criadas",
+        description: "Aguarde um momento antes de criar mais labels.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      // Log label creation
+      logSecurityEvent({
+        event_type: 'sensitive_operation',
+        metadata: { action: 'label_created', labelName: sanitizedName }
+      });
+      
+      await onCreateLabel(sanitizedName, color);
+      // The new label will be available after the component re-renders with updated labels
+      toast({
+        title: "Label criada",
+        description: `Label "${sanitizedName}" foi criada com sucesso.`
+      });
+      setShowCreateDialog(false);
+      setShowColorSelector(false);
+      setSearchQuery('');
+      setIsComboboxOpen(false);
+    } catch (error) {
+      logSecurityEvent({
+        event_type: 'sensitive_operation',
+        metadata: { 
+          action: 'label_creation_failed', 
+          labelName: sanitizedName,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      throw error;
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -160,16 +201,19 @@ export function LabelManager({
             
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar ou criar nova label..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setIsComboboxOpen(e.target.value.length > 0);
-                }}
-                onFocus={() => searchQuery && setIsComboboxOpen(true)}
-                className="pl-10 bg-background border-border"
-              />
+                <Input
+                  placeholder="Buscar ou criar nova label..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    const sanitizedValue = sanitizeUserInput(e.target.value);
+                    if (validateSecureInput(sanitizedValue, 50)) {
+                      setSearchQuery(sanitizedValue);
+                      setIsComboboxOpen(sanitizedValue.length > 0);
+                    }
+                  }}
+                  onFocus={() => searchQuery && setIsComboboxOpen(true)}
+                  className="pl-10 bg-background border-border"
+                />
             </div>
 
             {isComboboxOpen && (

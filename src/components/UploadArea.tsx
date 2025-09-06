@@ -3,6 +3,7 @@ import { Upload, File, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { logSecurityEvent, checkRateLimit } from '@/lib/securityMonitoring';
 
 interface UploadAreaProps {
   onUpload: (files: File[]) => Promise<void>;
@@ -28,18 +29,58 @@ export function UploadArea({ onUpload, isUploading }: UploadAreaProps) {
     e.preventDefault();
     setDragOver(false);
     
-    const files = Array.from(e.dataTransfer.files).filter(file => 
-      file.type.startsWith('image/') || file.type.startsWith('video/')
+    // Security validation for file uploads
+    const allFiles = Array.from(e.dataTransfer.files);
+    
+    // Check for suspicious file types or names
+    const suspiciousFiles = allFiles.filter(file => {
+      const name = file.name.toLowerCase();
+      const suspiciousExtensions = ['.exe', '.scr', '.bat', '.cmd', '.com', '.pif', '.vbs', '.js', '.jar', '.php', '.asp'];
+      return suspiciousExtensions.some(ext => name.endsWith(ext)) || 
+             name.includes('..') || // Path traversal attempt
+             name.includes('<') || name.includes('>'); // Script injection attempt
+    });
+    
+    if (suspiciousFiles.length > 0) {
+      logSecurityEvent({
+        event_type: 'file_upload',
+        metadata: { 
+          action: 'suspicious_files_detected', 
+          files: suspiciousFiles.map(f => f.name),
+          totalFiles: allFiles.length
+        }
+      });
+      toast({
+        title: "Arquivos suspeitos detectados",
+        description: "Alguns arquivos foram bloqueados por motivos de segurança.",
+        variant: "destructive"
+      });
+    }
+    
+    const files = allFiles.filter(file => 
+      (file.type.startsWith('image/') || file.type.startsWith('video/')) &&
+      file.size <= 50 * 1024 * 1024 && // 50MB limit
+      !suspiciousFiles.includes(file)
     );
     
     if (files.length === 0) {
       toast({
         title: "Arquivos inválidos",
-        description: "Apenas imagens e vídeos são permitidos.",
+        description: "Apenas imagens e vídeos são permitidos (máx. 50MB).",
         variant: "destructive"
       });
       return;
     }
+    
+    // Log valid file upload attempt
+    logSecurityEvent({
+      event_type: 'file_upload',
+      metadata: { 
+        action: 'files_selected', 
+        fileCount: files.length,
+        totalSize: files.reduce((sum, f) => sum + f.size, 0)
+      }
+    });
     
     setSelectedFiles(files);
   }, [toast]);
@@ -54,14 +95,55 @@ export function UploadArea({ onUpload, isUploading }: UploadAreaProps) {
   const handleUpload = useCallback(async () => {
     if (selectedFiles.length === 0) return;
     
+    // Rate limiting for uploads
+    const rateLimitKey = 'file_upload';
+    if (!checkRateLimit(rateLimitKey, 10, 60000)) { // 10 uploads per minute
+      toast({
+        title: "Muitos uploads",
+        description: "Aguarde um momento antes de fazer novos uploads.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
+      // Log upload attempt
+      logSecurityEvent({
+        event_type: 'file_upload',
+        metadata: { 
+          action: 'upload_started', 
+          fileCount: selectedFiles.length,
+          totalSize: selectedFiles.reduce((sum, f) => sum + f.size, 0)
+        }
+      });
+      
       await onUpload(selectedFiles);
+      
+      // Log successful upload
+      logSecurityEvent({
+        event_type: 'file_upload',
+        metadata: { 
+          action: 'upload_completed', 
+          fileCount: selectedFiles.length
+        }
+      });
+      
       setSelectedFiles([]);
       toast({
         title: "Upload concluído",
         description: `${selectedFiles.length} arquivo(s) enviado(s) com sucesso!`
       });
     } catch (error) {
+      // Log failed upload
+      logSecurityEvent({
+        event_type: 'file_upload',
+        metadata: { 
+          action: 'upload_failed', 
+          fileCount: selectedFiles.length,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      
       toast({
         title: "Erro no upload",
         description: "Falha ao enviar os arquivos. Tente novamente.",
