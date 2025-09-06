@@ -77,40 +77,85 @@ export type Database = {
         }
         Relationships: []
       }
+      google_drive_token_audit: {
+        Row: {
+          action: string
+          id: string
+          ip_address: unknown | null
+          success: boolean | null
+          timestamp: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          id?: string
+          ip_address?: unknown | null
+          success?: boolean | null
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          id?: string
+          ip_address?: unknown | null
+          success?: boolean | null
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_drive_tokens: {
         Row: {
+          access_attempts: number | null
           access_token: string
+          access_token_secret_id: string | null
           created_at: string
           dedicated_folder_id: string | null
           dedicated_folder_name: string | null
           expires_at: string
           id: string
+          last_accessed: string | null
           refresh_token: string
+          refresh_token_secret_id: string | null
           scopes: string[]
+          token_last_rotated: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          access_attempts?: number | null
           access_token: string
+          access_token_secret_id?: string | null
           created_at?: string
           dedicated_folder_id?: string | null
           dedicated_folder_name?: string | null
           expires_at: string
           id?: string
+          last_accessed?: string | null
           refresh_token: string
+          refresh_token_secret_id?: string | null
           scopes?: string[]
+          token_last_rotated?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          access_attempts?: number | null
           access_token?: string
+          access_token_secret_id?: string | null
           created_at?: string
           dedicated_folder_id?: string | null
           dedicated_folder_name?: string | null
           expires_at?: string
           id?: string
+          last_accessed?: string | null
           refresh_token?: string
+          refresh_token_secret_id?: string | null
           scopes?: string[]
+          token_last_rotated?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -202,7 +247,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      decrypt_token: {
+        Args: { secret_id: string }
+        Returns: string
+      }
+      encrypt_token: {
+        Args: { token_value: string }
+        Returns: string
+      }
+      get_decrypted_tokens: {
+        Args: { p_user_id: string }
+        Returns: {
+          access_token: string
+          dedicated_folder_id: string
+          dedicated_folder_name: string
+          expires_at: string
+          refresh_token: string
+        }[]
+      }
+      log_token_access: {
+        Args: { p_action: string; p_success?: boolean; p_user_id: string }
+        Returns: undefined
+      }
+      rotate_expired_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      store_encrypted_tokens: {
+        Args: {
+          p_access_token: string
+          p_expires_at: string
+          p_refresh_token: string
+          p_scopes: string[]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
