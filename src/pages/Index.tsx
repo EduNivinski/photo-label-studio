@@ -371,14 +371,10 @@ const Index = () => {
       <header className="border-b border-border/50 bg-card/30 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6 max-w-7xl">
           <div className="flex items-center gap-3">
-            <Library className="h-8 w-8 text-primary" />
             <div>
               <h1 className="text-3xl font-bold text-foreground tracking-tight">
                 Photo Label
               </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Organize suas fotos e vídeos com inteligência
-              </p>
             </div>
           </div>
         </div>
