@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -198,7 +198,7 @@ export function useGoogleDrive() {
     }
   };
 
-  const listFolders = async (): Promise<GoogleDriveFolder[]> => {
+  const listFolders = useCallback(async (): Promise<GoogleDriveFolder[]> => {
     try {
       const headers = await getAuthHeaders();
       console.log('🔍 Calling listFolders with headers:', headers);
@@ -249,7 +249,7 @@ export function useGoogleDrive() {
       });
       throw error;
     }
-  };
+  }, [toast]);
 
   const setDedicatedFolder = async (folderId: string, folderName: string) => {
     try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -17,26 +17,29 @@ export function GoogleDriveFolderSelector({ onFolderSelected, onClose }: GoogleD
   const [fetchingFolders, setFetchingFolders] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchFolders = async () => {
-      try {
-        setFetchingFolders(true);
-        setError(null);
-        console.log('🚀 Starting to fetch folders...');
-        const folderList = await listFolders();
-        console.log('📋 Received folders:', folderList);
-        setFolders(folderList);
-      } catch (error) {
-        console.error('❌ Error fetching folders:', error);
-        setError(error instanceof Error ? error.message : 'Erro desconhecido');
-        setFolders([]);
-      } finally {
-        setFetchingFolders(false);
-      }
-    };
+  // Create a stable reference to listFolders to avoid infinite loops
+  const fetchFolders = useCallback(async () => {
+    if (fetchingFolders) return; // Prevent multiple concurrent fetches
+    
+    try {
+      setFetchingFolders(true);
+      setError(null);
+      console.log('🚀 Starting to fetch folders...');
+      const folderList = await listFolders();
+      console.log('📋 Received folders:', folderList);
+      setFolders(folderList);
+    } catch (error) {
+      console.error('❌ Error fetching folders:', error);
+      setError(error instanceof Error ? error.message : 'Erro desconhecido');
+      setFolders([]);
+    } finally {
+      setFetchingFolders(false);
+    }
+  }, [listFolders, fetchingFolders]);
 
+  useEffect(() => {
     fetchFolders();
-  }, [listFolders]);
+  }, []); // Only run once on mount
 
   const handleFolderSelect = (folder: GoogleDriveFolder) => {
     setSelectedFolder(folder);
@@ -86,22 +89,6 @@ export function GoogleDriveFolderSelector({ onFolderSelected, onClose }: GoogleD
                 onClick={() => {
                   setError(null);
                   setFolders([]);
-                  const fetchFolders = async () => {
-                    try {
-                      setFetchingFolders(true);
-                      setError(null);
-                      console.log('🔄 Retrying folder fetch...');
-                      const folderList = await listFolders();
-                      console.log('📋 Retry successful:', folderList);
-                      setFolders(folderList);
-                    } catch (error) {
-                      console.error('❌ Retry failed:', error);
-                      setError(error instanceof Error ? error.message : 'Erro desconhecido');
-                      setFolders([]);
-                    } finally {
-                      setFetchingFolders(false);
-                    }
-                  };
                   fetchFolders();
                 }} 
                 variant="outline" 
