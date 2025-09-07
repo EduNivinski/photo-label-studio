@@ -35,25 +35,41 @@ serve(async (req) => {
 
     // Test 3: Check if private schema exists
     let schemaTest = "FAIL";
+    let schemaDetails = "";
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
+      
+      console.log("Testing access to private.user_drive_tokens...");
+      
+      // Try to access the table directly
       const { data, error } = await supabase
         .from("private.user_drive_tokens")
-        .select("count(*)")
+        .select("user_id")
         .limit(1);
       
       if (error) {
-        console.error("Schema test error:", error);
-        schemaTest = `ERROR: ${error.message}`;
+        console.error("Schema access error:", error);
+        schemaTest = `ACCESS_ERROR`;
+        schemaDetails = error.message;
+        
+        // Check specific error types
+        if (error.message.includes("does not exist")) {
+          schemaTest = "TABLE_NOT_EXISTS";
+        } else if (error.message.includes("permission")) {
+          schemaTest = "PERMISSION_DENIED";
+        }
       } else {
         schemaTest = "OK";
+        schemaDetails = "Schema and table accessible";
+        console.log("Schema access successful");
       }
     } catch (e: any) {
       console.error("Schema test exception:", e);
-      schemaTest = `EXCEPTION: ${e.message}`;
+      schemaTest = `EXCEPTION`;
+      schemaDetails = e.message;
     }
 
     // Test 4: Check if we can init crypto key
@@ -82,12 +98,13 @@ serve(async (req) => {
       tests: {
         supabaseClient: supabaseTest,
         privateSchema: schemaTest,
+        schemaDetails: schemaDetails,
         cryptoKey: cryptoTest
       },
       recommendation: !hasTokenKey ? 
         "Set TOKEN_ENC_KEY environment variable (generate: openssl rand -base64 32)" :
         schemaTest !== "OK" ?
-        "Private schema access issue - check service_role permissions" :
+        `Private schema access issue: ${schemaTest} - ${schemaDetails}` :
         cryptoTest !== "OK" ?
         "Crypto key issue - check TOKEN_ENC_KEY format" :
         "All systems OK - user needs to re-authenticate with Google Drive"
