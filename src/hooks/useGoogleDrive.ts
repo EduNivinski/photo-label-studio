@@ -271,6 +271,179 @@ export function useGoogleDrive() {
     }
   }, [getAuthHeaders, toast]);
 
+  const resetIntegration = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      console.log('🔄 Resetting Google Drive integration...');
+      
+      const headers = await getAuthHeaders();
+      
+      const response = await supabase.functions.invoke('google-drive-auth/reset-integration', {
+        headers,
+      });
+
+      if (response.error) {
+        console.error('❌ Error resetting integration:', response.error);
+        throw new Error(response.error.message);
+      }
+
+      console.log('✅ Integration reset successful:', response.data);
+
+      // Update status to reflect disconnected state
+      setStatus({
+        isConnected: false,
+        isExpired: false,
+        dedicatedFolder: null,
+      });
+
+      toast({
+        title: 'Integração resetada',
+        description: 'Conexão limpa com sucesso. Agora você pode reconectar com novas permissões.',
+      });
+
+    } catch (error) {
+      console.error('💥 Error resetting integration:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Falha ao resetar integração',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeaders, toast]);
+
+  const diagnoseScopes = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('🔍 Diagnosing token scopes...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/diagnose-scopes', {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('📋 Scope diagnosis result:', response);
+
+      if (response.error) {
+        console.error('❌ Scope diagnosis error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to diagnose scopes'
+        };
+      }
+
+      const data = response.data;
+      return {
+        success: true,
+        data: {
+          status: data.status,
+          scopes: data.scopes,
+          hasRequiredScopes: data.hasRequiredScopes,
+          requiredScopes: data.requiredScopes,
+          expiresIn: data.expiresIn
+        }
+      };
+
+    } catch (error) {
+      console.error('💥 Scope diagnosis error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
+  const diagnoseListing = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('📋 Diagnosing Drive file listing...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/diagnose-listing', {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('📋 Listing diagnosis result:', response);
+
+      if (response.error) {
+        console.error('❌ Listing diagnosis error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to diagnose listing'
+        };
+      }
+
+      const data = response.data;
+      return {
+        success: true,
+        data: {
+          status: data.status,
+          filesCount: data.filesCount,
+          firstItems: data.firstItems,
+          query: data.query,
+          params: data.params
+        }
+      };
+
+    } catch (error) {
+      console.error('💥 Listing diagnosis error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
+  const runFullDiagnostics = useCallback(async () => {
+    try {
+      console.log('🔧 Running full Google Drive diagnostics...');
+      
+      const scopeResult = await diagnoseScopes();
+      const listingResult = await diagnoseListing();
+      
+      const results = {
+        scopes: scopeResult,
+        listing: listingResult,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('🔧 Full diagnostics completed:', results);
+      
+      // Show results in a user-friendly way
+      if (scopeResult.success && listingResult.success) {
+        toast({
+          title: 'Diagnóstico concluído',
+          description: `✅ Escopos: ${scopeResult.data?.hasRequiredScopes ? 'OK' : 'Faltam permissões'} | Listagem: ${listingResult.data?.filesCount || 0} pastas encontradas`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Diagnóstico encontrou problemas',
+          description: `Escopos: ${scopeResult.success ? 'OK' : 'Erro'} | Listagem: ${listingResult.success ? 'OK' : 'Erro'}`,
+        });
+      }
+      
+      return results;
+      
+    } catch (error) {
+      console.error('💥 Full diagnostics error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro no diagnóstico',
+        description: error instanceof Error ? error.message : 'Falha ao executar diagnóstico',
+      });
+      return {
+        scopes: { success: false, error: 'Diagnostic failed' },
+        listing: { success: false, error: 'Diagnostic failed' },
+        timestamp: new Date().toISOString()
+      };
+    }
+  }, [diagnoseScopes, diagnoseListing, toast]);
+
   const listFolders = useCallback(async (folderId?: string, includeSharedDrives: boolean = false): Promise<{ folders: GoogleDriveFolder[]; sharedDrives: any[] }> => {
     try {
       console.log('🚀 Starting to fetch folders...', { folderId, includeSharedDrives });
@@ -588,6 +761,7 @@ export function useGoogleDrive() {
     loading: loading || isValidating,
     connect,
     disconnect,
+    resetIntegration,
     checkStatus,
     listFolders,
     setDedicatedFolder,
@@ -595,6 +769,8 @@ export function useGoogleDrive() {
     downloadFile,
     uploadFile,
     importFileToPhotoLabel,
-    runDiagnostics,
+    runDiagnostics: runFullDiagnostics,
+    diagnoseScopes,
+    diagnoseListing,
   };
 }

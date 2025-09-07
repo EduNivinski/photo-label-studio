@@ -43,15 +43,19 @@ export default function GoogleDriveFolderSelector({ onFolderSelected, onClose }:
       const diagnostics = await runDiagnostics();
       console.log('🔧 Diagnostics:', diagnostics);
       
-      if (!diagnostics.hasTokens) {
-        setError('Sem tokens de autenticação. Reconecte ao Google Drive.');
-      } else if (diagnostics.isExpired) {
-        setError('Token expirado. Reconecte ao Google Drive.');
-      } else if (!diagnostics.apiConnectivity?.ok) {
-        setError('Falha na conectividade com a API do Google Drive.');
+      // Handle new diagnostic format
+      if (diagnostics.scopes?.success === false) {
+        setError(`Erro nos escopos: ${diagnostics.scopes.error}`);
+      } else if (diagnostics.listing?.success === false) {
+        setError(`Erro na listagem: ${diagnostics.listing.error}`);  
+      } else if (!diagnostics.scopes?.data?.hasRequiredScopes) {
+        setError('Escopos insuficientes. Reconecte com novas permissões.');
+      } else if (diagnostics.listing?.data?.filesCount === 0) {
+        setError('Nenhuma pasta encontrada. Verifique permissões ou crie pastas no Google Drive.');
       }
     } catch (error) {
       console.error('❌ Error running diagnostics:', error);
+      setError('Falha ao executar diagnósticos');
     }
   }, [runDiagnostics]);
 

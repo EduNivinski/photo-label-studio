@@ -247,91 +247,15 @@ serve(async (req) => {
     }
 
     if (path === 'diagnostics') {
-      console.log('🔧 Running Google Drive diagnostics for user:', user.id);
-      
-      // Get Google Drive tokens for user
-      const { data: tokens, error: tokensError } = await supabase
-        .rpc('get_google_drive_tokens_secure', { p_user_id: user.id });
-        
-      if (tokensError || !tokens || tokens.length === 0) {
-        return new Response(JSON.stringify({ 
-          error: 'No Google Drive connection',
-          hasTokens: false,
-          diagnostics: {
-            tokenError: tokensError?.message || 'No tokens found'
-          }
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+      return handleDiagnostics(user.id);
+    }
 
-      const tokenData = tokens[0];
-      const isExpired = new Date(tokenData.expires_at) < new Date();
-      
-      const diagnostics = {
-        hasTokens: true,
-        isExpired: isExpired,
-        expiresAt: tokenData.expires_at,
-        scopes: [], // Will be populated from tokeninfo
-        dedicatedFolder: {
-          id: tokenData.dedicated_folder_id,
-          name: tokenData.dedicated_folder_name
-        },
-        apiConnectivity: { status: 200, ok: true },
-        tokenInfo: null
-      };
+    if (path === 'diagnose-scopes') {
+      return handleDiagnoseScopes(user.id);
+    }
 
-      // Test API connectivity and get token info if we have tokens
-      if (!isExpired) {
-        try {
-          // Check token scopes via tokeninfo endpoint
-          const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
-          
-          if (tokenInfoResponse.ok) {
-            const tokenInfo = await tokenInfoResponse.json();
-            diagnostics.tokenInfo = {
-              scopes: tokenInfo.scope ? tokenInfo.scope.split(' ') : [],
-              audience: tokenInfo.aud,
-              expires_in: tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null
-            };
-            diagnostics.scopes = diagnostics.tokenInfo.scopes;
-          }
-          
-          // Test Drive API connectivity
-          const testResponse = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
-            headers: {
-              'Authorization': `Bearer ${tokenData.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          diagnostics.apiConnectivity = {
-            status: testResponse.status,
-            ok: testResponse.ok
-          };
-          
-          if (testResponse.ok) {
-            const userData = await testResponse.json();
-            diagnostics.userInfo = {
-              email: userData.user?.emailAddress || 'unknown'
-            };
-          }
-        } catch (error) {
-          console.log('🔧 Diagnostics API test error:', error);
-          diagnostics.apiConnectivity = {
-            status: 0,
-            ok: false,
-            error: error.message
-          };
-        }
-      }
-
-      console.log('🔧 Diagnostics completed:', JSON.stringify(diagnostics, null, 2));
-      
-      return new Response(JSON.stringify(diagnostics), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (path === 'diagnose-listing') {
+      return handleDiagnoseListing(user.id);
     }
 
     console.log('❌ Unknown path:', path);
@@ -348,3 +272,266 @@ serve(async (req) => {
     });
   }
 });
+
+async function handleDiagnostics(userId: string) {
+  console.log('🔧 Running Google Drive diagnostics for user:', userId);
+  
+  // Get Google Drive tokens for user
+  const { data: tokens, error: tokensError } = await supabase
+    .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+    
+  if (tokensError || !tokens || tokens.length === 0) {
+    return new Response(JSON.stringify({ 
+      error: 'No Google Drive connection',
+      hasTokens: false,
+      diagnostics: {
+        tokenError: tokensError?.message || 'No tokens found'
+      }
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  const tokenData = tokens[0];
+  const isExpired = new Date(tokenData.expires_at) < new Date();
+  
+  const diagnostics = {
+    hasTokens: true,
+    isExpired: isExpired,
+    expiresAt: tokenData.expires_at,
+    scopes: [], // Will be populated from tokeninfo
+    dedicatedFolder: {
+      id: tokenData.dedicated_folder_id,
+      name: tokenData.dedicated_folder_name
+    },
+    apiConnectivity: { status: 200, ok: true },
+    tokenInfo: null
+  };
+
+  // Test API connectivity and get token info if we have tokens
+  if (!isExpired) {
+    try {
+      // Check token scopes via tokeninfo endpoint
+      const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
+      
+      if (tokenInfoResponse.ok) {
+        const tokenInfo = await tokenInfoResponse.json();
+        diagnostics.tokenInfo = {
+          scopes: tokenInfo.scope ? tokenInfo.scope.split(' ') : [],
+          audience: tokenInfo.aud,
+          expires_in: tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null
+        };
+        diagnostics.scopes = diagnostics.tokenInfo.scopes;
+      }
+      
+      // Test Drive API connectivity
+      const testResponse = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      diagnostics.apiConnectivity = {
+        status: testResponse.status,
+        ok: testResponse.ok
+      };
+      
+      if (testResponse.ok) {
+        const userData = await testResponse.json();
+        diagnostics.userInfo = {
+          email: userData.user?.emailAddress || 'unknown'
+        };
+      }
+    } catch (error) {
+      console.log('🔧 Diagnostics API test error:', error);
+      diagnostics.apiConnectivity = {
+        status: 0,
+        ok: false,
+        error: error.message
+      };
+    }
+  }
+
+  console.log('🔧 Diagnostics completed:', JSON.stringify(diagnostics, null, 2));
+  
+  return new Response(JSON.stringify(diagnostics), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
+async function handleDiagnoseScopes(userId: string) {
+  console.log('🔍 Diagnosing token scopes for user:', userId);
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      return new Response(JSON.stringify({
+        error: 'No tokens found',
+        status: 'NO_TOKENS'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const tokenData = tokens[0];
+    const accessToken = tokenData.access_token;
+    
+    // Call Google's tokeninfo endpoint to verify scopes
+    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+    
+    if (!tokenInfoResponse.ok) {
+      const errorText = await tokenInfoResponse.text();
+      console.log('❌ Token info API error:', tokenInfoResponse.status, errorText);
+      
+      return new Response(JSON.stringify({
+        status: tokenInfoResponse.status,
+        error: 'Token validation failed',
+        details: errorText
+      }), {
+        status: tokenInfoResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const tokenInfo = await tokenInfoResponse.json();
+    const scopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : [];
+    
+    console.log('✅ Token scopes retrieved:', scopes);
+    
+    // Check for required scopes
+    const requiredScopes = [
+      'https://www.googleapis.com/auth/drive.metadata.readonly',
+      'https://www.googleapis.com/auth/drive.file'
+    ];
+    
+    const hasRequiredScopes = requiredScopes.every(scope => scopes.includes(scope));
+    
+    return new Response(JSON.stringify({
+      status: 200,
+      scopes: scopes,
+      hasRequiredScopes: hasRequiredScopes,
+      requiredScopes: requiredScopes,
+      expiresIn: tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null,
+      audience: tokenInfo.aud
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Scope diagnosis error:', error);
+    return new Response(JSON.stringify({
+      error: 'Scope diagnosis failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+async function handleDiagnoseListing(userId: string) {
+  console.log('📋 Diagnosing Drive file listing for user:', userId);
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      return new Response(JSON.stringify({
+        error: 'No tokens found',
+        status: 'NO_TOKENS'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const tokenData = tokens[0];
+    const accessToken = tokenData.access_token;
+    
+    // Build Drive API query for root folders
+    const query = "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false";
+    const params = new URLSearchParams({
+      q: query,
+      fields: 'nextPageToken,files(id,name,mimeType,parents,modifiedTime)',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+      corpora: 'user',
+      pageSize: '10' // Small sample for diagnostics
+    });
+    
+    const apiUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`;
+    
+    console.log('📋 Testing Drive API with URL:', apiUrl.replace(accessToken, '[REDACTED]'));
+    console.log('🔍 Query parameters:', {
+      q: query,
+      fields: 'nextPageToken,files(id,name,mimeType,parents,modifiedTime)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'user',
+      pageSize: 10
+    });
+    
+    const driveResponse = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    console.log('📊 Drive API Response Status:', driveResponse.status);
+    
+    if (!driveResponse.ok) {
+      const errorText = await driveResponse.text();
+      console.log('❌ Drive API error:', driveResponse.status, errorText);
+      
+      return new Response(JSON.stringify({
+        status: driveResponse.status,
+        error: 'Drive API call failed',
+        apiUrl: apiUrl.replace(accessToken, '[REDACTED]'),
+        query: query,
+        params: Object.fromEntries(params),
+        details: errorText
+      }), {
+        status: driveResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const driveData = await driveResponse.json();
+    const files = driveData.files || [];
+    const firstItems = files.slice(0, 3).map(file => ({
+      id: file.id,
+      name: file.name
+    }));
+    
+    console.log('✅ Drive API success:', files.length, 'folders found');
+    
+    return new Response(JSON.stringify({
+      status: 200,
+      filesCount: files.length,
+      firstItems: firstItems,
+      query: query,
+      apiUrl: apiUrl.replace(accessToken, '[REDACTED]'),
+      params: Object.fromEntries(params),
+      nextPageToken: driveData.nextPageToken || null
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Listing diagnosis error:', error);
+    return new Response(JSON.stringify({
+      error: 'Listing diagnosis failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+}

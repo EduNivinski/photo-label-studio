@@ -8,7 +8,7 @@ import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, runDiagnostics } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
 
@@ -25,6 +25,17 @@ export function GoogleDriveIntegration() {
   const handleFolderSelected = () => {
     setShowFolderSelector(false);
     setShowFileViewer(true);
+  };
+
+  const handleReconnectWithPermissions = async () => {
+    try {
+      // First reset the integration to clear old tokens/scopes
+      await resetIntegration();
+      // Then connect with fresh OAuth flow
+      await connect();
+    } catch (error) {
+      console.error('Error reconnecting with permissions:', error);
+    }
   };
 
   return (
@@ -141,12 +152,27 @@ export function GoogleDriveIntegration() {
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <Settings className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
+                <div className="flex-1">
                   <h4 className="text-sm font-medium text-blue-800">Novas Permissões Necessárias</h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    Para acessar suas pastas do Google Drive, você precisa desconectar e reconectar 
-                    com as novas permissões de leitura das suas pastas.
+                    Para acessar suas pastas do Google Drive, você precisa reconectar 
+                    com as novas permissões de leitura de metadados.
                   </p>
+                  <div className="mt-3">
+                    <Button
+                      onClick={handleReconnectWithPermissions}
+                      disabled={loading}
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Reconectar com Permissões
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
