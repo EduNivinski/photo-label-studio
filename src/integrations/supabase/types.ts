@@ -265,7 +265,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_vault_availability: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       cleanup_expired_google_drive_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_expired_google_drive_tokens_safe: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
