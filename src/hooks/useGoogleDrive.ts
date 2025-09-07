@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useSecurityValidation } from '@/hooks/useSecurityValidation';
+import { logSecurityEvent } from '@/lib/securityMonitoring';
 
 export interface GoogleDriveFile {
   id: string;
@@ -36,6 +38,11 @@ export function useGoogleDrive() {
   });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { 
+    validateGoogleDriveConnection, 
+    validateFileOperation,
+    isValidating 
+  } = useSecurityValidation();
 
   const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();

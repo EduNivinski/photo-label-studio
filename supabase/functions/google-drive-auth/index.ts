@@ -14,6 +14,45 @@ const googleClientSecret = Deno.env.get('GOOGLE_DRIVE_CLIENT_SECRET')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Enhanced security validation functions
+function validateInput(input: string, maxLength: number = 255): boolean {
+  if (!input || typeof input !== 'string') return false;
+  if (input.length > maxLength) return false;
+  
+  // Check for suspicious patterns
+  const dangerousPatterns = [
+    /<script/i, /javascript:/i, /on\w+\s*=/i, /\0/,
+    /union\s+select/i, /drop\s+table/i, /';--/i
+  ];
+  
+  return !dangerousPatterns.some(pattern => pattern.test(input));
+}
+
+function sanitizeInput(input: string): string {
+  return input
+    .trim()
+    .replace(/[<>\"'&]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/\0/g, '');
+}
+
+async function logSecurityEvent(event: {
+  event_type: string;
+  user_id?: string;
+  metadata: Record<string, any>;
+}) {
+  try {
+    await supabase.from('security_events').insert({
+      event_type: event.event_type,
+      user_id: event.user_id,
+      metadata: event.metadata
+    });
+  } catch (error) {
+    console.error('Failed to log security event:', error);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -22,6 +61,20 @@ serve(async (req) => {
 
   const url = new URL(req.url);
   const path = url.pathname.split('/').pop();
+  const userAgent = req.headers.get('user-agent') || 'unknown';
+  const authHeader = req.headers.get('authorization');
+
+  // Enhanced request logging
+  await logSecurityEvent({
+    event_type: 'api_request',
+    metadata: {
+      path,
+      method: req.method,
+      user_agent: userAgent,
+      timestamp: new Date().toISOString(),
+      has_auth: !!authHeader
+    }
+  });
 
   try {
     if (path === 'authorize') {
@@ -42,6 +95,17 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in google-drive-auth function:', error);
+    
+    // Log the error securely
+    await logSecurityEvent({
+      event_type: 'api_error',
+      metadata: {
+        path,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     // Don't expose internal error details to clients
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
