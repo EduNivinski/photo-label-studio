@@ -65,13 +65,15 @@ export async function upsertTokens(
 
     if (error) {
       console.error("❌ Database error storing tokens:", error);
-      throw new Error(`Database error: ${error.message}`);
+      throw new Error(`Database error: ${error.message || JSON.stringify(error)}`);
     }
 
     console.log("✅ Tokens stored successfully");
   } catch (error) {
     console.error("❌ Error in upsertTokens:", error);
-    throw error;
+    // Re-throw with a proper error message
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Token storage failed: ${errorMessage}`);
   }
 }
 
@@ -92,7 +94,7 @@ export async function getTokens(userId: string): Promise<{
 
     if (error) {
       console.error("❌ Database error retrieving tokens:", error);
-      throw new Error("DB_ERROR");
+      throw new Error(`Database retrieval error: ${error.message || JSON.stringify(error)}`);
     }
 
     if (!data) {
@@ -210,7 +212,7 @@ export async function deleteTokens(userId: string): Promise<void> {
 
     if (error) {
       console.error("❌ Database error deleting tokens:", error);
-      throw new Error("DB_UPSERT_ERROR");
+      throw new Error(`Database deletion error: ${error.message || JSON.stringify(error)}`);
     }
 
     console.log("✅ Tokens deleted successfully");
