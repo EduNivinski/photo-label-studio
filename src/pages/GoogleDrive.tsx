@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Cloud, Folder, FileImage, Upload, Download } from 'lucide-react';
-import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
+import { SimpleGoogleDriveAuth } from '@/components/SimpleGoogleDriveAuth';
 
 export default function GoogleDrive() {
   return (
@@ -59,40 +59,40 @@ export default function GoogleDrive() {
         </div>
 
         {/* Integração Principal */}
-        <GoogleDriveIntegration />
+        <SimpleGoogleDriveAuth />
 
         {/* Informações de Segurança */}
         <Card className="bg-muted/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-              Segurança e Privacidade
+              Implementação Simplificada
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <h4 className="font-medium mb-2">🔒 Dados Seguros</h4>
+                <h4 className="font-medium mb-2">⚠️ Armazenamento Local</h4>
                 <p className="text-muted-foreground">
-                  Seus tokens de acesso são criptografados e armazenados com segurança no Supabase Vault
+                  Esta versão armazena tokens no localStorage do navegador para contornar problemas do Vault
                 </p>
               </div>
               <div>
                 <h4 className="font-medium mb-2">🎯 Acesso Limitado</h4>
                 <p className="text-muted-foreground">
-                  Usamos apenas o escopo 'drive.file' - acesso limitado aos arquivos criados pela aplicação
+                  Usamos apenas escopos 'drive.file' e 'drive.readonly' - acesso limitado
                 </p>
               </div>
               <div>
                 <h4 className="font-medium mb-2">🔄 Controle Total</h4>
                 <p className="text-muted-foreground">
-                  Você pode desconectar a qualquer momento e todos os dados de acesso são removidos
+                  Você pode desconectar a qualquer momento e todos os dados locais são removidos
                 </p>
               </div>
               <div>
-                <h4 className="font-medium mb-2">📁 Pasta Isolada</h4>
+                <h4 className="font-medium mb-2">🚧 Demo/Teste</h4>
                 <p className="text-muted-foreground">
-                  Apenas a pasta que você escolher será acessada - o resto do seu Drive permanece privado
+                  Esta é uma versão simplificada para testes - não é adequada para produção
                 </p>
               </div>
             </div>
