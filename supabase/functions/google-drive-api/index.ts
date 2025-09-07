@@ -45,9 +45,10 @@ serve(async (req) => {
 
     console.log('✅ User authenticated:', user.id);
 
-    const url = new URL(req.url);
-    const path = url.pathname.split('/').pop();
-    console.log('📍 Path:', path);
+  const url = new URL(req.url);
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  const path = pathSegments[pathSegments.length - 1]; // Get the last path segment
+  console.log('📍 Full path:', url.pathname, 'Last segment:', path);
 
     if (path === 'folders') {
       const folderId = url.searchParams.get('folderId');
