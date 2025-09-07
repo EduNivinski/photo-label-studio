@@ -20,131 +20,81 @@ export function GoogleDriveIntegration() {
 
   const handleDisconnect = async () => {
     await disconnect();
-    setShowFolderSelector(false);
-    setShowFileViewer(false);
+  };
+
+  const handleReconnectWithPermissions = async () => {
+    await resetIntegration();
+    setTimeout(() => {
+      handleConnect();
+    }, 1000);
   };
 
   const handleFolderSelected = () => {
     setShowFolderSelector(false);
-    setShowFileViewer(true);
-  };
-
-  const handleReconnectWithPermissions = async () => {
-    try {
-      // First reset the integration to clear old tokens/scopes
-      await resetIntegration();
-      // Then connect with fresh OAuth flow
-      await connect();
-    } catch (error) {
-      console.error('Error reconnecting with permissions:', error);
-    }
+    toast({
+      title: 'Pasta selecionada',
+      description: 'Pasta configurada com sucesso',
+    });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Cloud className="h-5 w-5" />
+            <Cloud className="h-6 w-6" />
             Integração Google Drive
           </CardTitle>
           <CardDescription>
-            Conecte sua conta do Google Drive para backup e sincronização de fotos
+            Conecte e sincronize suas fotos com o Google Drive
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Status da Conexão</span>
-                <div className="flex items-center gap-2 mt-1">
-                  {status.isConnected ? (
-                    <>
-                      <Badge variant="default" className="bg-green-100 text-green-800">
-                        Conectado
-                      </Badge>
-                      {status.isExpired && (
-                        <Badge variant="destructive">Token Expirado</Badge>
-                      )}
-                    </>
-                  ) : (
-                    <Badge variant="secondary">Desconectado</Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              {!status.isConnected ? (
+        <CardContent className="space-y-6">
+          {!status.isConnected && (
+            <div className="space-y-4">
+              <div className="text-center py-8">
+                <Cloud className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">Conectar ao Google Drive</h3>
+                <p className="text-muted-foreground mb-6">
+                  Conecte sua conta do Google Drive para fazer backup e importar suas fotos
+                </p>
                 <Button 
-                  onClick={handleConnect} 
+                  onClick={handleConnect}
                   disabled={loading}
+                  size="lg"
                   className="flex items-center gap-2"
                 >
                   {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Cloud className="h-4 w-4" />
+                    <Cloud className="h-5 w-5" />
                   )}
                   Conectar Google Drive
                 </Button>
-              ) : status.isExpired ? (
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleConnect} 
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                    variant="default"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Reconectar
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleDisconnect} 
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Unplug className="h-4 w-4" />
-                    )}
-                    Desconectar
-                  </Button>
-                </div>
-              ) : (
-                <Button 
-                  variant="destructive" 
-                  onClick={handleDisconnect} 
-                  disabled={loading}
-                  className="flex items-center gap-2"
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Unplug className="h-4 w-4" />
-                  )}
-                  Desconectar
-                </Button>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {status.isConnected && status.isExpired && (
-            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          {status.isExpired && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <RefreshCw className="h-5 w-5 text-amber-600 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-medium text-amber-800">Token Expirado</h4>
-                  <p className="text-sm text-amber-700 mt-1">
-                    Sua conexão com o Google Drive expirou. Clique em "Reconectar" para renovar 
-                    sua conexão e continuar usando a integração.
+                <Settings className="h-5 w-5 text-yellow-600 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-yellow-800">Token Expirado</h4>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Sua conexão com o Google Drive expirou. Reconecte para continuar usando a integração.
                   </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      onClick={handleConnect}
+                      disabled={loading}
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Reconectar
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -180,254 +130,181 @@ export function GoogleDriveIntegration() {
             </div>
           )}
 
-          {status.isConnected && (
-            <div className="space-y-4">
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium">Pasta Dedicada</h4>
-                    {status.dedicatedFolder ? (
-                      <div className="flex items-center gap-2 mt-1">
-                        <Folder className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {status.dedicatedFolder.name}
-                        </span>
+          {status.isConnected && !status.isExpired && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
+                  ✅ Conectado
+                </Badge>
+                {status.dedicatedFolder && (
+                  <Badge variant="outline" className="text-xs">
+                    📁 {status.dedicatedFolder.name}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Seção de Testes de Diagnóstico */}
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <h4 className="font-medium mb-4 text-lg">🔬 Testes de Diagnóstico Completo</h4>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Execute os testes abaixo em ordem para validar a integração Google Drive:
+                </p>
+                
+                <div className="space-y-3">
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const result = await diagScopes();
+                      console.log('🔍 DIAG SCOPES JSON:', JSON.stringify(result.data, null, 2));
+                      if (result.success) {
+                        toast({
+                          title: '✅ Teste 1: Escopos',
+                          description: `Status: ${result.data?.status} | Escopos: ${result.data?.hasRequiredScopes ? 'OK' : 'Faltam'}`,
+                        });
+                      } else {
+                        toast({
+                          title: '❌ Erro no Teste de Escopos',
+                          description: result.error,
+                          variant: 'destructive'
+                        });
+                      }
+                    }}
+                    className="w-full justify-start h-auto py-3"
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
+                        <span className="text-sm font-medium">1</span>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Nenhuma pasta configurada
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={runDiagnostics}
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Diagnóstico Completo
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        const result = await checkTokenInfo();
-                        if (result.success) {
-                          const hasRequired = result.data?.hasRequiredScopes;
-                          const scopes = result.data?.scopes || [];
-                          const expiresIn = result.data?.expires_in;
-                          
-                          toast({
-                            title: hasRequired ? '✅ Escopos Corretos' : '❌ Escopos Insuficientes',
-                            description: `${hasRequired ? 'Permissões OK' : 'Faltam permissões'}: ${scopes.join(', ')}${expiresIn ? ` (expira em ${Math.floor(expiresIn/3600)}h)` : ''}`,
-                            variant: hasRequired ? 'default' : 'destructive'
-                          });
-                          
-                          console.log('🔍 Scope Sanity Check:', {
-                            scopes: scopes,
-                            expires_in: expiresIn,
-                            hasRequired: hasRequired,
-                            required: result.data?.requiredScopes
-                          });
-                        } else {
-                          toast({
-                            title: '❌ Erro no Token Info',
-                            description: result.error || 'Falha ao verificar escopos',
-                            variant: 'destructive'
-                          });
-                        }
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Verificar Escopos (TokenInfo)
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        const result = await diagnoseScopes();
-                        if (result.success) {
-                          const hasRequired = result.data?.hasRequiredScopes;
-                          const scopes = result.data?.scopes || [];
-                          toast({
-                            title: hasRequired ? '✅ Escopos OK' : '❌ Escopos Insuficientes',
-                            description: `${hasRequired ? 'Permissões corretas' : 'Faltam permissões'}: ${scopes.length} escopos encontrados`,
-                            variant: hasRequired ? 'default' : 'destructive'
-                          });
-                        }
-                      }}
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      <Settings className="h-4 w-4" />
-                      Verificar Escopos
-                    </Button>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t">
-                    <h4 className="font-medium mb-3">🔬 Testes de Diagnóstico Completo</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const result = await diagScopes();
-                          console.log('🔍 DIAG SCOPES JSON:', JSON.stringify(result.data, null, 2));
-                          if (result.success) {
-                            toast({
-                              title: '✅ Teste de Escopos',
-                              description: `Status: ${result.data?.status} | Escopos: ${result.data?.hasRequiredScopes ? 'OK' : 'Faltam'}`,
-                            });
-                          } else {
-                            toast({
-                              title: '❌ Erro no Teste de Escopos',
-                              description: result.error,
-                              variant: 'destructive'
-                            });
-                          }
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Settings className="h-4 w-4" />
-                        GET /diag/scopes
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const result = await diagListRoot();
-                          console.log('📋 DIAG LIST ROOT JSON:', JSON.stringify(result.data, null, 2));
-                          if (result.success) {
-                            toast({
-                              title: '✅ Teste Listagem Raiz',
-                              description: `Status: ${result.data?.status} | Pastas: ${result.data?.filesCount}`,
-                            });
-                          } else {
-                            toast({
-                              title: '❌ Erro no Teste de Listagem',
-                              description: result.error,
-                              variant: 'destructive'
-                            });
-                          }
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Folder className="h-4 w-4" />
-                        POST /diag/list-root
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const folderId = status.dedicatedFolder?.id || 'root';
-                          const result = await diagListFolder(folderId);
-                          console.log('📁 DIAG LIST FOLDER JSON:', JSON.stringify(result.data, null, 2));
-                          if (result.success) {
-                            toast({
-                              title: '✅ Teste Pasta Dedicada',
-                              description: `Status: ${result.data?.status} | Itens: ${result.data?.filesCount}`,
-                            });
-                          } else {
-                            toast({
-                              title: '❌ Erro no Teste da Pasta',
-                              description: result.error,
-                              variant: 'destructive'
-                            });
-                          }
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Folder className="h-4 w-4" />
-                        POST /diag/list-folder
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const result = await diagListSharedDrive();
-                          console.log('🤝 DIAG LIST SHARED JSON:', JSON.stringify(result.data, null, 2));
-                          if (result.success) {
-                            toast({
-                              title: '✅ Teste Shared Drives',
-                              description: `Status: ${result.data?.status} | Drive: ${result.data?.drive?.name}`,
-                            });
-                          } else {
-                            toast({
-                              title: '❌ Erro no Teste Shared Drives',
-                              description: result.error,
-                              variant: 'destructive'
-                            });
-                          }
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Cloud className="h-4 w-4" />
-                        POST /diag/list-shared-drive
-                      </Button>
+                      <div className="text-left">
+                        <div className="font-medium">GET /diag/scopes</div>
+                        <div className="text-sm text-muted-foreground">Verificar escopos do token OAuth</div>
+                      </div>
                     </div>
-                  </div>
+                  </Button>
 
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          const result = await diagnoseListing();
-                          if (result.success) {
-                            const count = result.data?.filesCount || 0;
-                            toast({
-                              title: count > 0 ? '✅ Pastas Encontradas' : '❌ Nenhuma Pasta',
-                              description: `${count} pastas na raiz do Google Drive`,
-                              variant: count > 0 ? 'default' : 'destructive'
-                            });
-                          }
-                        }}
-                        disabled={loading}
-                        className="flex items-center gap-2"
-                      >
-                        <Folder className="h-4 w-4" />
-                        Testar Listagem
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowFolderSelector(true)}
-                        className="flex items-center gap-2"
-                      >
-                        <Folder className="h-4 w-4" />
-                        {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
-                      </Button>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const result = await diagListRoot();
+                      console.log('📋 DIAG LIST ROOT JSON:', JSON.stringify(result.data, null, 2));
+                      if (result.success) {
+                        toast({
+                          title: '✅ Teste 2: Listagem Raiz',
+                          description: `Status: ${result.data?.status} | Pastas: ${result.data?.filesCount}`,
+                        });
+                      } else {
+                        toast({
+                          title: '❌ Erro no Teste de Listagem',
+                          description: result.error,
+                          variant: 'destructive'
+                        });
+                      }
+                    }}
+                    className="w-full justify-start h-auto py-3"
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
+                        <span className="text-sm font-medium">2</span>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium">POST /diag/list-root</div>
+                        <div className="text-sm text-muted-foreground">Testar listagem da raiz do Meu Drive</div>
+                      </div>
                     </div>
-                  </div>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const folderId = status.dedicatedFolder?.id || 'root';
+                      const result = await diagListFolder(folderId);
+                      console.log('📁 DIAG LIST FOLDER JSON:', JSON.stringify(result.data, null, 2));
+                      if (result.success) {
+                        toast({
+                          title: '✅ Teste 3: Pasta Dedicada',
+                          description: `Status: ${result.data?.status} | Itens: ${result.data?.filesCount}`,
+                        });
+                      } else {
+                        toast({
+                          title: '❌ Erro no Teste da Pasta',
+                          description: result.error,
+                          variant: 'destructive'
+                        });
+                      }
+                    }}
+                    className="w-full justify-start h-auto py-3"
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
+                        <span className="text-sm font-medium">3</span>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium">POST /diag/list-folder</div>
+                        <div className="text-sm text-muted-foreground">Testar pasta específica ({status.dedicatedFolder?.name || 'root'})</div>
+                      </div>
+                    </div>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const result = await diagListSharedDrive();
+                      console.log('🤝 DIAG LIST SHARED JSON:', JSON.stringify(result.data, null, 2));
+                      if (result.success) {
+                        toast({
+                          title: '✅ Teste 4: Shared Drives',
+                          description: `Status: ${result.data?.status} | Drive: ${result.data?.drive?.name || 'N/A'}`,
+                        });
+                      } else {
+                        toast({
+                          title: '❌ Erro no Teste Shared Drives',
+                          description: result.error,
+                          variant: 'destructive'
+                        });
+                      }
+                    }}
+                    className="w-full justify-start h-auto py-3"
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
+                        <span className="text-sm font-medium">4</span>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium">POST /diag/list-shared-drive</div>
+                        <div className="text-sm text-muted-foreground">Testar Shared Drives (se disponível)</div>
+                      </div>
+                    </div>
+                  </Button>
                 </div>
               </div>
 
-              <div className="border-t pt-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    {status.dedicatedFolder ? (
+              {/* Seção de Gerenciamento */}
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium mb-4">🔧 Gerenciamento</h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFolderSelector(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Folder className="h-4 w-4" />
+                      {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
+                    </Button>
+                    
+                    {status.dedicatedFolder && (
                       <Button
                         onClick={() => setShowFileViewer(true)}
                         variant="outline"
-                        size="sm"
                         className="flex items-center gap-2"
                       >
                         <Folder className="h-4 w-4" />
                         Ver Arquivos
                       </Button>
-                    ) : null}
+                    )}
                   </div>
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2 border-t">
                     <Button
                       onClick={handleConnect}
                       variant="outline"
@@ -437,6 +314,16 @@ export function GoogleDriveIntegration() {
                     >
                       <RefreshCw className="h-4 w-4" />
                       Reconectar
+                    </Button>
+                    <Button
+                      onClick={handleDisconnect}
+                      variant="destructive"
+                      size="sm"
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      <Unplug className="h-4 w-4" />
+                      Desconectar
                     </Button>
                   </div>
                 </div>
