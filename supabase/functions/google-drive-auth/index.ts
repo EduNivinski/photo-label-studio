@@ -280,29 +280,16 @@ async function handleCallback(req: Request) {
     }
   }
 
-  // Get user info from Google to include in response
-  let userEmail = 'unknown';
-  try {
-    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-      },
-    });
-    
-    if (userInfoResponse.ok) {
-      const userInfo = await userInfoResponse.json();
-      userEmail = userInfo.email || 'unknown';
-      console.log('User info retrieved:', userEmail);
-    }
-  } catch (error) {
-    console.warn('Failed to get user info:', error);
-  }
+  // Use the user info already obtained earlier
+  const userEmail = userInfo?.email || 'unknown';
+  console.log('Using user email for success page:', userEmail);
 
-  // Return success page with proper user email
+  // Return success page with proper user email and UTF-8 encoding
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
+      <meta charset="UTF-8">
       <title>Google Drive Connected</title>
       <script>
         window.opener?.postMessage({
@@ -328,7 +315,9 @@ async function handleCallback(req: Request) {
   `;
 
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html' },
+    headers: { 
+      'Content-Type': 'text/html; charset=utf-8'
+    },
   });
 }
 
