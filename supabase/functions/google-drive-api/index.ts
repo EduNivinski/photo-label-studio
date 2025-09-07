@@ -95,44 +95,73 @@ async function getAccessToken(userId: string): Promise<string | null> {
 async function handleListFolders(req: Request) {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    console.error('No authorization header found');
+    return new Response(JSON.stringify({ error: 'Unauthorized - no auth header' }), { 
+      status: 401, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
   const token = authHeader.replace('Bearer ', '');
   const { data: { user }, error: userError } = await supabase.auth.getUser(token);
   
   if (userError || !user) {
-    return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    console.error('User authentication failed:', userError);
+    return new Response(JSON.stringify({ error: 'Unauthorized - invalid user' }), { 
+      status: 401, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
+
+  console.log('User authenticated successfully:', user.id);
 
   const accessToken = await getAccessToken(user.id);
   if (!accessToken) {
-    return new Response('Google Drive not connected or token expired', { 
-      status: 401, headers: corsHeaders 
+    console.error('No access token found for user:', user.id);
+    return new Response(JSON.stringify({ error: 'Google Drive not connected or token expired' }), { 
+      status: 401, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
+  console.log('Access token retrieved, making API call to Google Drive...');
+
   // List folders in Drive
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder'&fields=files(id,name,parents)&pageSize=100`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder'&fields=files(id,name,parents)&pageSize=100`,
+      {
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        },
+      }
+    );
+
+    console.log('Google Drive API response status:', response.status);
+    
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Google Drive API error:', data);
+      return new Response(JSON.stringify({ error: 'Failed to fetch folders', details: data }), {
+        status: response.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-  );
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error('Google Drive API error:', data);
-    return new Response(JSON.stringify({ error: 'Failed to fetch folders' }), {
-      status: response.status,
+    console.log('Successfully fetched folders from Google Drive:', data.files?.length || 0);
+    
+    return new Response(JSON.stringify({ folders: data.files || [] }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (fetchError) {
+    console.error('Network error calling Google Drive API:', fetchError);
+    return new Response(JSON.stringify({ error: 'Network error calling Google Drive API' }), {
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-
-  return new Response(JSON.stringify({ folders: data.files || [] }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
 }
 
 async function handleSetDedicatedFolder(req: Request) {
