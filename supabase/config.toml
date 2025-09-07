@@ -91,3 +91,6 @@ verify_jwt = false
 
 [functions.test-ping]
 verify_jwt = false
+
+[functions.diag-folder-list]
+verify_jwt = false
