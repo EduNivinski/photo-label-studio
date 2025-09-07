@@ -94,3 +94,6 @@ verify_jwt = false
 
 [functions.diag-folder-list]
 verify_jwt = false
+
+[functions.simple-drive-test]
+verify_jwt = false
