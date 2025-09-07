@@ -1,45 +1,64 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Folder, Check, X } from 'lucide-react';
-import { useGoogleDrive, GoogleDriveFolder } from '@/hooks/useGoogleDrive';
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { ScrollArea } from "./ui/scroll-area";
+import { Check, Folder, Loader2, RefreshCw, Users, Wrench } from "lucide-react";
+import { useGoogleDrive } from "../hooks/useGoogleDrive";
+import { GoogleDriveFolder } from "../hooks/useGoogleDrive";
 
 interface GoogleDriveFolderSelectorProps {
   onFolderSelected: () => void;
   onClose: () => void;
 }
 
-export function GoogleDriveFolderSelector({ onFolderSelected, onClose }: GoogleDriveFolderSelectorProps) {
-  const { listFolders, setDedicatedFolder, loading } = useGoogleDrive();
+export default function GoogleDriveFolderSelector({ onFolderSelected, onClose }: GoogleDriveFolderSelectorProps) {
+  const { listFolders, setDedicatedFolder, loading, runDiagnostics } = useGoogleDrive();
   const [folders, setFolders] = useState<GoogleDriveFolder[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<GoogleDriveFolder | null>(null);
   const [fetchingFolders, setFetchingFolders] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sharedDrives, setSharedDrives] = useState<any[]>([]);
 
-  // Create a stable reference to listFolders to avoid infinite loops
-  const fetchFolders = useCallback(async () => {
-    if (fetchingFolders) return; // Prevent multiple concurrent fetches
-    
+  const fetchFolders = useCallback(async (includeSharedDrives: boolean = false) => {
     try {
       setFetchingFolders(true);
       setError(null);
       console.log('🚀 Starting to fetch folders...');
-      const folderList = await listFolders();
-      console.log('📋 Received folders:', folderList);
-      setFolders(folderList);
+      const { folders, sharedDrives } = await listFolders(undefined, includeSharedDrives);
+      console.log('📋 Received folders:', folders);
+      setFolders(folders);
+      setSharedDrives(sharedDrives);
     } catch (error) {
       console.error('❌ Error fetching folders:', error);
       setError(error instanceof Error ? error.message : 'Erro desconhecido');
       setFolders([]);
+      setSharedDrives([]);
     } finally {
       setFetchingFolders(false);
     }
-  }, [listFolders, fetchingFolders]);
+  }, [listFolders]);
 
+  const handleDiagnostics = useCallback(async () => {
+    try {
+      const diagnostics = await runDiagnostics();
+      console.log('🔧 Diagnostics:', diagnostics);
+      
+      if (!diagnostics.hasTokens) {
+        setError('Sem tokens de autenticação. Reconecte ao Google Drive.');
+      } else if (diagnostics.isExpired) {
+        setError('Token expirado. Reconecte ao Google Drive.');
+      } else if (!diagnostics.apiConnectivity?.ok) {
+        setError('Falha na conectividade com a API do Google Drive.');
+      }
+    } catch (error) {
+      console.error('❌ Error running diagnostics:', error);
+    }
+  }, [runDiagnostics]);
+
+  // Fetch folders when component mounts
   useEffect(() => {
     fetchFolders();
-  }, []); // Only run once on mount
+  }, [fetchFolders]);
 
   const handleFolderSelect = (folder: GoogleDriveFolder) => {
     setSelectedFolder(folder);
@@ -57,115 +76,151 @@ export function GoogleDriveFolderSelector({ onFolderSelected, onClose }: GoogleD
   };
 
   return (
-    <Card>
+    <Card className="w-full max-w-2xl">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <Folder className="h-5 w-5" />
-            Escolher Pasta do Google Drive
-          </span>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </CardTitle>
+        <CardTitle>Escolher Pasta do Google Drive</CardTitle>
         <CardDescription>
-          Selecione uma pasta do seu Google Drive para usar como pasta dedicada do PhotoLabel
+          Selecione uma pasta para sincronizar suas fotos
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {fetchingFolders ? (
-          <div className="flex items-center justify-center p-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Carregando pastas...</span>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => fetchFolders(false)} 
+              disabled={fetchingFolders}
+              variant="outline"
+              size="sm"
+            >
+              {fetchingFolders ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Carregando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Recarregar Pastas
+                </>
+              )}
+            </Button>
+            
+            <Button 
+              onClick={() => fetchFolders(true)} 
+              disabled={fetchingFolders}
+              variant="outline"
+              size="sm"
+            >
+              Incluir Drives Compartilhados
+            </Button>
+
+            <Button 
+              onClick={handleDiagnostics} 
+              disabled={loading}
+              variant="outline"
+              size="sm"
+            >
+              <Wrench className="h-4 w-4 mr-2" />
+              Diagnóstico
+            </Button>
           </div>
-        ) : error ? (
-          <div className="p-8 text-center space-y-4">
-            <div className="text-destructive">
-              <p className="font-medium">Erro ao carregar pastas</p>
-              <p className="text-sm text-muted-foreground mt-1">{error}</p>
+
+          {fetchingFolders ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <span>Carregando pastas...</span>
             </div>
-            <div className="flex gap-2 justify-center">
-              <Button 
-                onClick={() => {
-                  setError(null);
-                  setFolders([]);
-                  fetchFolders();
-                }} 
-                variant="outline" 
-                size="sm"
-              >
-                Tentar Novamente
-              </Button>
-              <Button 
-                onClick={onClose} 
-                variant="ghost" 
-                size="sm"
-              >
-                Fechar
-              </Button>
+          ) : error ? (
+            <div className="text-center py-8">
+              <p className="text-destructive mb-4">{error}</p>
+              <div className="space-x-2">
+                <Button onClick={() => fetchFolders(false)} variant="outline">
+                  Tentar Novamente
+                </Button>
+                <Button onClick={onClose} variant="ghost">
+                  Fechar
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <>
-            <ScrollArea className="h-64 border rounded-md">
-              <div className="p-4 space-y-2">
-                {folders.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4">
-                    Nenhuma pasta encontrada
-                  </p>
-                ) : (
-                  folders.map((folder) => (
-                    <div
-                      key={folder.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors hover:bg-accent ${
-                        selectedFolder?.id === folder.id ? 'bg-accent border-primary' : ''
-                      }`}
-                      onClick={() => handleFolderSelect(folder)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{folder.name}</span>
+          ) : folders.length > 0 || sharedDrives.length > 0 ? (
+            <ScrollArea className="h-80">
+              <div className="space-y-2">
+                {sharedDrives.length > 0 && (
+                  <>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Drives Compartilhados</h4>
+                    {sharedDrives.map((drive) => (
+                      <div
+                        key={`shared-${drive.id}`}
+                        className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent"
+                        onClick={() => setSelectedFolder({ id: drive.id, name: drive.name })}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span>{drive.name}</span>
+                        </div>
+                        {selectedFolder?.id === drive.id && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
                       </div>
-                      {selectedFolder?.id === folder.id && (
-                        <Check className="h-4 w-4 text-primary" />
-                      )}
-                    </div>
-                  ))
+                    ))}
+                    {folders.length > 0 && <div className="border-t my-4" />}
+                  </>
+                )}
+                
+                {folders.length > 0 && (
+                  <>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Meu Drive</h4>
+                    {folders.map((folder) => (
+                      <div
+                        key={folder.id}
+                        className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent"
+                        onClick={() => handleFolderSelect(folder)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Folder className="h-4 w-4 text-muted-foreground" />
+                          <span>{folder.name}</span>
+                        </div>
+                        {selectedFolder?.id === folder.id && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
             </ScrollArea>
-
-            {selectedFolder && (
-              <div className="bg-accent/50 p-4 rounded-lg">
-                <h4 className="text-sm font-medium mb-2">Pasta Selecionada:</h4>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Folder className="h-4 w-4" />
-                  {selectedFolder.name}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-4">
-              <Button
-                onClick={handleConfirm}
-                disabled={!selectedFolder || loading}
-                className="flex-1"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Configurando...
-                  </>
-                ) : (
-                  'Confirmar Pasta'
-                )}
-              </Button>
-              <Button variant="outline" onClick={onClose}>
-                Cancelar
-              </Button>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Nenhuma pasta encontrada</p>
             </div>
-          </>
-        )}
+          )}
+
+          {selectedFolder && (
+            <div className="mt-4 p-3 bg-accent rounded-lg">
+              <p className="text-sm text-muted-foreground">Pasta selecionada:</p>
+              <p className="font-medium">{selectedFolder.name}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 mt-6">
+            <Button 
+              onClick={handleConfirm}
+              disabled={!selectedFolder || loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Confirmando...
+                </>
+              ) : (
+                'Confirmar Pasta'
+              )}
+            </Button>
+            <Button onClick={onClose} variant="ghost">
+              Cancelar
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

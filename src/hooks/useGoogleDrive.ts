@@ -271,12 +271,24 @@ export function useGoogleDrive() {
     }
   }, [getAuthHeaders, toast]);
 
-  const listFolders = useCallback(async (): Promise<GoogleDriveFolder[]> => {
+  const listFolders = useCallback(async (folderId?: string, includeSharedDrives: boolean = false): Promise<{ folders: GoogleDriveFolder[]; sharedDrives: any[] }> => {
     try {
-      const headers = await getAuthHeaders();
-      console.log('🚀 Calling google-drive-api/folders...');
+      console.log('🚀 Starting to fetch folders...', { folderId, includeSharedDrives });
       
-      const response = await supabase.functions.invoke('google-drive-api/folders', {
+      const headers = await getAuthHeaders();
+      const params = new URLSearchParams();
+      if (folderId) {
+        params.set('folderId', folderId);
+      }
+      if (includeSharedDrives) {
+        params.set('includeSharedDrives', 'true');
+      }
+      
+      const url = `google-drive-api/folders${params.toString() ? '?' + params.toString() : ''}`;
+      console.log('🚀 Calling:', url);
+
+      const response = await supabase.functions.invoke(url, {
+        method: 'GET',
         headers,
       });
 
@@ -288,16 +300,20 @@ export function useGoogleDrive() {
       }
 
       const folders = response.data?.folders || [];
-      console.log('✅ Successfully retrieved folders:', folders.length);
-      return folders;
+      const sharedDrives = response.data?.sharedDrives || [];
+      console.log('✅ Successfully retrieved folders:', folders.length, 'shared drives:', sharedDrives.length);
+      
+      return { folders, sharedDrives };
     } catch (error) {
       console.error('💥 Error listing folders:', error);
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Falha ao listar pastas do Google Drive',
+        description: error instanceof Error && error.message.includes('autorizar') 
+          ? error.message 
+          : 'Falha ao listar pastas do Google Drive',
       });
-      return [];
+      return { folders: [], sharedDrives: [] };
     }
   }, [getAuthHeaders, toast]);
 
@@ -488,6 +504,35 @@ export function useGoogleDrive() {
     }
   }, [downloadFile]);
 
+  const runDiagnostics = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      console.log('🔧 Running Google Drive diagnostics...');
+
+      const response = await supabase.functions.invoke('google-drive-api/diagnostics', {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('🔧 Diagnostics response:', response);
+
+      if (response.error) {
+        console.error('❌ Error running diagnostics:', response.error);
+        throw new Error(response.error.message);
+      }
+
+      return response.data?.diagnostics || {};
+    } catch (error) {
+      console.error('💥 Error running diagnostics:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Falha ao executar diagnósticos',
+      });
+      throw error;
+    }
+  }, [getAuthHeaders, toast]);
+
   // Check status on mount
   useEffect(() => {
     checkStatus();
@@ -505,5 +550,6 @@ export function useGoogleDrive() {
     downloadFile,
     uploadFile,
     importFileToPhotoLabel,
+    runDiagnostics,
   };
 }
