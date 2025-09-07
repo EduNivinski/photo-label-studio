@@ -6,17 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Safe JSON response helper
+const safeJson = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { 
+    status, 
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+  });
+
+//Functions que estão dando erro 
+let supabase: any;
+
 serve(async (req) => {
   console.log('🚀 GOOGLE DRIVE API CALLED - REAL VERSION');
   
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('✅ OPTIONS request');
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
     // Initialize Supabase client
-    const supabase = createClient(
+    supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -25,10 +36,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       console.log('❌ No authorization header');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return safeJson(401, { error: 'Unauthorized' });
     }
 
     // Verify user token and get user
@@ -37,18 +45,15 @@ serve(async (req) => {
     
     if (userError || !user) {
       console.log('❌ Invalid token:', userError);
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return safeJson(401, { error: 'Invalid token' });
     }
 
     console.log('✅ User authenticated:', user.id);
 
-  const url = new URL(req.url);
-  const pathSegments = url.pathname.split('/').filter(Boolean);
-  const path = pathSegments[pathSegments.length - 1]; // Get the last path segment
-  console.log('📍 Full path:', url.pathname, 'Last segment:', path);
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/').filter(Boolean);
+    const path = pathSegments[pathSegments.length - 1];
+    console.log('📍 Full path:', url.pathname, 'Last segment:', path);
 
     if (path === 'folders') {
       const folderId = url.searchParams.get('folderId');
@@ -370,67 +375,49 @@ async function handleDiagnoseScopes(userId: string) {
       .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
       
     if (tokensError || !tokens || tokens.length === 0) {
-      return new Response(JSON.stringify({
-        error: 'No tokens found',
-        status: 'NO_TOKENS'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      console.log('❌ No tokens found for user:', userId);
+      return safeJson(400, {
+        ok: false,
+        error: 'NO_TOKENS',
+        details: tokensError?.message || 'No Google Drive connection found'
       });
     }
 
     const tokenData = tokens[0];
-    const accessToken = tokenData.access_token;
     
-    // Call Google's tokeninfo endpoint to verify scopes
-    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+    // Test tokeninfo endpoint (minimal implementation)
+    console.log('🔍 Testing token scopes via tokeninfo endpoint');
+    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
     
-    if (!tokenInfoResponse.ok) {
-      const errorText = await tokenInfoResponse.text();
-      console.log('❌ Token info API error:', tokenInfoResponse.status, errorText);
+    const result = {
+      ok: tokenInfoResponse.ok,
+      status: tokenInfoResponse.status,
+      scopes: [],
+      hasRequiredScopes: false,
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
+        'https://www.googleapis.com/auth/drive.file'
+      ]
+    };
+
+    if (tokenInfoResponse.ok) {
+      const tokenInfo = await tokenInfoResponse.json();
+      result.scopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : [];
+      result.hasRequiredScopes = result.requiredScopes.every(scope => result.scopes.includes(scope));
       
-      return new Response(JSON.stringify({
-        status: tokenInfoResponse.status,
-        error: 'Token validation failed',
-        details: errorText
-      }), {
-        status: tokenInfoResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      console.log('✅ Scopes retrieved successfully:', result.scopes.length, 'scopes found');
+    } else {
+      console.log('❌ Token info failed with status:', tokenInfoResponse.status);
     }
     
-    const tokenInfo = await tokenInfoResponse.json();
-    const scopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : [];
+    return safeJson(200, result);
     
-    console.log('✅ Token scopes retrieved:', scopes);
-    
-    // Check for required scopes
-    const requiredScopes = [
-      'https://www.googleapis.com/auth/drive.metadata.readonly',
-      'https://www.googleapis.com/auth/drive.file'
-    ];
-    
-    const hasRequiredScopes = requiredScopes.every(scope => scopes.includes(scope));
-    
-    return new Response(JSON.stringify({
-      status: 200,
-      scopes: scopes,
-      hasRequiredScopes: hasRequiredScopes,
-      requiredScopes: requiredScopes,
-      expiresIn: tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null,
-      audience: tokenInfo.aud
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Scope diagnosis error:', error);
-    return new Response(JSON.stringify({
-      error: 'Scope diagnosis failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  } catch (e: any) {
+    console.error('❌ Scope diagnosis error:', { msg: e?.message, code: e?.code, name: e?.name });
+    return safeJson(500, { 
+      ok: false, 
+      error: 'INTERNAL_ERROR', 
+      note: 'check function logs' 
     });
   }
 }
@@ -443,96 +430,56 @@ async function handleDiagnoseListing(userId: string) {
       .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
       
     if (tokensError || !tokens || tokens.length === 0) {
-      return new Response(JSON.stringify({
-        error: 'No tokens found',
-        status: 'NO_TOKENS'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      console.log('❌ No tokens found for user:', userId);
+      return safeJson(400, {
+        ok: false,
+        error: 'NO_TOKENS',
+        details: tokensError?.message || 'No Google Drive connection found'
       });
     }
 
     const tokenData = tokens[0];
-    const accessToken = tokenData.access_token;
     
-    // Build Drive API query for root folders
-    const query = "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false";
-    const params = new URLSearchParams({
-      q: query,
-      fields: 'nextPageToken,files(id,name,mimeType,parents,modifiedTime)',
-      supportsAllDrives: 'true',
-      includeItemsFromAllDrives: 'true',
-      corpora: 'user',
-      pageSize: '10' // Small sample for diagnostics
+    // Test Drive API listing (minimal implementation)
+    console.log('📋 Testing Drive API file listing');
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("q", "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false");
+    url.searchParams.set("fields", "nextPageToken, files(id,name)");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("corpora", "user");
+    url.searchParams.set("pageSize", "10");
+
+    const driveResponse = await fetch(url.toString(), {
+      headers: { 
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      }
     });
     
-    const apiUrl = `https://www.googleapis.com/drive/v3/files?${params.toString()}`;
-    
-    console.log('📋 Testing Drive API with URL:', apiUrl.replace(accessToken, '[REDACTED]'));
-    console.log('🔍 Query parameters:', {
-      q: query,
-      fields: 'nextPageToken,files(id,name,mimeType,parents,modifiedTime)',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      corpora: 'user',
-      pageSize: 10
-    });
-    
-    const driveResponse = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    console.log('📊 Drive API Response Status:', driveResponse.status);
-    
-    if (!driveResponse.ok) {
-      const errorText = await driveResponse.text();
-      console.log('❌ Drive API error:', driveResponse.status, errorText);
-      
-      return new Response(JSON.stringify({
-        status: driveResponse.status,
-        error: 'Drive API call failed',
-        apiUrl: apiUrl.replace(accessToken, '[REDACTED]'),
-        query: query,
-        params: Object.fromEntries(params),
-        details: errorText
-      }), {
-        status: driveResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const result = {
+      ok: driveResponse.ok,
+      status: driveResponse.status,
+      filesCount: 0,
+      query: "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false"
+    };
+
+    if (driveResponse.ok) {
+      const data = await driveResponse.json();
+      result.filesCount = data.files ? data.files.length : 0;
+      console.log('✅ Drive API listing successful:', result.filesCount, 'folders found');
+    } else {
+      console.log('❌ Drive API listing failed with status:', driveResponse.status);
     }
     
-    const driveData = await driveResponse.json();
-    const files = driveData.files || [];
-    const firstItems = files.slice(0, 3).map(file => ({
-      id: file.id,
-      name: file.name
-    }));
+    return safeJson(200, result);
     
-    console.log('✅ Drive API success:', files.length, 'folders found');
-    
-    return new Response(JSON.stringify({
-      status: 200,
-      filesCount: files.length,
-      firstItems: firstItems,
-      query: query,
-      apiUrl: apiUrl.replace(accessToken, '[REDACTED]'),
-      params: Object.fromEntries(params),
-      nextPageToken: driveData.nextPageToken || null
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Listing diagnosis error:', error);
-    return new Response(JSON.stringify({
-      error: 'Listing diagnosis failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  } catch (e: any) {
+    console.error('❌ Listing diagnosis error:', { msg: e?.message, code: e?.code, name: e?.name });
+    return safeJson(500, { 
+      ok: false, 
+      error: 'INTERNAL_ERROR', 
+      note: 'check function logs' 
     });
   }
 }
