@@ -13,33 +13,47 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
+  console.log('🚀 Google Drive API function called');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('✅ Returning CORS headers for OPTIONS request');
     return new Response(null, { headers: corsHeaders });
   }
 
   const url = new URL(req.url);
   const path = url.pathname.split('/').pop();
+  console.log('📍 Path extracted:', path);
 
   try {
     if (path === 'folders') {
+      console.log('📂 Routing to handleListFolders');
       return handleListFolders(req);
     } else if (path === 'files') {
+      console.log('📁 Routing to handleListFiles');
       return handleListFiles(req);
     } else if (path === 'set-folder') {
+      console.log('⚙️ Routing to handleSetDedicatedFolder');
       return handleSetDedicatedFolder(req);
     } else if (path === 'download') {
+      console.log('⬇️ Routing to handleDownloadFile');
       return handleDownloadFile(req);
     } else if (path === 'upload') {
+      console.log('⬆️ Routing to handleUploadFile');
       return handleUploadFile(req);
     }
 
-    return new Response('Not found', { 
+    console.log('❌ Path not found:', path);
+    return new Response(JSON.stringify({ error: 'Not found', path }), { 
       status: 404, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    console.error('Error in google-drive-api function:', error);
+    console.error('💥 Error in google-drive-api function:', error);
+    console.error('Error details:', error.message, error.stack);
+    
     // Don't expose internal error details to clients
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
