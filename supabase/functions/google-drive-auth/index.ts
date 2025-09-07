@@ -140,7 +140,8 @@ async function handleAuthorize(req: Request) {
   authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly');
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('prompt', 'consent'); // Force consent for updated scopes
+  authUrl.searchParams.set('include_granted_scopes', 'false'); // Fresh request, not incremental
   authUrl.searchParams.set('state', user.id); // Pass user ID in state parameter
 
   return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
@@ -340,37 +341,104 @@ async function handleRefresh(req: Request) {
     });
   }
 
-    try {
-      // Get connection info using secure function
-      const { data: connectionData, error: connectionError } = await supabase
-        .rpc('get_google_drive_connection_info', { p_user_id: user.id });
-
-      if (connectionError || !connectionData || connectionData.length === 0) {
-        console.log('No Google Drive connection found for user:', user.id);
-        return new Response(JSON.stringify({ error: 'Google Drive not connected' }), { 
-          status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      // For now, return success without actual token refresh since we need to implement
-      // a secure token refresh mechanism that doesn't expose tokens
-      console.log('Token refresh requested for user:', user.id);
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Please reconnect your Google Drive account to refresh tokens',
-        requires_reconnection: true
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  try {
+    // Get current tokens from secure storage
+    const { data: tokensData, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: user.id });
+    
+    if (tokensError || !tokensData || tokensData.length === 0) {
+      await logSecurityEvent({
+        event_type: 'GOOGLE_DRIVE_REFRESH_NO_TOKENS',
+        user_id: user.id,
+        metadata: { error: tokensError?.message || 'No tokens found' }
       });
-    } catch (error) {
-      console.error('Unexpected error during token refresh:', error);
-      return new Response(JSON.stringify({ error: 'Internal server error' }), { 
-        status: 500, 
+      
+      return new Response(JSON.stringify({
+        error: 'No refresh token available',
+        message: 'Please reconnect your Google Drive account.'
+      }), {
+        status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+    
+    const tokenData = tokensData[0];
+    const refreshToken = tokenData.refresh_token;
+    
+    // Use refresh token to get new access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: googleClientId,
+        client_secret: googleClientSecret
+      })
+    });
+    
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      await logSecurityEvent({
+        event_type: 'GOOGLE_DRIVE_REFRESH_FAILED',
+        user_id: user.id,
+        metadata: { status: tokenResponse.status, error: errorData }
+      });
+      
+      return new Response(JSON.stringify({
+        error: 'Token refresh failed',
+        message: 'Please reconnect your Google Drive account for updated permissions.'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    const tokens = await tokenResponse.json();
+    const newExpiresAt = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString();
+    
+    // Store the new access token (keep existing refresh token if not provided)
+    const finalRefreshToken = tokens.refresh_token || refreshToken;
+    const scopes = tokens.scope ? tokens.scope.split(' ') : [];
+    
+    await supabase.rpc('store_google_drive_tokens_secure', {
+      p_user_id: user.id,
+      p_access_token: tokens.access_token,
+      p_refresh_token: finalRefreshToken,
+      p_expires_at: newExpiresAt,
+      p_scopes: scopes
+    });
+    
+    await logSecurityEvent({
+      event_type: 'GOOGLE_DRIVE_TOKEN_REFRESHED',
+      user_id: user.id,
+      metadata: { expires_at: newExpiresAt, scopes: scopes }
+    });
+    
+    return new Response(JSON.stringify({
+      success: true,
+      expires_at: newExpiresAt,
+      scopes: scopes
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('Refresh error:', error);
+    await logSecurityEvent({
+      event_type: 'GOOGLE_DRIVE_REFRESH_ERROR',
+      user_id: user.id,
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
+    });
+    
+    return new Response(JSON.stringify({
+      error: 'Authentication failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 async function handleDisconnect(req: Request) {
@@ -393,58 +461,84 @@ async function handleDisconnect(req: Request) {
   }
 
   try {
-    // Get the secret IDs before deleting the record
-    const { data: tokenData } = await supabase
-      .from('google_drive_tokens')
-      .select('access_token_secret_id, refresh_token_secret_id')
-      .eq('user_id', user.id)
-      .single();
-
-    // Delete the token record from our table
+    // Complete reset: Delete Google Drive tokens from database
     const { error: deleteError } = await supabase
-      .from('google_drive_tokens')
+      .from('google_drive_tokens')       
       .delete()
       .eq('user_id', user.id);
 
     if (deleteError) {
-      console.error('Failed to delete token record:', deleteError);
-      throw deleteError;
+      console.error('Error deleting tokens:', deleteError);
+      await logSecurityEvent({
+        event_type: 'GOOGLE_DRIVE_DISCONNECT_ERROR',
+        user_id: user.id,
+        metadata: { error: deleteError.message }
+      });
+      
+      return new Response(JSON.stringify({
+        error: 'Failed to disconnect Google Drive',
+        details: deleteError.message
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Clean up encrypted secrets from vault if they exist
-    if (tokenData?.access_token_secret_id) {
-      await supabase
-        .from('vault.secrets')
-        .delete()
-        .eq('id', tokenData.access_token_secret_id);
+    // Clean up encrypted secrets from vault
+    try {
+      const accessName = `gd_access_${user.id}`;
+      const refreshName = `gd_refresh_${user.id}`;
+      
+      // Rotate secrets to empty values (secure deletion)
+      await supabase.rpc('vault.create_secret', {
+        secret: '',
+        name: accessName,
+        description: 'Rotated to empty on disconnect'
+      });
+      
+      await supabase.rpc('vault.create_secret', {
+        secret: '',
+        name: refreshName,  
+        description: 'Rotated to empty on disconnect'
+      });
+    } catch (vaultError) {
+      console.error('Vault cleanup error (non-critical):', vaultError);
     }
 
-    if (tokenData?.refresh_token_secret_id) {
-      await supabase
-        .from('vault.secrets')
-        .delete()
-        .eq('id', tokenData.refresh_token_secret_id);
-    }
+    // Clear any sync state (if we had it)
+    // This would reset start_page_token, etc. for clean reconnect
 
-    // Log the disconnection
-    await supabase.rpc('log_token_access', {
-      p_user_id: user.id,
-      p_action: 'TOKEN_DISCONNECTED',
-      p_success: true
+    await logSecurityEvent({
+      event_type: 'GOOGLE_DRIVE_DISCONNECTED_COMPLETE',
+      user_id: user.id,
+      metadata: { forced_reset: true }
     });
 
-    console.log('Successfully disconnected and cleaned up tokens for user:', user.id);
+    console.log(`Successfully disconnected and cleaned up tokens for user: ${user.id}`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Google Drive completely disconnected. Next connection will request fresh permissions.',
+      reset_complete: true
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('Failed to disconnect:', error);
-    return new Response('Failed to disconnect', { 
-      status: 500, 
-      headers: corsHeaders 
+    console.error('Disconnect error:', error);
+    await logSecurityEvent({
+      event_type: 'GOOGLE_DRIVE_DISCONNECT_ERROR',
+      user_id: user.id, 
+      metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
+    });
+    
+    return new Response(JSON.stringify({
+      error: 'Failed to disconnect',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-
-  return new Response(JSON.stringify({ message: 'Disconnected successfully' }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
 }
 
 async function handleStatus(req: Request) {

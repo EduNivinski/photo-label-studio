@@ -69,16 +69,54 @@ serve(async (req) => {
         });
       }
 
-      const tokenData = tokens[0];
+      let tokenData = tokens[0];
       console.log('✅ Tokens retrieved, expires at:', tokenData.expires_at);
 
-      // Check if token is expired
-      if (new Date(tokenData.expires_at) < new Date()) {
-        console.log('❌ Token expired');
-        return new Response(JSON.stringify({ error: 'Token expired' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      // Check token expiration and attempt refresh if needed
+      const expiresAt = new Date(tokenData.expires_at);
+      const now = new Date();
+      
+      if (expiresAt <= now) {
+        console.log('🔄 Token expired at:', expiresAt.toISOString(), 'attempting refresh...');
+        
+        // Attempt token refresh
+        const refreshResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/google-drive-auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Authorization': req.headers.get('Authorization') || '',
+            'Content-Type': 'application/json'
+          }
         });
+        
+        if (!refreshResponse.ok) {
+          console.log('❌ Token refresh failed, requiring reconnection');
+          return new Response(JSON.stringify({
+            error: 'Token expired and refresh failed',
+            message: 'Please reconnect your Google Drive account with updated permissions',
+            requires_reconnect: true
+          }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        console.log('✅ Token refreshed successfully, retrying request...');
+        
+        // Get refreshed tokens
+        const { data: refreshedTokens, error: refreshError } = await supabase
+          .rpc('get_google_drive_tokens_secure', { p_user_id: user.id });
+        
+        if (refreshError || !refreshedTokens || refreshedTokens.length === 0) {
+          return new Response(JSON.stringify({
+            error: 'Failed to get refreshed tokens',
+            message: 'Please reconnect your Google Drive account'
+          }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        tokenData = refreshedTokens[0];
       }
 
       let allFolders = [];
@@ -127,10 +165,40 @@ serve(async (req) => {
           const errorText = await driveResponse.text();
           console.log('Error details:', errorText);
           
+          // Check if it's a scope/permission issue
+          if (driveResponse.status === 403) {
+            return new Response(JSON.stringify({
+              error: 'Insufficient permissions',
+              status: driveResponse.status,
+              message: 'Precisamos de permissão para ler metadados do Drive. Clique em "Reconectar com permissões".',
+              requires_reconnect: true,
+              required_scopes: [
+                'https://www.googleapis.com/auth/drive.metadata.readonly',
+                'https://www.googleapis.com/auth/drive.file'
+              ]
+            }), {
+              status: driveResponse.status,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
+          if (driveResponse.status === 401) {
+            return new Response(JSON.stringify({
+              error: 'Authentication failed',
+              status: driveResponse.status,
+              message: 'Token expirado ou inválido. Reconecte sua conta do Google Drive.',
+              requires_reconnect: true
+            }), {
+              status: driveResponse.status,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          
           return new Response(JSON.stringify({ 
-            error: 'É necessário autorizar acesso completo ao Google Drive. Verifique as permissões na sua conta.',
-            details: 'Failed to fetch folders from Google Drive',
-            status: driveResponse.status
+            error: 'Google Drive API error',
+            status: driveResponse.status,
+            message: driveResponse.statusText,
+            user_message: 'É necessário autorizar acesso completo ao Google Drive. Verifique as permissões na sua conta.'
           }), {
             status: driveResponse.status,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -205,16 +273,32 @@ serve(async (req) => {
         hasTokens: true,
         isExpired: isExpired,
         expiresAt: tokenData.expires_at,
-        scopes: tokenData.scopes || [],
+        scopes: [], // Will be populated from tokeninfo
         dedicatedFolder: {
           id: tokenData.dedicated_folder_id,
           name: tokenData.dedicated_folder_name
-        }
+        },
+        apiConnectivity: { status: 200, ok: true },
+        tokenInfo: null
       };
 
+      // Test API connectivity and get token info if we have tokens
       if (!isExpired) {
-        // Test API connectivity
         try {
+          // Check token scopes via tokeninfo endpoint
+          const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
+          
+          if (tokenInfoResponse.ok) {
+            const tokenInfo = await tokenInfoResponse.json();
+            diagnostics.tokenInfo = {
+              scopes: tokenInfo.scope ? tokenInfo.scope.split(' ') : [],
+              audience: tokenInfo.aud,
+              expires_in: tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null
+            };
+            diagnostics.scopes = diagnostics.tokenInfo.scopes;
+          }
+          
+          // Test Drive API connectivity
           const testResponse = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
             headers: {
               'Authorization': `Bearer ${tokenData.access_token}`,
@@ -234,15 +318,18 @@ serve(async (req) => {
             };
           }
         } catch (error) {
+          console.log('🔧 Diagnostics API test error:', error);
           diagnostics.apiConnectivity = {
+            status: 0,
+            ok: false,
             error: error.message
           };
         }
       }
 
-      console.log('🔧 Diagnostics completed:', diagnostics);
+      console.log('🔧 Diagnostics completed:', JSON.stringify(diagnostics, null, 2));
       
-      return new Response(JSON.stringify({ diagnostics }), {
+      return new Response(JSON.stringify(diagnostics), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }

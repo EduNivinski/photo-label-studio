@@ -8,7 +8,7 @@ import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect } = useGoogleDrive();
+  const { status, loading, connect, disconnect, runDiagnostics } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
 
@@ -172,41 +172,59 @@ export function GoogleDriveIntegration() {
                     )}
                   </div>
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowFolderSelector(true)}
-                    className="flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={runDiagnostics}
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Diagnóstico
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFolderSelector(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Folder className="h-4 w-4" />
+                      {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               <div className="border-t pt-4">
-                {status.dedicatedFolder ? (
-                  <Button
-                    onClick={() => setShowFileViewer(true)}
-                    className="w-full"
-                  >
-                    Visualizar Arquivos do Drive
-                  </Button>
-                ) : (
-                  <div className="text-center p-4 bg-muted/50 rounded-lg">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Para visualizar seus arquivos, primeiro escolha uma pasta dedicada do Google Drive
-                    </p>
+                <div className="flex justify-between items-center">
+                  <div className="flex gap-2">
+                    {status.dedicatedFolder ? (
+                      <Button
+                        onClick={() => setShowFileViewer(true)}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2"
+                      >
+                        <Folder className="h-4 w-4" />
+                        Ver Arquivos
+                      </Button>
+                    ) : null}
+                  </div>
+                  
+                  <div className="flex gap-2">
                     <Button
+                      onClick={handleConnect}
                       variant="outline"
-                      onClick={() => setShowFolderSelector(true)}
+                      size="sm"
+                      disabled={loading}
                       className="flex items-center gap-2"
                     >
-                      <Settings className="h-4 w-4" />
-                      Escolher Pasta Dedicada
+                      <RefreshCw className="h-4 w-4" />
+                      Reconectar
                     </Button>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )}

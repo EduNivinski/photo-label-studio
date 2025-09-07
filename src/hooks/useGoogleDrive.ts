@@ -296,6 +296,13 @@ export function useGoogleDrive() {
 
       if (response.error) {
         console.error('❌ Error response from folders API:', response.error);
+        
+        // Check for specific error types
+        const errorData = response.data;
+        if (errorData?.requires_reconnect) {
+          throw new Error(errorData.message || 'Reconexão necessária');
+        }
+        
         throw new Error(response.error.message);
       }
 
@@ -306,13 +313,24 @@ export function useGoogleDrive() {
       return { folders, sharedDrives };
     } catch (error) {
       console.error('💥 Error listing folders:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: error instanceof Error && error.message.includes('autorizar') 
-          ? error.message 
-          : 'Falha ao listar pastas do Google Drive',
-      });
+      
+      // Check if it's a permission/scope error
+      if (error instanceof Error && (error.message.includes('permiss') || error.message.includes('Reconectar'))) {
+        toast({
+          variant: 'destructive',
+          title: 'Permissões insuficientes',
+          description: 'Clique em "Reconectar" para atualizar as permissões do Google Drive',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Erro',
+          description: error instanceof Error && error.message.includes('autorizar') 
+            ? error.message 
+            : 'Falha ao listar pastas do Google Drive',
+        });
+      }
+      
       return { folders: [], sharedDrives: [] };
     }
   }, [getAuthHeaders, toast]);
@@ -521,7 +539,34 @@ export function useGoogleDrive() {
         throw new Error(response.error.message);
       }
 
-      return response.data?.diagnostics || {};
+      const diagnosticsData = response.data || {};
+      console.log('🔧 Diagnostics results:', diagnosticsData);
+      
+      // Show friendly messages based on diagnostics
+      const scopes = diagnosticsData.scopes || [];
+      const hasMetadataScope = scopes.some((s: string) => s.includes('drive.metadata.readonly'));
+      const hasFileScope = scopes.some((s: string) => s.includes('drive.file'));
+      
+      if (!hasMetadataScope || !hasFileScope) {
+        toast({
+          variant: 'destructive',
+          title: 'Escopos insuficientes',
+          description: `Reconecte para atualizar permissões. Escopos atuais: ${scopes.join(', ')}`,
+        });
+      } else if (diagnosticsData.apiConnectivity?.ok) {
+        toast({
+          title: 'Diagnóstico OK',
+          description: 'Google Drive conectado e funcionando corretamente',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de conectividade',
+          description: `Status: ${diagnosticsData.apiConnectivity?.status || 'Desconhecido'}`,
+        });
+      }
+
+      return diagnosticsData;
     } catch (error) {
       console.error('💥 Error running diagnostics:', error);
       toast({
