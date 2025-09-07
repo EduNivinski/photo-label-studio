@@ -280,18 +280,37 @@ async function handleCallback(req: Request) {
     }
   }
 
-  // Return success page
+  // Get user info from Google to include in response
+  let userEmail = 'unknown';
+  try {
+    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+      },
+    });
+    
+    if (userInfoResponse.ok) {
+      const userInfo = await userInfoResponse.json();
+      userEmail = userInfo.email || 'unknown';
+      console.log('User info retrieved:', userEmail);
+    }
+  } catch (error) {
+    console.warn('Failed to get user info:', error);
+  }
+
+  // Return success page with proper user email
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <title>Google Drive Connected</title>
       <script>
-        window.postMessage({
-          type: 'GOOGLE_DRIVE_AUTH_SUCCESS',
-          success: true,
-          user_email: '${userInfo.email}'
-        }, '*');
+        window.opener?.postMessage({
+          type: 'GOOGLE_AUTH_SUCCESS',
+          code: '${sanitizeInput(code)}',
+          state: '${sanitizeInput(state)}',
+          user_email: '${userEmail}'
+        }, window.location.origin);
         
         setTimeout(() => {
           window.close();
@@ -299,8 +318,11 @@ async function handleCallback(req: Request) {
       </script>
     </head>
     <body>
-      <h1>Google Drive Connected Successfully!</h1>
-      <p>You can close this window now.</p>
+      <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+        <h1 style="color: #4CAF50;">✓ Google Drive Conectado!</h1>
+        <p>Sua conta <strong>${userEmail}</strong> foi conectada com sucesso.</p>
+        <p>Esta janela será fechada automaticamente...</p>
+      </div>
     </body>
     </html>
   `;
