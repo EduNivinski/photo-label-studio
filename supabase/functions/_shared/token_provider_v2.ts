@@ -84,7 +84,8 @@ export async function upsertTokens(
     const scopeString = scope.join(' '); // Convert array to space-separated string
 
     const { error } = await supabase
-      .from('private.user_drive_tokens')
+      .schema('private')
+      .from('user_drive_tokens')
       .upsert({
         user_id: userId,
         access_token_enc: encryptedAccess,
@@ -116,7 +117,8 @@ export async function getTokens(userId: string): Promise<{
 
   try {
     const { data, error } = await supabase
-      .from('private.user_drive_tokens')
+      .schema('private')
+      .from('user_drive_tokens')
       .select('*')
       .eq('user_id', userId)
       .single();
@@ -234,7 +236,8 @@ export async function deleteTokens(userId: string): Promise<void> {
 
   try {
     const { error } = await supabase
-      .from('private.user_drive_tokens')
+      .schema('private')
+      .from('user_drive_tokens')
       .delete()
       .eq('user_id', userId);
 
