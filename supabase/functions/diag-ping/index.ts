@@ -11,8 +11,13 @@ const json = (status: number, body: unknown) =>
     },
   });
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+};
+
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return json(204, {});
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   try {
     // Verificar envs essenciais sem expor valores
     const hasUrl = !!Deno.env.get("SUPABASE_URL");

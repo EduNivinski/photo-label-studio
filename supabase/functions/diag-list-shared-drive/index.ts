@@ -11,8 +11,13 @@ const json = (s: number, b: unknown) =>
     }
   });
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+};
+
 serve(async (req) => {
-  if (req.method === "OPTIONS") return json(204, {});
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   
   try {
     console.log('🤝 DIAG LIST SHARED: Starting shared drives listing');
