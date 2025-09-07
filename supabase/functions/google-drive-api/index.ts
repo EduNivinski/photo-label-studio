@@ -269,23 +269,20 @@ serve(async (req) => {
     }
 
     // Diagnostic endpoints
-    if (path === 'diag' && pathSegments[pathSegments.length - 2] === 'diag') {
-      const diagType = url.searchParams.get('type');
-      if (diagType === 'scopes') {
-        return await handleDiagScopes(user.id);
-      }
+    if (path === 'diag' && url.searchParams.get('type') === 'scopes') {
+      return await handleDiagScopes(user.id);
     }
     
-    if (path === 'list-root' && req.method === 'POST') {
+    if (path === 'list-root') {
       return await handleDiagListRoot(user.id);
     }
     
-    if (path === 'list-folder' && req.method === 'POST') {
+    if (path === 'list-folder') {
       const body = await req.json();
       return await handleDiagListFolder(user.id, body.folderId);
     }
     
-    if (path === 'list-shared-drive' && req.method === 'POST') {
+    if (path === 'list-shared-drive') {
       return await handleDiagListSharedDrive(user.id);
     }
 
