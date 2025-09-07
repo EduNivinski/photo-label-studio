@@ -78,41 +78,47 @@ export async function getTokens(user_id: string): Promise<TokenData | null> {
     refresh: data.refresh_token_secret_id
   });
 
-  // First, try to get the encrypted tokens directly from database if they're stored there
-  // If not, we'll need to use the existing encrypted functions with the secret IDs
-  
   try {
-    // For now, let's see if the secret IDs are actually the encrypted tokens
-    if (typeof data.access_token_secret_id === 'string' && 
-        typeof data.refresh_token_secret_id === 'string' &&
-        data.access_token_secret_id.length > 50 && 
-        data.refresh_token_secret_id.length > 50) {
-      
-      console.log("Attempting to decrypt tokens stored as secret IDs...");
-      
-      const access_token = await decryptFromB64(data.access_token_secret_id);
-      const refresh_token = await decryptFromB64(data.refresh_token_secret_id);
-      
-      console.log("Tokens successfully decrypted!");
-      
-      return {
-        access_token,
-        refresh_token,
-        scope: data.scopes?.join(' ') || '',
-        expires_at: data.expires_at
-      };
-    } else {
-      console.error("Secret IDs don't appear to be encrypted tokens:", {
-        accessIdType: typeof data.access_token_secret_id,
-        accessIdLength: data.access_token_secret_id?.length,
-        refreshIdType: typeof data.refresh_token_secret_id,
-        refreshIdLength: data.refresh_token_secret_id?.length
-      });
-      throw new Error("INVALID_SECRET_FORMAT");
+    // Use the correct Vault access method with UUIDs
+    const { data: accessSecret, error: accessError } = await supabaseAdmin
+      .from("vault.decrypted_secrets")
+      .select("decrypted_secret")
+      .eq("id", data.access_token_secret_id)
+      .single();
+
+    const { data: refreshSecret, error: refreshError } = await supabaseAdmin
+      .from("vault.decrypted_secrets") 
+      .select("decrypted_secret")
+      .eq("id", data.refresh_token_secret_id)
+      .single();
+
+    if (accessError) {
+      console.error("Access token vault error:", accessError);
+      throw new Error("ACCESS_VAULT_ERROR");
     }
-  } catch (decryptError) {
-    console.error("Decryption failed:", decryptError);
-    throw new Error("DECRYPTION_FAILED");
+
+    if (refreshError) {
+      console.error("Refresh token vault error:", refreshError);
+      throw new Error("REFRESH_VAULT_ERROR");
+    }
+
+    if (!accessSecret?.decrypted_secret || !refreshSecret?.decrypted_secret) {
+      console.error("Secrets not found in vault");
+      throw new Error("SECRETS_NOT_FOUND");
+    }
+
+    console.log("✅ Tokens successfully retrieved from vault");
+
+    return {
+      access_token: accessSecret.decrypted_secret,
+      refresh_token: refreshSecret.decrypted_secret,
+      scope: data.scopes?.join(' ') || '',
+      expires_at: data.expires_at
+    };
+
+  } catch (vaultError) {
+    console.error("Vault operation failed:", vaultError);
+    throw new Error("VAULT_ACCESS_ERROR");
   }
 }
 
