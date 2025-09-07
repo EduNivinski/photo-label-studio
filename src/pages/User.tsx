@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
+import { GoogleDriveDiagnostics } from '@/components/GoogleDriveDiagnostics';
 
 export default function User() {
   const { toast } = useToast();
@@ -338,6 +339,9 @@ export default function User() {
 
             {/* Google Drive Integration */}
             <GoogleDriveIntegration />
+
+            {/* Google Drive Diagnostics */}
+            <GoogleDriveDiagnostics />
 
             {/* Atividade Recente */}
             <Card className="p-6">
