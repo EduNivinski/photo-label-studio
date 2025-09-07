@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Cloud, Folder, Unplug, Settings } from 'lucide-react';
+import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import { GoogleDriveFolderSelector } from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
@@ -75,6 +75,35 @@ export function GoogleDriveIntegration() {
                   )}
                   Conectar Google Drive
                 </Button>
+              ) : status.isExpired ? (
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleConnect} 
+                    disabled={loading}
+                    className="flex items-center gap-2"
+                    variant="default"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Reconectar
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleDisconnect} 
+                    disabled={loading}
+                    className="flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Unplug className="h-4 w-4" />
+                    )}
+                    Desconectar
+                  </Button>
+                </div>
               ) : (
                 <Button 
                   variant="destructive" 
@@ -92,6 +121,21 @@ export function GoogleDriveIntegration() {
               )}
             </div>
           </div>
+
+          {status.isConnected && status.isExpired && (
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <RefreshCw className="h-5 w-5 text-amber-600 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-medium text-amber-800">Token Expirado</h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Sua conexão com o Google Drive expirou. Clique em "Reconectar" para renovar 
+                    sua conexão e continuar usando a integração.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {status.isConnected && (
             <div className="space-y-4">
