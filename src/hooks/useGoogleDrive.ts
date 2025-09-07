@@ -274,28 +274,28 @@ export function useGoogleDrive() {
   const listFolders = useCallback(async (): Promise<GoogleDriveFolder[]> => {
     try {
       const headers = await getAuthHeaders();
-      console.log('🚀 Calling google-drive-api/folders...');
+      console.log('🚀 Calling test-google-drive...');
       
-      const response = await supabase.functions.invoke('google-drive-api/folders', {
+      const response = await supabase.functions.invoke('test-google-drive', {
         headers,
       });
 
-      console.log('📋 Folders response:', response);
+      console.log('📋 Test response:', response);
 
       if (response.error) {
-        console.error('❌ Error response from folders API:', response.error);
+        console.error('❌ Error response from test API:', response.error);
         throw new Error(response.error.message);
       }
 
       const folders = response.data?.folders || [];
-      console.log('✅ Successfully retrieved folders:', folders.length);
+      console.log('✅ Successfully retrieved test folders:', folders.length);
       return folders;
     } catch (error) {
-      console.error('💥 Error listing folders:', error);
+      console.error('💥 Error testing folders:', error);
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Falha ao listar pastas do Google Drive',
+        description: 'Falha ao testar função de pastas',
       });
       return [];
     }
