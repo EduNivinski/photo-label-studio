@@ -247,15 +247,15 @@ serve(async (req) => {
     }
 
     if (path === 'diagnostics') {
-      return handleDiagnostics(user.id);
+      return await handleDiagnostics(user.id);
     }
 
     if (path === 'diagnose-scopes') {
-      return handleDiagnoseScopes(user.id);
+      return await handleDiagnoseScopes(user.id);
     }
 
     if (path === 'diagnose-listing') {
-      return handleDiagnoseListing(user.id);
+      return await handleDiagnoseListing(user.id);
     }
 
     console.log('❌ Unknown path:', path);
