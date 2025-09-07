@@ -97,3 +97,6 @@ verify_jwt = false
 
 [functions.simple-drive-test]
 verify_jwt = false
+
+[functions.force-drive-reconnect]
+verify_jwt = false
