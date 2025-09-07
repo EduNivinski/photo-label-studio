@@ -73,35 +73,41 @@ serve(async (req) => {
       });
     }
 
-    // 3. Try to get tokens from Vault
+    // 3. Try to get tokens from Vault using RPC call
     let accessToken;
     try {
-      console.log("🔍 Attempting to get access token from Vault...");
+      console.log("🔍 Attempting to get access token from Vault via RPC...");
       
-      const { data: vaultData, error: vaultError } = await supabase
-        .from('vault.decrypted_secrets')
-        .select('decrypted_secret')
-        .eq('name', `gd_access_${userId}`)
-        .single();
+      // Use RPC to call the existing secure token function
+      const { data: rpcTokenData, error: rpcError } = await supabase
+        .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
 
-      if (vaultError) {
-        console.error("❌ Vault access error:", vaultError);
+      if (rpcError) {
+        console.error("❌ RPC error:", rpcError);
         return json(500, {
-          error: 'VAULT_ACCESS_ERROR',
-          message: 'Cannot access tokens from Vault',
-          details: vaultError.message,
-          vault_error_code: vaultError.code
+          error: 'RPC_ERROR',
+          message: 'Cannot get tokens via RPC',
+          details: rpcError.message,
+          rpc_error_code: rpcError.code
         });
       }
 
-      accessToken = vaultData.decrypted_secret;
-      console.log("✅ Successfully retrieved access token from Vault");
+      if (!rpcTokenData || rpcTokenData.length === 0) {
+        console.error("❌ No token data returned from RPC");
+        return json(500, {
+          error: 'NO_TOKEN_DATA',
+          message: 'RPC returned no token data'
+        });
+      }
+
+      accessToken = rpcTokenData[0].access_token;
+      console.log("✅ Successfully retrieved access token via RPC");
 
     } catch (error) {
-      console.error("❌ Exception accessing Vault:", error);
+      console.error("❌ Exception calling RPC:", error);
       return json(500, {
-        error: 'VAULT_EXCEPTION',
-        message: 'Exception while accessing Vault',
+        error: 'RPC_EXCEPTION',
+        message: 'Exception while calling token RPC',
         details: error instanceof Error ? error.message : String(error)
       });
     }
