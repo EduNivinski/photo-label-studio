@@ -6,11 +6,13 @@ import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw } from 'lucide-reac
 import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
+import { useToast } from '@/hooks/use-toast';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
+  const { toast } = useToast();
 
   const handleConnect = async () => {
     await connect();
@@ -207,7 +209,48 @@ export function GoogleDriveIntegration() {
                       className="flex items-center gap-2"
                     >
                       <Settings className="h-4 w-4" />
-                      Diagnóstico
+                      Diagnóstico Completo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const result = await diagnoseScopes();
+                        if (result.success) {
+                          const hasRequired = result.data?.hasRequiredScopes;
+                          const scopes = result.data?.scopes || [];
+                          toast({
+                            title: hasRequired ? '✅ Escopos OK' : '❌ Escopos Insuficientes',
+                            description: `${hasRequired ? 'Permissões corretas' : 'Faltam permissões'}: ${scopes.length} escopos encontrados`,
+                            variant: hasRequired ? 'default' : 'destructive'
+                          });
+                        }
+                      }}
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Verificar Escopos
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const result = await diagnoseListing();
+                        if (result.success) {
+                          const count = result.data?.filesCount || 0;
+                          toast({
+                            title: count > 0 ? '✅ Pastas Encontradas' : '❌ Nenhuma Pasta',
+                            description: `${count} pastas na raiz do Google Drive`,
+                            variant: count > 0 ? 'default' : 'destructive'
+                          });
+                        }
+                      }}
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      <Folder className="h-4 w-4" />
+                      Testar Listagem
                     </Button>
                     <Button
                       variant="outline"
