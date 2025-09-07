@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { ensureAccessToken } from "../_shared/token_provider.ts";
+import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 // Utility functions
 const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
