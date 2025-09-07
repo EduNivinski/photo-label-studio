@@ -42,11 +42,11 @@ serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
       
-      console.log("Testing access to private.user_drive_tokens...");
+      console.log("Testing access to google_drive_tokens table...");
       
-      // Try to access the table directly
+      // Try to access the google_drive_tokens table
       const { data, error } = await supabase
-        .from("private.user_drive_tokens")
+        .from("google_drive_tokens")
         .select("user_id")
         .limit(1);
       
