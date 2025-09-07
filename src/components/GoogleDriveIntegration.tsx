@@ -9,7 +9,7 @@ import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 import { useToast } from '@/hooks/use-toast';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -267,35 +267,146 @@ export function GoogleDriveIntegration() {
                       <Settings className="h-4 w-4" />
                       Verificar Escopos
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        const result = await diagnoseListing();
-                        if (result.success) {
-                          const count = result.data?.filesCount || 0;
-                          toast({
-                            title: count > 0 ? '✅ Pastas Encontradas' : '❌ Nenhuma Pasta',
-                            description: `${count} pastas na raiz do Google Drive`,
-                            variant: count > 0 ? 'default' : 'destructive'
-                          });
-                        }
-                      }}
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      <Folder className="h-4 w-4" />
-                      Testar Listagem
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowFolderSelector(true)}
-                      className="flex items-center gap-2"
-                    >
-                      <Folder className="h-4 w-4" />
-                      {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
-                    </Button>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="font-medium mb-3">🔬 Testes de Diagnóstico Completo</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const result = await diagScopes();
+                          console.log('🔍 DIAG SCOPES JSON:', JSON.stringify(result.data, null, 2));
+                          if (result.success) {
+                            toast({
+                              title: '✅ Teste de Escopos',
+                              description: `Status: ${result.data?.status} | Escopos: ${result.data?.hasRequiredScopes ? 'OK' : 'Faltam'}`,
+                            });
+                          } else {
+                            toast({
+                              title: '❌ Erro no Teste de Escopos',
+                              description: result.error,
+                              variant: 'destructive'
+                            });
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Settings className="h-4 w-4" />
+                        GET /diag/scopes
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const result = await diagListRoot();
+                          console.log('📋 DIAG LIST ROOT JSON:', JSON.stringify(result.data, null, 2));
+                          if (result.success) {
+                            toast({
+                              title: '✅ Teste Listagem Raiz',
+                              description: `Status: ${result.data?.status} | Pastas: ${result.data?.filesCount}`,
+                            });
+                          } else {
+                            toast({
+                              title: '❌ Erro no Teste de Listagem',
+                              description: result.error,
+                              variant: 'destructive'
+                            });
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Folder className="h-4 w-4" />
+                        POST /diag/list-root
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const folderId = status.dedicatedFolder?.id || 'root';
+                          const result = await diagListFolder(folderId);
+                          console.log('📁 DIAG LIST FOLDER JSON:', JSON.stringify(result.data, null, 2));
+                          if (result.success) {
+                            toast({
+                              title: '✅ Teste Pasta Dedicada',
+                              description: `Status: ${result.data?.status} | Itens: ${result.data?.filesCount}`,
+                            });
+                          } else {
+                            toast({
+                              title: '❌ Erro no Teste da Pasta',
+                              description: result.error,
+                              variant: 'destructive'
+                            });
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Folder className="h-4 w-4" />
+                        POST /diag/list-folder
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const result = await diagListSharedDrive();
+                          console.log('🤝 DIAG LIST SHARED JSON:', JSON.stringify(result.data, null, 2));
+                          if (result.success) {
+                            toast({
+                              title: '✅ Teste Shared Drives',
+                              description: `Status: ${result.data?.status} | Drive: ${result.data?.drive?.name}`,
+                            });
+                          } else {
+                            toast({
+                              title: '❌ Erro no Teste Shared Drives',
+                              description: result.error,
+                              variant: 'destructive'
+                            });
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Cloud className="h-4 w-4" />
+                        POST /diag/list-shared-drive
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const result = await diagnoseListing();
+                          if (result.success) {
+                            const count = result.data?.filesCount || 0;
+                            toast({
+                              title: count > 0 ? '✅ Pastas Encontradas' : '❌ Nenhuma Pasta',
+                              description: `${count} pastas na raiz do Google Drive`,
+                              variant: count > 0 ? 'default' : 'destructive'
+                            });
+                          }
+                        }}
+                        disabled={loading}
+                        className="flex items-center gap-2"
+                      >
+                        <Folder className="h-4 w-4" />
+                        Testar Listagem
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowFolderSelector(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <Folder className="h-4 w-4" />
+                        {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

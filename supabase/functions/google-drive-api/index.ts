@@ -268,6 +268,27 @@ serve(async (req) => {
       return await handleTokenInfo(user.id);
     }
 
+    // Diagnostic endpoints
+    if (path === 'diag' && pathSegments[pathSegments.length - 2] === 'diag') {
+      const diagType = url.searchParams.get('type');
+      if (diagType === 'scopes') {
+        return await handleDiagScopes(user.id);
+      }
+    }
+    
+    if (path === 'list-root' && req.method === 'POST') {
+      return await handleDiagListRoot(user.id);
+    }
+    
+    if (path === 'list-folder' && req.method === 'POST') {
+      const body = await req.json();
+      return await handleDiagListFolder(user.id, body.folderId);
+    }
+    
+    if (path === 'list-shared-drive' && req.method === 'POST') {
+      return await handleDiagListSharedDrive(user.id);
+    }
+
     console.log('❌ Unknown path:', path);
     return new Response(JSON.stringify({ error: 'Not found' }), { 
       status: 404, 
@@ -282,6 +303,336 @@ serve(async (req) => {
     });
   }
 });
+
+async function handleDiagScopes(userId: string) {
+  console.log('🔍 DIAG: Checking token scopes for user:', userId);
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      console.log('❌ DIAG: No tokens found for user:', userId);
+      return safeJson(400, {
+        status: 400,
+        error: 'NO_TOKENS',
+        details: tokensError?.message || 'No Google Drive connection found'
+      });
+    }
+
+    const tokenData = tokens[0];
+    
+    // Check token expiration
+    const isExpired = new Date(tokenData.expires_at) < new Date();
+    if (isExpired) {
+      console.log('❌ DIAG: Token expired for user:', userId);
+      return safeJson(401, {
+        status: 401,
+        error: 'TOKEN_EXPIRED',
+        details: 'Token has expired, please reconnect'
+      });
+    }
+    
+    // Call tokeninfo endpoint
+    console.log('🔍 DIAG: Calling Google tokeninfo endpoint');
+    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
+    
+    if (!tokenInfoResponse.ok) {
+      console.log('❌ DIAG: TokenInfo failed with status:', tokenInfoResponse.status);
+      return safeJson(tokenInfoResponse.status, {
+        status: tokenInfoResponse.status,
+        error: 'TOKENINFO_FAILED',
+        details: `Google tokeninfo returned ${tokenInfoResponse.status}`
+      });
+    }
+
+    const tokenInfo = await tokenInfoResponse.json();
+    const scopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : [];
+    const expiresIn = tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null;
+    
+    console.log('✅ DIAG: TokenInfo success - scopes found:', scopes.length);
+    
+    return safeJson(200, {
+      status: 200,
+      scopes: tokenInfo.scope || '',
+      expires_in: expiresIn,
+      scopesList: scopes,
+      hasRequiredScopes: [
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
+        'https://www.googleapis.com/auth/drive.file'
+      ].every(scope => scopes.includes(scope))
+    });
+    
+  } catch (e: any) {
+    console.error('❌ DIAG: Scopes error:', { msg: e?.message, code: e?.code, name: e?.name });
+    return safeJson(500, { 
+      status: 500,
+      error: 'INTERNAL_ERROR', 
+      note: 'check function logs' 
+    });
+  }
+}
+
+async function handleDiagListRoot(userId: string) {
+  console.log('📋 DIAG: Testing root folder listing for user:', userId);
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      return safeJson(400, { status: 400, error: 'NO_TOKENS' });
+    }
+
+    const tokenData = tokens[0];
+    
+    // Build exact query as specified
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("q", "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false");
+    url.searchParams.set("fields", "nextPageToken, files(id,name)");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("corpora", "user");
+    url.searchParams.set("pageSize", "10");
+
+    console.log('📋 DIAG: Root listing URL:', url.toString());
+
+    const driveResponse = await fetch(url.toString(), {
+      headers: { 
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!driveResponse.ok) {
+      console.log('❌ DIAG: Root listing failed with status:', driveResponse.status);
+      
+      if (driveResponse.status === 401) {
+        return safeJson(401, {
+          status: 401,
+          error: 'NEEDS_REFRESH',
+          action: 'Token needs refresh'
+        });
+      }
+      
+      if (driveResponse.status === 403) {
+        return safeJson(403, {
+          status: 403,
+          error: 'insufficientPermissions',
+          action: 'reconnect_with_consent',
+          authUrlParams: {
+            prompt: 'consent',
+            include_granted_scopes: false,
+            access_type: 'offline',
+            scopes: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/drive.file']
+          }
+        });
+      }
+      
+      return safeJson(driveResponse.status, {
+        status: driveResponse.status,
+        error: 'DRIVE_API_ERROR'
+      });
+    }
+
+    const data = await driveResponse.json();
+    const files = data.files || [];
+    
+    console.log('✅ DIAG: Root listing successful - folders found:', files.length);
+    
+    return safeJson(200, {
+      status: 200,
+      filesCount: files.length,
+      firstItems: files.slice(0, 5),
+      echo: {
+        q: "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false",
+        corpora: "user",
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        pageSize: 10
+      }
+    });
+    
+  } catch (e: any) {
+    console.error('❌ DIAG: Root listing error:', { msg: e?.message, code: e?.code });
+    return safeJson(500, { 
+      status: 500,
+      error: 'INTERNAL_ERROR', 
+      note: 'check function logs' 
+    });
+  }
+}
+
+async function handleDiagListFolder(userId: string, folderId: string) {
+  console.log('📁 DIAG: Testing folder listing for user:', userId, 'folder:', folderId);
+  
+  if (!folderId) {
+    return safeJson(400, { status: 400, error: 'FOLDER_ID_REQUIRED' });
+  }
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      return safeJson(400, { status: 400, error: 'NO_TOKENS' });
+    }
+
+    const tokenData = tokens[0];
+    
+    // Build query for specific folder
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("q", `'${folderId}' in parents and trashed=false`);
+    url.searchParams.set("fields", "nextPageToken, files(id,name)");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("corpora", "user");
+    url.searchParams.set("pageSize", "10");
+
+    console.log('📁 DIAG: Folder listing URL:', url.toString());
+
+    const driveResponse = await fetch(url.toString(), {
+      headers: { 
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!driveResponse.ok) {
+      console.log('❌ DIAG: Folder listing failed with status:', driveResponse.status);
+      
+      if (driveResponse.status === 404) {
+        return safeJson(404, {
+          status: 404,
+          error: 'FOLDER_NOT_FOUND',
+          folderId: folderId,
+          action: 'Clear folder selection and choose again'
+        });
+      }
+      
+      return safeJson(driveResponse.status, {
+        status: driveResponse.status,
+        error: 'DRIVE_API_ERROR',
+        folderId: folderId
+      });
+    }
+
+    const data = await driveResponse.json();
+    const files = data.files || [];
+    
+    console.log('✅ DIAG: Folder listing successful - items found:', files.length);
+    
+    return safeJson(200, {
+      status: 200,
+      filesCount: files.length,
+      firstItems: files.slice(0, 5),
+      folderId: folderId
+    });
+    
+  } catch (e: any) {
+    console.error('❌ DIAG: Folder listing error:', { msg: e?.message, code: e?.code });
+    return safeJson(500, { 
+      status: 500,
+      error: 'INTERNAL_ERROR',
+      folderId: folderId, 
+      note: 'check function logs' 
+    });
+  }
+}
+
+async function handleDiagListSharedDrive(userId: string) {
+  console.log('🤝 DIAG: Testing shared drives listing for user:', userId);
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      return safeJson(400, { status: 400, error: 'NO_TOKENS' });
+    }
+
+    const tokenData = tokens[0];
+    
+    // First, get shared drives
+    const drivesResponse = await fetch('https://www.googleapis.com/drive/v3/drives?pageSize=10', {
+      headers: { 
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!drivesResponse.ok) {
+      console.log('❌ DIAG: Drives listing failed with status:', drivesResponse.status);
+      return safeJson(drivesResponse.status, {
+        status: drivesResponse.status,
+        error: 'DRIVES_API_ERROR'
+      });
+    }
+
+    const drivesData = await drivesResponse.json();
+    const drives = drivesData.drives || [];
+    
+    if (drives.length === 0) {
+      return safeJson(200, {
+        status: 200,
+        message: 'No shared drives available',
+        drivesCount: 0
+      });
+    }
+    
+    // Test listing files in the first shared drive
+    const firstDrive = drives[0];
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("corpora", "drive");
+    url.searchParams.set("driveId", firstDrive.id);
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("fields", "files(id,name)");
+    url.searchParams.set("pageSize", "10");
+
+    console.log('🤝 DIAG: Shared drive files URL:', url.toString());
+
+    const filesResponse = await fetch(url.toString(), {
+      headers: { 
+        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!filesResponse.ok) {
+      console.log('❌ DIAG: Shared drive files failed with status:', filesResponse.status);
+      return safeJson(filesResponse.status, {
+        status: filesResponse.status,
+        error: 'SHARED_DRIVE_FILES_ERROR',
+        drive: firstDrive
+      });
+    }
+
+    const filesData = await filesResponse.json();
+    const files = filesData.files || [];
+    
+    console.log('✅ DIAG: Shared drive listing successful - files found:', files.length);
+    
+    return safeJson(200, {
+      status: 200,
+      drive: { id: firstDrive.id, name: firstDrive.name },
+      filesCount: files.length,
+      firstItems: files.slice(0, 5),
+      echo: {
+        corpora: "drive",
+        driveId: firstDrive.id
+      }
+    });
+    
+  } catch (e: any) {
+    console.error('❌ DIAG: Shared drives error:', { msg: e?.message, code: e?.code });
+    return safeJson(500, { 
+      status: 500,
+      error: 'INTERNAL_ERROR', 
+      note: 'check function logs' 
+    });
+  }
+}
 
 async function handleTokenInfo(userId: string) {
   console.log('🔍 Checking tokeninfo for user:', userId);

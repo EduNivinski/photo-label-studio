@@ -444,6 +444,147 @@ export function useGoogleDrive() {
     }
   }, [diagnoseScopes, diagnoseListing, toast]);
 
+  const diagScopes = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('🔍 DIAG: Checking scopes via /diag endpoint...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/diag?type=scopes', {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('🔍 DIAG: Scopes result:', response);
+
+      if (response.error) {
+        console.error('❌ DIAG: Scopes error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to check scopes'
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data
+      };
+
+    } catch (error) {
+      console.error('💥 DIAG: Scopes error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
+  const diagListRoot = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('📋 DIAG: Testing root listing...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/list-root', {
+        method: 'POST',
+        headers,
+      });
+
+      console.log('📋 DIAG: Root listing result:', response);
+
+      if (response.error) {
+        console.error('❌ DIAG: Root listing error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to list root'
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data
+      };
+
+    } catch (error) {
+      console.error('💥 DIAG: Root listing error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
+  const diagListFolder = useCallback(async (folderId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('📁 DIAG: Testing folder listing...', folderId);
+      
+      const response = await supabase.functions.invoke('google-drive-api/list-folder', {
+        method: 'POST',
+        headers,
+        body: { folderId }
+      });
+
+      console.log('📁 DIAG: Folder listing result:', response);
+
+      if (response.error) {
+        console.error('❌ DIAG: Folder listing error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to list folder'
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data
+      };
+
+    } catch (error) {
+      console.error('💥 DIAG: Folder listing error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
+  const diagListSharedDrive = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('🤝 DIAG: Testing shared drives...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/list-shared-drive', {
+        method: 'POST',
+        headers,
+      });
+
+      console.log('🤝 DIAG: Shared drives result:', response);
+
+      if (response.error) {
+        console.error('❌ DIAG: Shared drives error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to list shared drives'
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data
+      };
+
+    } catch (error) {
+      console.error('💥 DIAG: Shared drives error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
   const listFolders = useCallback(async (folderId?: string, includeSharedDrives: boolean = false): Promise<{ folders: GoogleDriveFolder[]; sharedDrives: any[] }> => {
     try {
       console.log('🚀 Starting to fetch folders...', { folderId, includeSharedDrives });
@@ -815,5 +956,10 @@ export function useGoogleDrive() {
     diagnoseScopes,
     diagnoseListing,
     checkTokenInfo,
+    // New diagnostic endpoints
+    diagScopes,
+    diagListRoot,
+    diagListFolder,
+    diagListSharedDrive,
   };
 }
