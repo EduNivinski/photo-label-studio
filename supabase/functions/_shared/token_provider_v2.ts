@@ -29,36 +29,40 @@ async function generateKey(): Promise<CryptoKey> {
   );
 }
 
-async function encryptToken(token: string): Promise<{ encrypted: string; nonce: string }> {
+// Concatenated IV+ciphertext format (compatible with current schema)
+async function encryptToken(token: string): Promise<string> {
   const key = await generateKey();
-  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(token);
 
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
+    { name: "AES-GCM", iv },
     key,
     encoded
   );
 
-  return {
-    encrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
-    nonce: btoa(String.fromCharCode(...nonce))
-  };
+  // Concatenate IV + ciphertext and encode as base64
+  const combined = new Uint8Array(iv.length + encrypted.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(encrypted), iv.length);
+  
+  return btoa(String.fromCharCode(...combined));
 }
 
-async function decryptToken(encryptedToken: string, nonce: string): Promise<string> {
+async function decryptToken(encryptedData: string): Promise<string> {
   const key = await generateKey();
-  const nonceArray = new Uint8Array(
-    atob(nonce).split('').map(char => char.charCodeAt(0))
-  );
-  const encryptedArray = new Uint8Array(
-    atob(encryptedToken).split('').map(char => char.charCodeAt(0))
+  const combined = new Uint8Array(
+    atob(encryptedData).split('').map(char => char.charCodeAt(0))
   );
 
+  // Extract IV (first 12 bytes) and ciphertext (rest)
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: nonceArray },
+    { name: "AES-GCM", iv },
     key,
-    encryptedArray
+    ciphertext
   );
 
   return new TextDecoder().decode(decrypted);
@@ -77,16 +81,15 @@ export async function upsertTokens(
   try {
     const encryptedAccess = await encryptToken(accessToken);
     const encryptedRefresh = await encryptToken(refreshToken);
+    const scopeString = scope.join(' '); // Convert array to space-separated string
 
     const { error } = await supabase
       .from('private.user_drive_tokens')
       .upsert({
         user_id: userId,
-        encrypted_access_token: encryptedAccess.encrypted,
-        encrypted_refresh_token: encryptedRefresh.encrypted,
-        access_token_nonce: encryptedAccess.nonce,
-        refresh_token_nonce: encryptedRefresh.nonce,
-        scope,
+        access_token_enc: encryptedAccess,
+        refresh_token_enc: encryptedRefresh,
+        scope: scopeString,
         expires_at: expiresAt.toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -127,8 +130,9 @@ export async function getTokens(userId: string): Promise<{
       throw new Error(`Database error: ${error.message}`);
     }
 
-    const accessToken = await decryptToken(data.encrypted_access_token, data.access_token_nonce);
-    const refreshToken = await decryptToken(data.encrypted_refresh_token, data.refresh_token_nonce);
+    const accessToken = await decryptToken(data.access_token_enc);
+    const refreshToken = await decryptToken(data.refresh_token_enc);
+    const scopeArray = data.scope ? data.scope.split(/\s+/).filter(Boolean) : [];
 
     console.log("✅ Tokens retrieved and decrypted successfully");
     
@@ -136,7 +140,7 @@ export async function getTokens(userId: string): Promise<{
       accessToken,
       refreshToken,
       expiresAt: new Date(data.expires_at),
-      scope: data.scope || []
+      scope: scopeArray
     };
   } catch (error) {
     console.error("❌ Error in getTokens:", error);

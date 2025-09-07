@@ -64,7 +64,7 @@ serve(async (req) => {
 
     // Calculate expiration time
     const expiresAt = new Date(Date.now() + expires_in * 1000);
-    const scopeArray = scope ? scope.split(' ') : [];
+    const scopeArray = scope ? scope.split(/\s+/).filter(Boolean) : [];
 
     // Store encrypted tokens using new provider
     await upsertTokens(user_id, access_token, refresh_token, scopeArray, expiresAt);
