@@ -53,6 +53,34 @@ serve(async (req) => {
     // Test tokeninfo to get current scopes
     const resp = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
     
+    if (resp.status === 401) {
+      // Force refresh and retry once
+      console.log("401 - attempting refresh and retry...");
+      try {
+        const freshToken = await ensureAccessToken(user.id);
+        const retryResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${freshToken}`);
+        
+        if (!retryResp.ok) {
+          console.error("Retry tokeninfo failed:", retryResp.status, await retryResp.text());
+          return json(retryResp.status, { 
+            error: "INVALID_TOKEN_AFTER_REFRESH", 
+            status: retryResp.status 
+          });
+        }
+        
+        const retryInfo = await retryResp.json();
+        return json(200, {
+          status: "OK",
+          scopes: retryInfo.scope ? retryInfo.scope.split(" ") : [],
+          expires_in: retryInfo.expires_in || "unknown",
+          audience: retryInfo.aud || "unknown",
+          retried: true
+        });
+      } catch (refreshError) {
+        return json(401, { error: "REFRESH_FAILED", message: refreshError.message });
+      }
+    }
+    
     if (!resp.ok) {
       console.error("Tokeninfo failed:", resp.status, await resp.text());
       return json(401, { error: "INVALID_TOKEN", status: resp.status });
