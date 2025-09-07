@@ -307,16 +307,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      debug_google_drive_tokens: {
-        Args: { p_user_id: string }
-        Returns: {
-          access_preview: string
-          expires_at: string
-          refresh_preview: string
-          vault_access_exists: boolean
-          vault_refresh_exists: boolean
-        }[]
-      }
       gd_token_debug_insert: {
         Args: {
           p_err: string
