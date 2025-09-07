@@ -386,6 +386,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      sanitize_sensitive_data: {
+        Args: { p_input: string }
+        Returns: string
+      }
       store_google_drive_tokens_secure: {
         Args: {
           p_access_token: string
@@ -396,9 +400,27 @@ export type Database = {
         }
         Returns: undefined
       }
+      store_google_drive_tokens_simple: {
+        Args: {
+          p_access_token_secret_id: string
+          p_expires_at: string
+          p_refresh_token_secret_id: string
+          p_scopes: string[]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       validate_google_drive_access: {
         Args: { p_user_id: string }
         Returns: boolean
+      }
+      verify_security_integrity: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_name: string
+          details: string
+          status: string
+        }[]
       }
       verify_token_security: {
         Args: Record<PropertyKey, never>
