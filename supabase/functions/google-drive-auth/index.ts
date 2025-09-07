@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.52.1';
+import { upsertTokens, getTokens, refreshAccessToken, deleteTokens } from "../_shared/token_provider_v2.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -213,45 +214,10 @@ async function handleCallback(req: Request) {
     try {
       console.log('Attempting to store tokens for user:', state);
       
-      // Store tokens using secure encrypted storage
-      const { error: storeError } = await supabase
-        .rpc('store_google_drive_tokens_secure', {
-          p_user_id: state,
-          p_access_token: tokens.access_token,
-          p_refresh_token: tokens.refresh_token,
-          p_expires_at: expiresAt.toISOString(),
-          p_scopes: tokens.scope ? tokens.scope.split(' ') : ['https://www.googleapis.com/auth/drive.readonly']
-        });
+      // Store tokens using secure encrypted storage  
+      const scopeArray = tokens.scope ? tokens.scope.split(/\s+/).filter(Boolean) : ['https://www.googleapis.com/auth/drive.readonly'];
+      await upsertTokens(state, tokens.access_token, tokens.refresh_token, scopeArray, expiresAt);
         
-      if (storeError) {
-        console.error('Failed to store tokens:', storeError);
-        console.error('Database error details:', JSON.stringify(storeError, null, 2));
-        
-        return new Response(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Connection Failed</title>
-          </head>
-          <body>
-            <h1>Google Drive Connection Failed</h1>
-            <p>There was an error storing your Google Drive credentials securely.</p>
-            <p><strong>Error:</strong> ${storeError.message || 'Unknown error'}</p>
-            <p><strong>Code:</strong> ${storeError.code || 'N/A'}</p>
-            <p>Please try connecting again. If the problem persists, contact support.</p>
-            <script>
-              setTimeout(() => {
-                window.close();
-              }, 5000);
-            </script>
-          </body>
-          </html>
-        `, {
-          headers: { 'Content-Type': 'text/html' },
-          status: 500
-        });
-      }
-      
       console.log('Tokens stored successfully for user:', state);
       
     } catch (error) {
@@ -345,14 +311,13 @@ async function handleRefresh(req: Request) {
 
   try {
     // Get current tokens from secure storage
-    const { data: tokensData, error: tokensError } = await supabase
-      .rpc('get_google_drive_tokens_secure', { p_user_id: user.id });
+    const tokenData = await getTokens(user.id);
     
-    if (tokensError || !tokensData || tokensData.length === 0) {
+    if (!tokenData) {
       await logSecurityEvent({
         event_type: 'GOOGLE_DRIVE_REFRESH_NO_TOKENS',
         user_id: user.id,
-        metadata: { error: tokensError?.message || 'No tokens found' }
+        metadata: { error: 'No tokens found' }
       });
       
       return new Response(JSON.stringify({
@@ -364,63 +329,18 @@ async function handleRefresh(req: Request) {
       });
     }
     
-    const tokenData = tokensData[0];
-    const refreshToken = tokenData.refresh_token;
-    
-    // Use refresh token to get new access token
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: googleClientId,
-        client_secret: googleClientSecret
-      })
-    });
-    
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      await logSecurityEvent({
-        event_type: 'GOOGLE_DRIVE_REFRESH_FAILED',
-        user_id: user.id,
-        metadata: { status: tokenResponse.status, error: errorData }
-      });
-      
-      return new Response(JSON.stringify({
-        error: 'Token refresh failed',
-        message: 'Please reconnect your Google Drive account for updated permissions.'
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-    
-    const tokens = await tokenResponse.json();
-    const newExpiresAt = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString();
-    
-    // Store the new access token (keep existing refresh token if not provided)
-    const finalRefreshToken = tokens.refresh_token || refreshToken;
-    const scopes = tokens.scope ? tokens.scope.split(' ') : [];
-    
-    await supabase.rpc('store_google_drive_tokens_secure', {
-      p_user_id: user.id,
-      p_access_token: tokens.access_token,
-      p_refresh_token: finalRefreshToken,
-      p_expires_at: newExpiresAt,
-      p_scopes: scopes
-    });
+    // Use our built-in refresh mechanism
+    const newAccessToken = await refreshAccessToken(user.id);
     
     await logSecurityEvent({
       event_type: 'GOOGLE_DRIVE_TOKEN_REFRESHED',
       user_id: user.id,
-      metadata: { expires_at: newExpiresAt, scopes: scopes }
+      metadata: { scopes: tokenData.scope }
     });
     
     return new Response(JSON.stringify({
       success: true,
-      expires_at: newExpiresAt,
-      scopes: scopes
+      message: 'Token refreshed successfully'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -463,49 +383,11 @@ async function handleDisconnect(req: Request) {
   }
 
   try {
-    // Complete reset: Delete Google Drive tokens from database
-    const { error: deleteError } = await supabase
-      .from('google_drive_tokens')       
-      .delete()
-      .eq('user_id', user.id);
+    // Complete reset: Delete Google Drive tokens from new encrypted storage
+    await deleteTokens(user.id);
 
-    if (deleteError) {
-      console.error('Error deleting tokens:', deleteError);
-      await logSecurityEvent({
-        event_type: 'GOOGLE_DRIVE_DISCONNECT_ERROR',
-        user_id: user.id,
-        metadata: { error: deleteError.message }
-      });
-      
-      return new Response(JSON.stringify({
-        error: 'Failed to disconnect Google Drive',
-        details: deleteError.message
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Clean up encrypted secrets from vault
-    try {
-      const accessName = `gd_access_${user.id}`;
-      const refreshName = `gd_refresh_${user.id}`;
-      
-      // Rotate secrets to empty values (secure deletion)
-      await supabase.rpc('vault.create_secret', {
-        secret: '',
-        name: accessName,
-        description: 'Rotated to empty on disconnect'
-      });
-      
-      await supabase.rpc('vault.create_secret', {
-        secret: '',
-        name: refreshName,  
-        description: 'Rotated to empty on disconnect'
-      });
-    } catch (vaultError) {
-      console.error('Vault cleanup error (non-critical):', vaultError);
-    }
+    // Clean up is handled by deleteTokens function
+    console.log('✅ Tokens deleted successfully');
 
     // Clear any sync state (if we had it)
     // This would reset start_page_token, etc. for clean reconnect
@@ -566,41 +448,34 @@ async function handleStatus(req: Request) {
   try {
     console.log('Checking connection status for user:', user.id);
     
-    // Use the new secure RPC function to get connection status
-    const { data: connectionInfo, error: connectionError } = await supabase.rpc('get_google_drive_connection_status', {
-      p_user_id: user.id
-    });
-
-    if (connectionError) {
-      console.error('Connection status error:', connectionError);
-      console.error('Connection error details:', JSON.stringify(connectionError, null, 2));
+    // Check if user has tokens stored  
+    const tokenData = await getTokens(user.id);
+    const hasConnection = !!tokenData;
+    
+    if (!hasConnection) {
       return Response.json({
-        error: connectionError,
-        data: null,
-        response: {}
-      }, { 
-        status: 500,
-        headers: corsHeaders 
+        hasConnection: false,
+        isExpired: false,
+        dedicatedFolderId: null,
+        dedicatedFolderName: null
+      }, {
+        headers: corsHeaders
       });
     }
-
-    const hasConnection = connectionInfo && connectionInfo.length > 0;
-    const connectionData = hasConnection ? connectionInfo[0] : null;
-
+    
+    const isExpired = tokenData.expiresAt.getTime() < Date.now();
+    
     console.log('Status check result:', {
       hasConnection,
-      isExpired: connectionData?.is_expired || false,
-      dedicatedFolder: connectionData ? {
-        id: connectionData.dedicated_folder_id,
-        name: connectionData.dedicated_folder_name
-      } : null
+      isExpired,
+      expiresAt: tokenData.expiresAt.toISOString()
     });
 
     return Response.json({
       hasConnection,
-      isExpired: connectionData?.is_expired || false,
-      dedicatedFolderId: connectionData?.dedicated_folder_id || null,
-      dedicatedFolderName: connectionData?.dedicated_folder_name || null
+      isExpired,
+      dedicatedFolderId: null, // Not used in v2 system
+      dedicatedFolderName: null // Not used in v2 system  
     }, {
       headers: corsHeaders
     });
@@ -641,51 +516,11 @@ async function handleResetIntegration(req: Request) {
   try {
     console.log('🔄 Resetting Google Drive integration for user:', user.id);
 
-    // 1. Remove metadata from google_drive_tokens
-    const { error: deleteError } = await supabase
-      .from('google_drive_tokens')
-      .delete()
-      .eq('user_id', user.id);
+    // 1. Remove encrypted tokens
+    await deleteTokens(user.id);
 
-    if (deleteError) {
-      console.error('❌ Error deleting tokens metadata:', deleteError);
-      await logSecurityEvent({
-        event_type: 'GOOGLE_DRIVE_RESET_ERROR',
-        user_id: user.id,
-        metadata: { error: deleteError.message, step: 'delete_metadata' }
-      });
-      
-      return new Response(JSON.stringify({
-        error: 'Failed to reset integration',
-        details: deleteError.message
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // 2. Rotate vault secrets to empty values
-    try {
-      const accessName = `gd_access_${user.id}`;
-      const refreshName = `gd_refresh_${user.id}`;
-      
-      // Rotate secrets to empty (secure cleanup)
-      await supabase.rpc('vault.create_secret', {
-        secret: '',
-        name: accessName,
-        description: 'Rotated empty on integration reset'
-      });
-      
-      await supabase.rpc('vault.create_secret', {
-        secret: '',
-        name: refreshName,
-        description: 'Rotated empty on integration reset'
-      });
-      
-      console.log('✅ Vault secrets rotated to empty');
-    } catch (vaultError) {
-      console.error('⚠️ Vault cleanup warning (non-critical):', vaultError);
-    }
+    // 2. Cleanup is handled by deleteTokens function
+    console.log('✅ Tokens and metadata cleared');
 
     // 3. Clear sync state (if we had drive_sync_state table)
     // This would reset start_page_token, last_synced_at, etc.
