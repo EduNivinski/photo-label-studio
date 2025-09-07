@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw } from 'lucide-react';
 import { useGoogleDrive } from '@/hooks/useGoogleDrive';
-import { GoogleDriveFolderSelector } from './GoogleDriveFolderSelector';
+import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 
 export function GoogleDriveIntegration() {
