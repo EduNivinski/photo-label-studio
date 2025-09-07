@@ -33,7 +33,16 @@ const parseFolderId = async (req: Request) => {
 };
 
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return json(204, {});
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, content-type, x-user-id",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+      }
+    });
+  }
   
   try {
     const user_id = await parseUserId(req);
