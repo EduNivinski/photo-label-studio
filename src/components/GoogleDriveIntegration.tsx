@@ -9,7 +9,7 @@ import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 import { useToast } from '@/hooks/use-toast';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -210,6 +210,41 @@ export function GoogleDriveIntegration() {
                     >
                       <Settings className="h-4 w-4" />
                       Diagnóstico Completo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const result = await checkTokenInfo();
+                        if (result.success) {
+                          const hasRequired = result.data?.hasRequiredScopes;
+                          const scopes = result.data?.scopes || [];
+                          const expiresIn = result.data?.expires_in;
+                          
+                          toast({
+                            title: hasRequired ? '✅ Escopos Corretos' : '❌ Escopos Insuficientes',
+                            description: `${hasRequired ? 'Permissões OK' : 'Faltam permissões'}: ${scopes.join(', ')}${expiresIn ? ` (expira em ${Math.floor(expiresIn/3600)}h)` : ''}`,
+                            variant: hasRequired ? 'default' : 'destructive'
+                          });
+                          
+                          console.log('🔍 Scope Sanity Check:', {
+                            scopes: scopes,
+                            expires_in: expiresIn,
+                            hasRequired: hasRequired,
+                            required: result.data?.requiredScopes
+                          });
+                        } else {
+                          toast({
+                            title: '❌ Erro no Token Info',
+                            description: result.error || 'Falha ao verificar escopos',
+                            variant: 'destructive'
+                          });
+                        }
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Settings className="h-4 w-4" />
+                      Verificar Escopos (TokenInfo)
                     </Button>
                     <Button
                       variant="outline"

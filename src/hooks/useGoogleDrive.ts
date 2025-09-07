@@ -756,6 +756,48 @@ export function useGoogleDrive() {
     checkStatus();
   }, [checkStatus]);
 
+  const checkTokenInfo = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      
+      console.log('🔍 Checking tokeninfo (scope sanity check)...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/tokeninfo', {
+        method: 'GET',
+        headers,
+      });
+
+      console.log('🔍 TokenInfo result:', response);
+
+      if (response.error) {
+        console.error('❌ TokenInfo error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to check token info'
+        };
+      }
+
+      const data = response.data;
+      return {
+        success: true,
+        data: {
+          status: data.status,
+          scopes: data.scopes,
+          expires_in: data.expires_in,
+          hasRequiredScopes: data.hasRequiredScopes,
+          requiredScopes: data.requiredScopes
+        }
+      };
+
+    } catch (error) {
+      console.error('💥 TokenInfo error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, [getAuthHeaders]);
+
   return {
     status,
     loading: loading || isValidating,
@@ -772,5 +814,6 @@ export function useGoogleDrive() {
     runDiagnostics: runFullDiagnostics,
     diagnoseScopes,
     diagnoseListing,
+    checkTokenInfo,
   };
 }

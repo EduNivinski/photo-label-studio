@@ -264,6 +264,10 @@ serve(async (req) => {
       return await handleDiagnoseListing(user.id);
     }
 
+    if (path === 'tokeninfo') {
+      return await handleTokenInfo(user.id);
+    }
+
     console.log('❌ Unknown path:', path);
     return new Response(JSON.stringify({ error: 'Not found' }), { 
       status: 404, 
@@ -278,6 +282,76 @@ serve(async (req) => {
     });
   }
 });
+
+async function handleTokenInfo(userId: string) {
+  console.log('🔍 Checking tokeninfo for user:', userId);
+  
+  try {
+    const { data: tokens, error: tokensError } = await supabase
+      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
+      
+    if (tokensError || !tokens || tokens.length === 0) {
+      console.log('❌ No tokens found for user:', userId);
+      return safeJson(400, {
+        ok: false,
+        error: 'NO_TOKENS',
+        details: tokensError?.message || 'No Google Drive connection found'
+      });
+    }
+
+    const tokenData = tokens[0];
+    
+    // Check token expiration
+    const isExpired = new Date(tokenData.expires_at) < new Date();
+    if (isExpired) {
+      console.log('❌ Token expired for user:', userId);
+      return safeJson(401, {
+        ok: false,
+        error: 'TOKEN_EXPIRED',
+        details: 'Token has expired, please reconnect'
+      });
+    }
+    
+    // Call tokeninfo endpoint
+    console.log('🔍 Calling Google tokeninfo endpoint');
+    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
+    
+    const result = {
+      ok: tokenInfoResponse.ok,
+      status: tokenInfoResponse.status,
+      scopes: [],
+      expires_in: null,
+      hasRequiredScopes: false,
+      requiredScopes: [
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
+        'https://www.googleapis.com/auth/drive.file'
+      ]
+    };
+
+    if (tokenInfoResponse.ok) {
+      const tokenInfo = await tokenInfoResponse.json();
+      result.scopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : [];
+      result.expires_in = tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null;
+      result.hasRequiredScopes = result.requiredScopes.every(scope => result.scopes.includes(scope));
+      
+      console.log('✅ TokenInfo retrieved successfully');
+      console.log('📋 Scopes found:', result.scopes.length);
+      console.log('✅ Has required scopes:', result.hasRequiredScopes);
+    } else {
+      console.log('❌ TokenInfo failed with status:', tokenInfoResponse.status);
+    }
+    
+    return safeJson(200, result);
+    
+  } catch (e: any) {
+    console.error('❌ TokenInfo error:', { msg: e?.message, code: e?.code, name: e?.name });
+    return safeJson(500, { 
+      ok: false, 
+      error: 'INTERNAL_ERROR', 
+      note: 'check function logs' 
+    });
+  }
+}
 
 async function handleDiagnostics(userId: string) {
   console.log('🔧 Running Google Drive diagnostics for user:', userId);
