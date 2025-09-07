@@ -77,6 +77,9 @@ serve(async (req) => {
 
       let tokenData = tokens[0];
       console.log('✅ Tokens retrieved, expires at:', tokenData.expires_at);
+      console.log('🔍 Access token length:', tokenData.access_token?.length || 0);
+      console.log('🔍 Access token starts with:', tokenData.access_token?.substring(0, 10) || 'NULL');
+      console.log('🔍 Refresh token length:', tokenData.refresh_token?.length || 0);
 
       // Check token expiration and attempt refresh if needed
       const expiresAt = new Date(tokenData.expires_at);
@@ -157,6 +160,9 @@ serve(async (req) => {
           params.set('pageToken', nextPageToken);
         }
 
+        console.log('🔍 About to call Google Drive API with token length:', tokenData.access_token?.length);
+        console.log('🔍 Token starts with:', tokenData.access_token?.substring(0, 15));
+        
         const driveResponse = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
           headers: {
             'Authorization': `Bearer ${tokenData.access_token}`,
