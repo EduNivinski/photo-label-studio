@@ -25,7 +25,7 @@ serve(async (req) => {
     const { user_id } = (await req.json().catch(() => ({}))) as { user_id?: string };
     if (!user_id) {
       console.log('❌ DIAG LIST ROOT: Missing user_id');
-      return json(400, { error: "MISSING_USER_ID" });
+      return json(400, { status: 400, reason: "MISSING_USER_ID" });
     }
 
     console.log('📋 DIAG LIST ROOT: Checking for user:', user_id);
@@ -40,12 +40,12 @@ serve(async (req) => {
     
     if (error) {
       console.error('❌ DIAG LIST ROOT: RPC error:', error);
-      return json(500, { error: "RPC_ERROR", details: error.message });
+      return json(500, { status: 500, reason: "RPC_ERROR", details: error.message });
     }
 
     if (!data || data.length === 0) {
       console.log('❌ DIAG LIST ROOT: No tokens found');
-      return json(404, { error: "NO_TOKENS_FOUND" });
+      return json(400, { status: 400, reason: "NO_TOKENS_FOUND" });
     }
 
     const tokenData = data[0];
@@ -53,7 +53,7 @@ serve(async (req) => {
     
     if (!access_token) {
       console.log('❌ DIAG LIST ROOT: No access token');
-      return json(404, { error: "NO_ACCESS_TOKEN" });
+      return json(400, { status: 400, reason: "NO_ACCESS_TOKEN" });
     }
 
     // files.list — Meu Drive raiz
@@ -81,7 +81,7 @@ serve(async (req) => {
       console.error('❌ DIAG LIST ROOT: 401 Unauthorized - token may be expired');
       return json(401, { 
         status: 401, 
-        error: "UNAUTHORIZED",
+        reason: "UNAUTHORIZED_AFTER_REFRESH",
         message: "Token expired or invalid - reconnection required"
       });
     }
@@ -90,8 +90,16 @@ serve(async (req) => {
       console.error('❌ DIAG LIST ROOT: 403 Insufficient permissions');
       return json(403, {
         status: 403,
-        error: "INSUFFICIENT_PERMISSIONS", 
+        reason: "INSUFFICIENT_PERMISSIONS", 
+        action: "RECONNECT_WITH_CONSENT",
         message: "Missing required Drive scopes - reconnect with consent"
+      });
+    }
+
+    if (!resp.ok) {
+      return json(resp.status, { 
+        status: resp.status, 
+        reason: "GOOGLE_API_ERROR" 
       });
     }
 
@@ -99,8 +107,8 @@ serve(async (req) => {
     
     console.log('✅ DIAG LIST ROOT: Complete - folders found:', body?.files?.length || 0);
     
-    return json(resp.status, {
-      status: resp.status,
+    return json(200, {
+      status: 200,
       filesCount: body?.files?.length ?? 0,
       firstItems: (body?.files ?? []).slice(0, 5),
       query: "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false",
@@ -113,6 +121,6 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("❌ DIAG LIST ROOT: Unexpected error", { msg: e?.message, name: e?.name });
-    return json(500, { error: "INTERNAL_ERROR", note: "check function logs" });
+    return json(500, { status: 500, reason: "INTERNAL_ERROR", note: "check function logs" });
   }
 });

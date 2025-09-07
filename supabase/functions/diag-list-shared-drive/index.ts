@@ -25,7 +25,7 @@ serve(async (req) => {
     const { user_id } = (await req.json().catch(() => ({}))) as { user_id?: string };
     if (!user_id) {
       console.log('❌ DIAG LIST SHARED: Missing user_id');
-      return json(400, { error: "MISSING_USER_ID" });
+      return json(400, { status: 400, reason: "MISSING_USER_ID" });
     }
 
     console.log('🤝 DIAG LIST SHARED: Checking for user:', user_id);
@@ -40,12 +40,12 @@ serve(async (req) => {
     
     if (error) {
       console.error('❌ DIAG LIST SHARED: RPC error:', error);
-      return json(500, { error: "RPC_ERROR", details: error.message });
+      return json(500, { status: 500, reason: "RPC_ERROR", details: error.message });
     }
 
     if (!data || data.length === 0) {
       console.log('❌ DIAG LIST SHARED: No tokens found');
-      return json(404, { error: "NO_TOKENS_FOUND" });
+      return json(400, { status: 400, reason: "NO_TOKENS_FOUND" });
     }
 
     const tokenData = data[0];
@@ -53,7 +53,7 @@ serve(async (req) => {
     
     if (!access_token) {
       console.log('❌ DIAG LIST SHARED: No access token');
-      return json(404, { error: "NO_ACCESS_TOKEN" });
+      return json(400, { status: 400, reason: "NO_ACCESS_TOKEN" });
     }
 
     // First, get shared drives
@@ -71,7 +71,17 @@ serve(async (req) => {
       console.error('❌ DIAG LIST SHARED: 401 Unauthorized on drives');
       return json(401, { 
         status: 401, 
-        error: "UNAUTHORIZED",
+        reason: "UNAUTHORIZED_AFTER_REFRESH",
+        step: "drives_list"
+      });
+    }
+
+    if (drivesResponse.status === 403) {
+      console.error('❌ DIAG LIST SHARED: 403 Insufficient permissions on drives');
+      return json(403, {
+        status: 403,
+        reason: "INSUFFICIENT_PERMISSIONS",
+        action: "RECONNECT_WITH_CONSENT",
         step: "drives_list"
       });
     }
@@ -80,7 +90,8 @@ serve(async (req) => {
       console.error('❌ DIAG LIST SHARED: Drives API error:', drivesResponse.status);
       return json(drivesResponse.status, {
         status: drivesResponse.status,
-        error: "DRIVES_API_ERROR"
+        reason: "GOOGLE_API_ERROR",
+        step: "drives_list"
       });
     }
 
@@ -124,7 +135,7 @@ serve(async (req) => {
       console.error('❌ DIAG LIST SHARED: Files API error:', filesResponse.status);
       return json(filesResponse.status, {
         status: filesResponse.status,
-        error: "SHARED_DRIVE_FILES_ERROR",
+        reason: "SHARED_DRIVE_FILES_ERROR",
         drive: firstDrive
       });
     }
@@ -149,6 +160,6 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("❌ DIAG LIST SHARED: Unexpected error", { msg: e?.message, name: e?.name });
-    return json(500, { error: "INTERNAL_ERROR", note: "check function logs" });
+    return json(500, { status: 500, reason: "INTERNAL_ERROR", note: "check function logs" });
   }
 });

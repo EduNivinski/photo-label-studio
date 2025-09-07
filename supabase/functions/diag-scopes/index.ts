@@ -25,7 +25,7 @@ serve(async (req: Request) => {
     const { user_id } = (await req.json().catch(() => ({}))) as { user_id?: string };
     if (!user_id) {
       console.log('❌ DIAG SCOPES: Missing user_id');
-      return json(400, { error: "MISSING_USER_ID" });
+      return json(400, { status: 400, reason: "MISSING_USER_ID" });
     }
 
     console.log('🔍 DIAG SCOPES: Checking for user:', user_id);
@@ -41,12 +41,12 @@ serve(async (req: Request) => {
     
     if (error) {
       console.error('❌ DIAG SCOPES: RPC error:', error);
-      return json(500, { error: "RPC_ERROR", details: error.message });
+      return json(500, { status: 500, reason: "RPC_ERROR", details: error.message });
     }
     
     if (!data || data.length === 0) {
       console.log('❌ DIAG SCOPES: No tokens found');
-      return json(404, { error: "NO_TOKENS_FOUND" });
+      return json(400, { status: 400, reason: "NO_TOKENS_FOUND" });
     }
 
     const tokenData = data[0];
@@ -54,7 +54,7 @@ serve(async (req: Request) => {
     
     if (!access_token) {
       console.log('❌ DIAG SCOPES: No access token in result');
-      return json(404, { error: "NO_ACCESS_TOKEN" });
+      return json(400, { status: 400, reason: "NO_ACCESS_TOKEN" });
     }
 
     console.log('🔍 DIAG SCOPES: Calling Google tokeninfo endpoint');
@@ -63,6 +63,15 @@ serve(async (req: Request) => {
     );
 
     console.log('🔍 DIAG SCOPES: Google response status:', resp.status);
+    
+    if (resp.status === 401) {
+      return json(401, { status: 401, reason: "INVALID_TOKEN" });
+    }
+    
+    if (!resp.ok) {
+      return json(resp.status, { status: resp.status, reason: "GOOGLE_API_ERROR" });
+    }
+
     const body = await resp.json().catch(() => ({}));
 
     const scopes = body?.scope ? body.scope.split(' ') : [];
@@ -75,7 +84,7 @@ serve(async (req: Request) => {
     console.log('✅ DIAG SCOPES: Complete - scopes found:', scopes.length);
 
     return json(200, {
-      status: resp.status,
+      status: 200,
       scopes: body?.scope ?? null,
       expires_in: body?.expires_in ?? null,
       scopesList: scopes,
@@ -84,6 +93,6 @@ serve(async (req: Request) => {
     });
   } catch (e) {
     console.error("❌ DIAG SCOPES: Unexpected error", { msg: e?.message, name: e?.name });
-    return json(500, { error: "INTERNAL_ERROR", note: "check function logs" });
+    return json(500, { status: 500, reason: "INTERNAL_ERROR", note: "check function logs" });
   }
 });
