@@ -67,3 +67,18 @@ verify_jwt = false
 
 [functions.google-drive-api]
 verify_jwt = false
+
+[functions.diag-ping]
+verify_jwt = false
+
+[functions.diag-scopes]
+verify_jwt = false
+
+[functions.diag-list-root]
+verify_jwt = false
+
+[functions.diag-list-folder]
+verify_jwt = false
+
+[functions.diag-list-shared-drive]
+verify_jwt = false
