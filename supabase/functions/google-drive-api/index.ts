@@ -58,7 +58,7 @@ async function getAccessToken(userId: string): Promise<string | null> {
     });
 
     if (error) {
-      console.error('Error getting tokens:', error);
+      console.error('Error getting tokens from RPC:', error);
       console.error('Token error details:', JSON.stringify(error, null, 2));
       return null;
     }
@@ -70,6 +70,7 @@ async function getAccessToken(userId: string): Promise<string | null> {
 
     const tokenData = tokens[0];
     console.log('Token data retrieved, expires at:', tokenData.expires_at);
+    console.log('Access token first 10 chars:', tokenData.access_token?.substring(0, 10));
     
     // Check if token is expired (with 5 minute buffer)
     const expiresAt = new Date(tokenData.expires_at);
