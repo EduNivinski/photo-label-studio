@@ -56,41 +56,64 @@ export interface TokenData {
 }
 
 export async function getTokens(user_id: string): Promise<TokenData | null> {
+  console.log(`🔍 Getting tokens for user: ${user_id}`);
+  
   const { data, error } = await supabaseAdmin
     .from("google_drive_tokens")
     .select("access_token_secret_id, refresh_token_secret_id, scopes, expires_at")
     .eq("user_id", user_id)
     .maybeSingle();
 
-  if (error) throw new Error("DB_ERROR");
-  if (!data) return null;
-
-  // Get tokens from Vault using secret IDs
-  const accessSecretName = `gd_access_${user_id}`;
-  const refreshSecretName = `gd_refresh_${user_id}`;
-
-  const { data: accessSecret, error: accessError } = await supabaseAdmin
-    .from("vault.decrypted_secrets")
-    .select("decrypted_secret")
-    .eq("name", accessSecretName)
-    .maybeSingle();
-
-  const { data: refreshSecret, error: refreshError } = await supabaseAdmin
-    .from("vault.decrypted_secrets")
-    .select("decrypted_secret")
-    .eq("name", refreshSecretName)
-    .maybeSingle();
-
-  if (accessError || refreshError || !accessSecret || !refreshSecret) {
-    throw new Error("VAULT_ACCESS_ERROR");
+  if (error) {
+    console.error("DB error:", error);
+    throw new Error("DB_ERROR");
+  }
+  if (!data) {
+    console.log("No token record found for user");
+    return null;
   }
 
-  return {
-    access_token: accessSecret.decrypted_secret,
-    refresh_token: refreshSecret.decrypted_secret,
-    scope: data.scopes?.join(' ') || '',
-    expires_at: data.expires_at
-  };
+  console.log("Token metadata found. Secret IDs:", {
+    access: data.access_token_secret_id,
+    refresh: data.refresh_token_secret_id
+  });
+
+  // First, try to get the encrypted tokens directly from database if they're stored there
+  // If not, we'll need to use the existing encrypted functions with the secret IDs
+  
+  try {
+    // For now, let's see if the secret IDs are actually the encrypted tokens
+    if (typeof data.access_token_secret_id === 'string' && 
+        typeof data.refresh_token_secret_id === 'string' &&
+        data.access_token_secret_id.length > 50 && 
+        data.refresh_token_secret_id.length > 50) {
+      
+      console.log("Attempting to decrypt tokens stored as secret IDs...");
+      
+      const access_token = await decryptFromB64(data.access_token_secret_id);
+      const refresh_token = await decryptFromB64(data.refresh_token_secret_id);
+      
+      console.log("Tokens successfully decrypted!");
+      
+      return {
+        access_token,
+        refresh_token,
+        scope: data.scopes?.join(' ') || '',
+        expires_at: data.expires_at
+      };
+    } else {
+      console.error("Secret IDs don't appear to be encrypted tokens:", {
+        accessIdType: typeof data.access_token_secret_id,
+        accessIdLength: data.access_token_secret_id?.length,
+        refreshIdType: typeof data.refresh_token_secret_id,
+        refreshIdLength: data.refresh_token_secret_id?.length
+      });
+      throw new Error("INVALID_SECRET_FORMAT");
+    }
+  } catch (decryptError) {
+    console.error("Decryption failed:", decryptError);
+    throw new Error("DECRYPTION_FAILED");
+  }
 }
 
 export async function upsertTokens(
