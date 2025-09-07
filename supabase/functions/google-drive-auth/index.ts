@@ -208,15 +208,15 @@ async function handleCallback(req: Request) {
   console.log('User info retrieved:', userInfo.email);
   
   // Store tokens securely using the new encrypted system
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
   
   if (state) {
     try {
       console.log('Attempting to store tokens for user:', state);
       
       // Store tokens using secure encrypted storage  
-      const scopeArray = tokens.scope ? tokens.scope.split(/\s+/).filter(Boolean) : ['https://www.googleapis.com/auth/drive.readonly'];
-      await upsertTokens(state, tokens.access_token, tokens.refresh_token, scopeArray, expiresAt);
+      const scopeString = tokens.scope || 'https://www.googleapis.com/auth/drive.readonly';
+      await upsertTokens(state, tokens.access_token, tokens.refresh_token, scopeString, expiresAt);
         
       console.log('Tokens stored successfully for user:', state);
       
@@ -463,12 +463,12 @@ async function handleStatus(req: Request) {
       });
     }
     
-    const isExpired = tokenData.expiresAt.getTime() < Date.now();
+    const isExpired = new Date(tokenData.expires_at).getTime() < Date.now();
     
     console.log('Status check result:', {
       hasConnection,
       isExpired,
-      expiresAt: tokenData.expiresAt.toISOString()
+      expiresAt: tokenData.expires_at
     });
 
     return Response.json({

@@ -63,18 +63,18 @@ serve(async (req) => {
     }
 
     // Calculate expiration time
-    const expiresAt = new Date(Date.now() + expires_in * 1000);
-    const scopeArray = scope ? scope.split(/\s+/).filter(Boolean) : [];
+    const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+    const scopeString = scope || '';
 
     // Store encrypted tokens using new provider
-    await upsertTokens(user_id, access_token, refresh_token, scopeArray, expiresAt);
+    await upsertTokens(user_id, access_token, refresh_token, scopeString, expiresAt);
 
     console.log(`OAuth callback successful for user ${user_id} - tokens stored securely`);
 
     return new Response(JSON.stringify({ 
       success: true, 
       message: "Google Drive connected successfully",
-      expires_at: expiresAt.toISOString()
+      expires_at: expiresAt
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

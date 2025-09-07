@@ -1,71 +1,41 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabase = createClient(
+const admin = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-// AES-GCM encryption helpers
-async function generateKey(): Promise<CryptoKey> {
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(Deno.env.get("TOKEN_ENC_KEY")!),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  );
+// Optimized AES-GCM encryption with packed IV+ciphertext format
+const b64toU8 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+const u8toB64 = (u8: Uint8Array) => btoa(String.fromCharCode(...u8));
 
-  return await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt: new TextEncoder().encode("google_drive_tokens_salt"),
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
+let _key: CryptoKey | null = null;
+
+async function getKey(): Promise<CryptoKey> {
+  if (!_key) {
+    const keyRaw = b64toU8(Deno.env.get("TOKEN_ENC_KEY")!);
+    _key = await crypto.subtle.importKey("raw", keyRaw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  }
+  return _key;
 }
 
-// Concatenated IV+ciphertext format (compatible with current schema)
-async function encryptToken(token: string): Promise<string> {
-  const key = await generateKey();
+async function encryptPacked(plain: string): Promise<string> {
+  const key = await getKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(token);
-
-  const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    encoded
-  );
-
-  // Concatenate IV + ciphertext and encode as base64
-  const combined = new Uint8Array(iv.length + encrypted.byteLength);
-  combined.set(iv);
-  combined.set(new Uint8Array(encrypted), iv.length);
-  
-  return btoa(String.fromCharCode(...combined));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain)));
+  const out = new Uint8Array(iv.length + ct.length);
+  out.set(iv, 0);
+  out.set(ct, iv.length);
+  return u8toB64(out);
 }
 
-async function decryptToken(encryptedData: string): Promise<string> {
-  const key = await generateKey();
-  const combined = new Uint8Array(
-    atob(encryptedData).split('').map(char => char.charCodeAt(0))
-  );
-
-  // Extract IV (first 12 bytes) and ciphertext (rest)
-  const iv = combined.slice(0, 12);
-  const ciphertext = combined.slice(12);
-
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    ciphertext
-  );
-
-  return new TextDecoder().decode(decrypted);
+async function decryptPacked(encB64: string): Promise<string> {
+  const key = await getKey();
+  const buf = b64toU8(encB64);
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
 }
 
 // Main token management functions
@@ -73,25 +43,23 @@ export async function upsertTokens(
   userId: string,
   accessToken: string,
   refreshToken: string,
-  scope: string[],
-  expiresAt: Date
+  scope: string,
+  expiresAt: string
 ): Promise<void> {
   console.log(`🔒 Storing encrypted tokens for user: ${userId}`);
   
   try {
-    const encryptedAccess = await encryptToken(accessToken);
-    const encryptedRefresh = await encryptToken(refreshToken);
-    const scopeString = scope.join(' '); // Convert array to space-separated string
+    const access_token_enc = await encryptPacked(accessToken);
+    const refresh_token_enc = await encryptPacked(refreshToken);
 
-    const { error } = await supabase
-      .schema('private')
+    const { error } = await admin
       .from('user_drive_tokens')
       .upsert({
         user_id: userId,
-        access_token_enc: encryptedAccess,
-        refresh_token_enc: encryptedRefresh,
-        scope: scopeString,
-        expires_at: expiresAt.toISOString(),
+        access_token_enc,
+        refresh_token_enc,
+        scope,
+        expires_at: expiresAt,
         updated_at: new Date().toISOString()
       });
 
@@ -108,41 +76,40 @@ export async function upsertTokens(
 }
 
 export async function getTokens(userId: string): Promise<{
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: Date;
-  scope: string[];
+  access_token: string;
+  refresh_token: string;
+  scope: string;
+  expires_at: string;
 } | null> {
   console.log(`🔍 Retrieving tokens for user: ${userId}`);
 
   try {
-    const { data, error } = await supabase
-      .schema('private')
+    const { data, error } = await admin
       .from('user_drive_tokens')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        console.log("❌ No tokens found for user");
-        return null;
-      }
       console.error("❌ Database error retrieving tokens:", error);
-      throw new Error(`Database error: ${error.message}`);
+      throw new Error("DB_ERROR");
     }
 
-    const accessToken = await decryptToken(data.access_token_enc);
-    const refreshToken = await decryptToken(data.refresh_token_enc);
-    const scopeArray = data.scope ? data.scope.split(/\s+/).filter(Boolean) : [];
+    if (!data) {
+      console.log("ℹ️ No tokens found for user");
+      return null;
+    }
+
+    const access_token = await decryptPacked(data.access_token_enc);
+    const refresh_token = await decryptPacked(data.refresh_token_enc);
 
     console.log("✅ Tokens retrieved and decrypted successfully");
     
     return {
-      accessToken,
-      refreshToken,
-      expiresAt: new Date(data.expires_at),
-      scope: scopeArray
+      access_token,
+      refresh_token,
+      scope: data.scope as string,
+      expires_at: data.expires_at as string
     };
   } catch (error) {
     console.error("❌ Error in getTokens:", error);
@@ -174,7 +141,7 @@ export async function refreshAccessToken(userId: string): Promise<string> {
       body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
-        refresh_token: tokens.refreshToken,
+        refresh_token: tokens.refresh_token,
         grant_type: 'refresh_token',
       }),
     });
@@ -186,13 +153,13 @@ export async function refreshAccessToken(userId: string): Promise<string> {
     }
 
     const refreshData = await response.json();
-    const newExpiresAt = new Date(Date.now() + (refreshData.expires_in * 1000));
+    const newExpiresAt = new Date(Date.now() + (refreshData.expires_in * 1000)).toISOString();
 
     // Update stored tokens
     await upsertTokens(
       userId,
       refreshData.access_token,
-      tokens.refreshToken, // Keep existing refresh token unless new one provided
+      tokens.refresh_token, // Keep existing refresh token unless new one provided
       tokens.scope,
       newExpiresAt
     );
@@ -214,9 +181,10 @@ export async function ensureAccessToken(userId: string): Promise<string> {
       throw new Error("NO_ACCESS_TOKEN");
     }
 
-    // Check if token expires within 5 minutes
-    const expirationBuffer = 5 * 60 * 1000; // 5 minutes in milliseconds
-    const needsRefresh = tokens.expiresAt.getTime() - Date.now() < expirationBuffer;
+    // Check if token expires within 60 seconds
+    const expirationBuffer = 60 * 1000; // 60 seconds in milliseconds
+    const expiresAt = new Date(tokens.expires_at).getTime();
+    const needsRefresh = expiresAt - Date.now() < expirationBuffer;
 
     if (needsRefresh) {
       console.log("🔄 Token near expiration, refreshing...");
@@ -224,7 +192,7 @@ export async function ensureAccessToken(userId: string): Promise<string> {
     }
 
     console.log("✅ Current access token is still valid");
-    return tokens.accessToken;
+    return tokens.access_token;
   } catch (error) {
     console.error("❌ Error ensuring access token:", error);
     throw error;
@@ -235,15 +203,14 @@ export async function deleteTokens(userId: string): Promise<void> {
   console.log(`🗑️ Deleting tokens for user: ${userId}`);
 
   try {
-    const { error } = await supabase
-      .schema('private')
+    const { error } = await admin
       .from('user_drive_tokens')
       .delete()
       .eq('user_id', userId);
 
     if (error) {
       console.error("❌ Database error deleting tokens:", error);
-      throw new Error(`Database error: ${error.message}`);
+      throw new Error("DB_UPSERT_ERROR");
     }
 
     console.log("✅ Tokens deleted successfully");
