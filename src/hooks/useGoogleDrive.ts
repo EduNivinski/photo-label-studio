@@ -274,18 +274,24 @@ export function useGoogleDrive() {
   const listFolders = useCallback(async (): Promise<GoogleDriveFolder[]> => {
     try {
       const headers = await getAuthHeaders();
-      const response = await supabase.functions.invoke('google-drive-api', {
-        body: { action: 'listFolders' },
+      console.log('🚀 Calling google-drive-api/folders...');
+      
+      const response = await supabase.functions.invoke('google-drive-api/folders', {
         headers,
       });
 
+      console.log('📋 Folders response:', response);
+
       if (response.error) {
+        console.error('❌ Error response from folders API:', response.error);
         throw new Error(response.error.message);
       }
 
-      return response.data.folders || [];
+      const folders = response.data?.folders || [];
+      console.log('✅ Successfully retrieved folders:', folders.length);
+      return folders;
     } catch (error) {
-      console.error('Error listing folders:', error);
+      console.error('💥 Error listing folders:', error);
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -298,16 +304,20 @@ export function useGoogleDrive() {
   const setDedicatedFolder = useCallback(async (folderId: string, folderName: string) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await supabase.functions.invoke('google-drive-api', {
+      console.log('🔧 Setting dedicated folder:', { folderId, folderName });
+      
+      const response = await supabase.functions.invoke('google-drive-api/set-folder', {
         body: {
-          action: 'setDedicatedFolder',
           folderId,
           folderName,
         },
         headers,
       });
 
+      console.log('📁 Set folder response:', response);
+
       if (response.error) {
+        console.error('❌ Error setting folder:', response.error);
         throw new Error(response.error.message);
       }
 
@@ -321,7 +331,7 @@ export function useGoogleDrive() {
         description: `Pasta dedicada: ${folderName}`,
       });
     } catch (error) {
-      console.error('Error setting dedicated folder:', error);
+      console.error('💥 Error setting dedicated folder:', error);
       toast({
         variant: 'destructive',
         title: 'Erro',
