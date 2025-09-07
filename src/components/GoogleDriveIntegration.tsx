@@ -7,6 +7,7 @@ import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export function GoogleDriveIntegration() {
   const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing } = useGoogleDrive();
@@ -303,6 +304,39 @@ export function GoogleDriveIntegration() {
                       <div className="text-left">
                         <div className="font-medium">diag-list-shared-drive</div>
                         <div className="text-sm text-muted-foreground">Testar Shared Drives (se disponível)</div>
+                      </div>
+                    </div>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Teste de Conectividade */}
+              <div className="border rounded-lg p-4 bg-yellow-50/50">
+                <h4 className="font-medium mb-4">🧪 Teste de Conectividade</h4>
+                <div className="space-y-3">
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      console.log("🧪 TEST: Testando conectividade básica...");
+                      try {
+                        const { data, error } = await supabase.functions.invoke('test-ping');
+                        console.log("🧪 TEST PING JSON:", JSON.stringify(data, null, 2));
+                        if (error) {
+                          console.error("❌ TEST PING ERROR:", error);
+                        }
+                      } catch (err) {
+                        console.error("❌ TEST PING EXCEPTION:", err);
+                      }
+                    }}
+                    className="w-full justify-start"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 bg-yellow-500/10 rounded-full">
+                        <span className="text-sm font-medium">T</span>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium">test-ping</div>
+                        <div className="text-sm text-muted-foreground">Teste básico de conectividade</div>
                       </div>
                     </div>
                   </Button>
