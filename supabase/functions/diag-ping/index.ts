@@ -1,23 +1,23 @@
-// Deno + Supabase Edge Functions
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, content-type",
+      ...corsHeaders
     },
   });
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-};
-
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  
   try {
     // Verificar envs essenciais sem expor valores
     const hasUrl = !!Deno.env.get("SUPABASE_URL");

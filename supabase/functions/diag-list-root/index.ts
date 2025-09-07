@@ -1,20 +1,20 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 const json = (s: number, b: unknown) => 
   new Response(JSON.stringify(b), { 
     status: s, 
     headers: { 
       "Content-Type": "application/json", 
-      "Access-Control-Allow-Origin": "*", 
-      "Access-Control-Allow-Headers": "authorization, content-type" 
+      ...corsHeaders
     }
   });
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
