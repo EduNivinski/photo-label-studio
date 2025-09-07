@@ -137,7 +137,7 @@ async function handleAuthorize(req: Request) {
   
   authUrl.searchParams.set('client_id', googleClientId);
   authUrl.searchParams.set('redirect_uri', `${supabaseUrl}/functions/v1/google-drive-auth/callback`);
-  authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.file');
+  authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.readonly');
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'consent');
@@ -217,7 +217,7 @@ async function handleCallback(req: Request) {
           p_access_token: tokens.access_token,
           p_refresh_token: tokens.refresh_token,
           p_expires_at: expiresAt.toISOString(),
-          p_scopes: tokens.scope ? tokens.scope.split(' ') : ['https://www.googleapis.com/auth/drive.file']
+          p_scopes: tokens.scope ? tokens.scope.split(' ') : ['https://www.googleapis.com/auth/drive.readonly']
         });
         
       if (storeError) {

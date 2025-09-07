@@ -137,6 +137,21 @@ export function GoogleDriveIntegration() {
             </div>
           )}
 
+          {status.isConnected && !status.dedicatedFolder && !status.isExpired && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Settings className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-medium text-blue-800">Novas Permissões Necessárias</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Para acessar suas pastas do Google Drive, você precisa desconectar e reconectar 
+                    com as novas permissões de leitura das suas pastas.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {status.isConnected && (
             <div className="space-y-4">
               <div className="border-t pt-4">
