@@ -1,72 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// Crypto utilities
-const b64ToU8 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-
-let cryptoKey: CryptoKey | null = null;
-
-async function getCryptoKey() {
-  if (!cryptoKey) {
-    const encKey = Deno.env.get("TOKEN_ENC_KEY");
-    if (!encKey) {
-      throw new Error("TOKEN_ENC_KEY environment variable not set");
-    }
-    console.log("Initializing crypto key...");
-    const keyRaw = b64ToU8(encKey);
-    cryptoKey = await crypto.subtle.importKey("raw", keyRaw, { name: "AES-GCM" }, false, ["decrypt"]);
-  }
-  return cryptoKey;
-}
-
-async function decryptFromB64(b64: string) {
-  const key = await getCryptoKey();
-  const buf = b64ToU8(b64);
-  const iv = buf.slice(0, 12);
-  const ct = buf.slice(12);
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
-  return new TextDecoder().decode(pt);
-}
-
-// Token provider
-const supabaseAdmin = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
-
-async function getTokens(user_id: string) {
-  try {
-    console.log(`Getting tokens for user: ${user_id}`);
-    
-    const { data, error } = await supabaseAdmin
-      .from("private.user_drive_tokens")
-      .select("*")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Database error:", error);
-      throw new Error(`DB_ERROR: ${error.message}`);
-    }
-    
-    if (!data) {
-      console.log("No tokens found for user");
-      return null;
-    }
-
-    console.log("Found encrypted tokens, decrypting...");
-    
-    return {
-      access_token: await decryptFromB64(data.access_token_enc),
-      refresh_token: await decryptFromB64(data.refresh_token_enc),
-      scope: data.scope,
-      expires_at: data.expires_at
-    };
-  } catch (error: any) {
-    console.error("Error in getTokens:", error);
-    throw error;
-  }
-}
+import { ensureAccessToken } from "../_shared/token_provider.ts";
 
 // Utility functions
 const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
@@ -79,111 +13,117 @@ const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
   }
 });
 
-const ok = (b: unknown) => json(200, b);
-const bad = (r: string, extra: unknown = {}) => json(400, { status: 400, reason: r, ...extra });
-const fail = (r: string, extra: unknown = {}) => json(500, { status: 500, reason: r, ...extra });
+serve(async (req) => {
+  console.log("diag-list-shared-drive called");
 
-const parseUserId = async (req: Request) => {
-  const url = new URL(req.url);
-  const q = url.searchParams.get("user_id");
-  const h = req.headers.get("x-user-id") || undefined;
-  const body = await req.json().catch(() => ({} as any));
-  return (body.user_id || q || h) as string | undefined;
-};
-
-serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, content-type, x-user-id",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-      }
-    });
+    return json(200, {});
   }
-  
+
   try {
-    console.log("diag-list-shared-drive: Starting request processing");
-    
-    const user_id = await parseUserId(req);
-    console.log(`diag-list-shared-drive: Parsed user_id: ${user_id}`);
-    
-    if (!user_id) return bad("MISSING_USER_ID");
-
-    const tokens = await getTokens(user_id);
-    if (!tokens) {
-      console.log("diag-list-shared-drive: No tokens found for user");
-      return bad("NO_ACCESS_TOKEN");
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return json(401, { error: "MISSING_AUTH" });
     }
 
-    console.log("diag-list-shared-drive: Tokens retrieved, querying shared drives...");
+    const jwt = authHeader.replace("Bearer ", "");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!
+    );
 
-    // First, get shared drives
-    const drivesResponse = await fetch('https://www.googleapis.com/drive/v3/drives?pageSize=10&fields=drives(id,name)', {
-      headers: { 
-        Authorization: `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json'
-      }
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    if (userError || !user) {
+      console.error("Auth error:", userError);
+      return json(401, { error: "INVALID_JWT", details: userError });
+    }
+
+    console.log("User authenticated:", user.id);
+
+    // Get shared drive ID from query params
+    const url = new URL(req.url);
+    const driveId = url.searchParams.get("driveId");
+    
+    if (!driveId) {
+      return json(400, { error: "MISSING_DRIVE_ID" });
+    }
+
+    console.log("Listing shared drive:", driveId);
+
+    // Get access token with auto-refresh
+    let accessToken;
+    try {
+      accessToken = await ensureAccessToken(user.id);
+      console.log("Token obtained, length:", accessToken.length);
+    } catch (error) {
+      console.error("Token error:", error);
+      return json(401, { error: "NO_TOKENS", message: error.message });
+    }
+
+    // Build query for shared drive contents
+    const params = new URLSearchParams({
+      q: "trashed=false",
+      fields: "nextPageToken,files(id,name,mimeType,parents,modifiedTime,shortcutDetails)",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+      corpora: "drive",
+      driveId: driveId,
+      pageSize: "100",
     });
-    
-    if (drivesResponse.status === 401) {
-      return json(401, { status: 401, reason: "UNAUTHORIZED_NEEDS_REFRESH", step: "drives_list" });
-    }
-    if (drivesResponse.status === 403) {
-      const body = await drivesResponse.json().catch(() => ({}));
-      return json(403, { status: 403, reason: "INSUFFICIENT_PERMISSIONS", action: "RECONNECT_WITH_CONSENT", step: "drives_list", detail: body?.error?.message });
-    }
-    if (!drivesResponse.ok) {
-      return json(drivesResponse.status, { status: drivesResponse.status, reason: "GOOGLE_API_ERROR", step: "drives_list" });
-    }
 
-    const drivesData = await drivesResponse.json();
-    const drives = drivesData.drives || [];
-    
-    if (drives.length === 0) {
-      return ok({ status: 200, message: "No shared drives available", drivesCount: 0, firstDrive: null });
-    }
-    
-    // Test listing files in the first shared drive
-    const firstDrive = drives[0];
-    const filesUrl = new URL("https://www.googleapis.com/drive/v3/files");
-    filesUrl.searchParams.set("corpora", "drive");
-    filesUrl.searchParams.set("driveId", firstDrive.id);
-    filesUrl.searchParams.set("supportsAllDrives", "true");
-    filesUrl.searchParams.set("includeItemsFromAllDrives", "true");
-    filesUrl.searchParams.set("fields", "files(id,name,mimeType)");
-    filesUrl.searchParams.set("pageSize", "10");
+    console.log("API URL:", `https://www.googleapis.com/drive/v3/files?${params.toString()}`);
 
-    const filesResponse = await fetch(filesUrl.toString(), {
-      headers: { 
-        Authorization: `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json'
-      }
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
     });
-    
-    if (!filesResponse.ok) {
-      return json(filesResponse.status, { status: filesResponse.status, reason: "SHARED_DRIVE_FILES_ERROR", drive: firstDrive });
+
+    console.log("Response status:", resp.status);
+
+    if (resp.status === 401) {
+      // Force refresh and retry once
+      console.log("401 - attempting refresh and retry...");
+      try {
+        const freshToken = await ensureAccessToken(user.id);
+        const retryResp = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${freshToken}` }
+        });
+        
+        if (!retryResp.ok) {
+          return json(retryResp.status, { 
+            status: retryResp.status, 
+            reason: "UNAUTHORIZED_AFTER_REFRESH" 
+          });
+        }
+        
+        const retryData = await retryResp.json();
+        return json(200, {
+          status: "OK",
+          driveId: driveId,
+          items: retryData.files || [],
+          echo: { corpora: "drive", driveId: driveId },
+          retried: true
+        });
+      } catch (refreshError) {
+        return json(401, { error: "REFRESH_FAILED", message: refreshError.message });
+      }
     }
 
-    const filesData = await filesResponse.json();
-    const files = filesData.files || [];
-    
-    return ok({
-      status: 200,
-      drivesCount: drives.length,
-      drive: { id: firstDrive.id, name: firstDrive.name },
-      filesCount: files.length,
-      firstItems: files.slice(0, 5),
-      echo: {
-        corpora: "drive",
-        driveId: firstDrive.id,
-        supportsAllDrives: true,
-        includeItemsFromAllDrives: true
-      }
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error("API error:", errorText);
+      return json(resp.status, { status: resp.status, reason: errorText });
+    }
+
+    const data = await resp.json();
+    return json(200, {
+      status: "OK",
+      driveId: driveId,
+      items: data.files || [],
+      echo: { corpora: "drive", driveId: driveId }
     });
-  } catch (e: any) {
-    console.error("diag_list_shared INTERNAL_ERROR", e?.message, e?.stack);
-    return fail("INTERNAL_ERROR");
+
+  } catch (error: any) {
+    console.error("Error in diag-list-shared-drive:", error);
+    return json(500, { error: "INTERNAL_ERROR", message: error.message });
   }
 });

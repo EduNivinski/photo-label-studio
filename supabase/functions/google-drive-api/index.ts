@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import { ensureAccessToken } from "../_shared/token_provider.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,69 +64,17 @@ serve(async (req) => {
       console.log('📁 Folder ID:', folderId || 'root');
       console.log('🤝 Include Shared Drives:', includeSharedDrives);
       
-      // Get Google Drive tokens for user
-      const { data: tokens, error: tokensError } = await supabase
-        .rpc('get_google_drive_tokens_secure', { p_user_id: user.id });
-        
-      if (tokensError || !tokens || tokens.length === 0) {
-        console.log('❌ No tokens found:', tokensError);
-        return new Response(JSON.stringify({ error: 'No Google Drive connection' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      // Get fresh access token with automatic refresh
+      let accessToken;
+      try {
+        accessToken = await ensureAccessToken(user.id);
+        console.log("drive-call token len:", typeof accessToken, String(accessToken).length);
+      } catch (error) {
+        console.log('❌ Token error:', error);
+        return safeJson(401, { 
+          error: 'No Google Drive connection',
+          requires_reconnect: true
         });
-      }
-
-      let tokenData = tokens[0];
-      console.log('✅ Tokens retrieved, expires at:', tokenData.expires_at);
-      console.log('🔍 Access token length:', tokenData.access_token?.length || 0);
-      console.log('🔍 Access token starts with:', tokenData.access_token?.substring(0, 10) || 'NULL');
-      console.log('🔍 Refresh token length:', tokenData.refresh_token?.length || 0);
-
-      // Check token expiration and attempt refresh if needed
-      const expiresAt = new Date(tokenData.expires_at);
-      const now = new Date();
-      
-      if (expiresAt <= now) {
-        console.log('🔄 Token expired at:', expiresAt.toISOString(), 'attempting refresh...');
-        
-        // Attempt token refresh
-        const refreshResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/google-drive-auth/refresh`, {
-          method: 'POST',
-          headers: {
-            'Authorization': req.headers.get('Authorization') || '',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!refreshResponse.ok) {
-          console.log('❌ Token refresh failed, requiring reconnection');
-          return new Response(JSON.stringify({
-            error: 'Token expired and refresh failed',
-            message: 'Please reconnect your Google Drive account with updated permissions',
-            requires_reconnect: true
-          }), {
-            status: 401,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-        
-        console.log('✅ Token refreshed successfully, retrying request...');
-        
-        // Get refreshed tokens
-        const { data: refreshedTokens, error: refreshError } = await supabase
-          .rpc('get_google_drive_tokens_secure', { p_user_id: user.id });
-        
-        if (refreshError || !refreshedTokens || refreshedTokens.length === 0) {
-          return new Response(JSON.stringify({
-            error: 'Failed to get refreshed tokens',
-            message: 'Please reconnect your Google Drive account'
-          }), {
-            status: 401,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-        
-        tokenData = refreshedTokens[0];
       }
 
       let allFolders = [];
@@ -160,17 +109,49 @@ serve(async (req) => {
           params.set('pageToken', nextPageToken);
         }
 
-        console.log('🔍 About to call Google Drive API with token length:', tokenData.access_token?.length);
-        console.log('🔍 Token starts with:', tokenData.access_token?.substring(0, 15));
-        
         const driveResponse = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
           headers: {
-            'Authorization': `Bearer ${tokenData.access_token}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         });
 
         console.log('📊 API Response Status:', driveResponse.status);
+
+        if (driveResponse.status === 401) {
+          // Token expired during call - force refresh and retry once
+          console.log('❌ 401. Forcing refresh and retrying...');
+          try {
+            const freshToken = await ensureAccessToken(user.id);
+            const retryResponse = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
+              headers: {
+                'Authorization': `Bearer ${freshToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (!retryResponse.ok) {
+              console.log('❌ Still failed after refresh:', retryResponse.status);
+              return safeJson(retryResponse.status, { 
+                status: retryResponse.status, 
+                reason: "UNAUTHORIZED_AFTER_REFRESH",
+                requires_reconnect: true
+              });
+            }
+            
+            // Success on retry - use this response
+            const retryData = await retryResponse.json();
+            allFolders = allFolders.concat(retryData.files || []);
+            nextPageToken = retryData.nextPageToken || null;
+            continue;
+          } catch (refreshError) {
+            console.log('❌ Refresh failed:', refreshError);
+            return safeJson(401, {
+              error: 'Token refresh failed',
+              requires_reconnect: true
+            });
+          }
+        }
 
         if (!driveResponse.ok) {
           console.log('❌ Google Drive API error:', driveResponse.status, driveResponse.statusText);
@@ -179,7 +160,7 @@ serve(async (req) => {
           
           // Check if it's a scope/permission issue
           if (driveResponse.status === 403) {
-            return new Response(JSON.stringify({
+            return safeJson(403, {
               error: 'Insufficient permissions',
               status: driveResponse.status,
               message: 'Precisamos de permissão para ler metadados do Drive. Clique em "Reconectar com permissões".',
@@ -188,21 +169,6 @@ serve(async (req) => {
                 'https://www.googleapis.com/auth/drive.metadata.readonly',
                 'https://www.googleapis.com/auth/drive.file'
               ]
-            }), {
-              status: driveResponse.status,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-          }
-          
-          if (driveResponse.status === 401) {
-            return new Response(JSON.stringify({
-              error: 'Authentication failed',
-              status: driveResponse.status,
-              message: 'Token expirado ou inválido. Reconecte sua conta do Google Drive.',
-              requires_reconnect: true
-            }), {
-              status: driveResponse.status,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           }
           

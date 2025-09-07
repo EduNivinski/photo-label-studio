@@ -1,53 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// Crypto utilities for AES-GCM encryption
-const b64ToU8 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-const u8ToB64 = (u8: Uint8Array) => btoa(String.fromCharCode(...u8));
-
-let cryptoKey: CryptoKey | null = null;
-
-async function getCryptoKey() {
-  if (!cryptoKey) {
-    const keyRaw = b64ToU8(Deno.env.get("TOKEN_ENC_KEY")!);
-    cryptoKey = await crypto.subtle.importKey("raw", keyRaw, { name: "AES-GCM" }, false, ["encrypt"]);
-  }
-  return cryptoKey;
-}
-
-async function encryptToB64(plain: string) {
-  const key = await getCryptoKey();
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain)));
-  const out = new Uint8Array(iv.length + ct.length);
-  out.set(iv, 0);
-  out.set(ct, iv.length);
-  return u8ToB64(out);
-}
-
-// Token storage
-const supabaseAdmin = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-);
-
-async function upsertTokens(user_id: string, access_token: string, refresh_token: string, scope: string, expires_at: string) {
-  const access_token_enc = await encryptToB64(access_token);
-  const refresh_token_enc = await encryptToB64(refresh_token);
-
-  const { error } = await supabaseAdmin
-    .from("private.user_drive_tokens")
-    .upsert({ 
-      user_id, 
-      access_token_enc, 
-      refresh_token_enc, 
-      scope, 
-      expires_at, 
-      updated_at: new Date().toISOString() 
-    });
-
-  if (error) throw new Error("DB_UPSERT_ERROR");
-}
+import { upsertTokens } from "../_shared/token_provider.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

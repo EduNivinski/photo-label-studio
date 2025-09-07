@@ -697,7 +697,6 @@ async function handleResetIntegration(req: Request) {
       user_id: user.id,
       metadata: { 
         metadata_cleared: true,
-        vault_rotated: true,
         sync_cleared: true
       }
     });
