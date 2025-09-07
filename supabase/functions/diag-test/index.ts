@@ -33,9 +33,12 @@ serve(async (req) => {
       console.error("Supabase client error:", e);
     }
 
-    // Test 3: Check if private schema exists
+    // Test 3: Check google_drive_tokens table and vault access
     let schemaTest = "FAIL";
     let schemaDetails = "";
+    let vaultTest = "FAIL";
+    let vaultDetails = "";
+    
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
@@ -63,11 +66,28 @@ serve(async (req) => {
         }
       } else {
         schemaTest = "OK";
-        schemaDetails = "Schema and table accessible";
+        schemaDetails = "google_drive_tokens table accessible";
         console.log("Schema access successful");
       }
+      
+      // Test vault access
+      console.log("Testing Vault access...");
+      const { data: vaultData, error: vaultError } = await supabase
+        .from("vault.decrypted_secrets")
+        .select("count", { count: "exact", head: true });
+        
+      if (vaultError) {
+        console.error("Vault access error:", vaultError);
+        vaultTest = "ACCESS_ERROR";
+        vaultDetails = vaultError.message;
+      } else {
+        vaultTest = "OK";
+        vaultDetails = "Vault accessible";
+        console.log("Vault access successful");
+      }
+      
     } catch (e: any) {
-      console.error("Schema test exception:", e);
+      console.error("Schema/Vault test exception:", e);
       schemaTest = `EXCEPTION`;
       schemaDetails = e.message;
     }
@@ -97,17 +117,21 @@ serve(async (req) => {
       },
       tests: {
         supabaseClient: supabaseTest,
-        privateSchema: schemaTest,
+        googleDriveTokensTable: schemaTest,
         schemaDetails: schemaDetails,
+        vaultAccess: vaultTest,
+        vaultDetails: vaultDetails,
         cryptoKey: cryptoTest
       },
       recommendation: !hasTokenKey ? 
         "Set TOKEN_ENC_KEY environment variable (generate: openssl rand -base64 32)" :
         schemaTest !== "OK" ?
-        `Private schema access issue: ${schemaTest} - ${schemaDetails}` :
+        `google_drive_tokens table access issue: ${schemaTest} - ${schemaDetails}` :
+        vaultTest !== "OK" ?
+        `Vault access issue: ${vaultTest} - ${vaultDetails}` :
         cryptoTest !== "OK" ?
         "Crypto key issue - check TOKEN_ENC_KEY format" :
-        "All systems OK - user needs to re-authenticate with Google Drive"
+        "All systems OK - Ready for Google Drive integration"
     };
 
     console.log("=== DIAGNOSTIC RESULT ===", result);

@@ -57,18 +57,38 @@ export interface TokenData {
 
 export async function getTokens(user_id: string): Promise<TokenData | null> {
   const { data, error } = await supabaseAdmin
-    .from("private.user_drive_tokens")
-    .select("*")
+    .from("google_drive_tokens")
+    .select("access_token_secret_id, refresh_token_secret_id, scopes, expires_at")
     .eq("user_id", user_id)
     .maybeSingle();
 
   if (error) throw new Error("DB_ERROR");
   if (!data) return null;
 
+  // Get tokens from Vault using secret IDs
+  const accessSecretName = `gd_access_${user_id}`;
+  const refreshSecretName = `gd_refresh_${user_id}`;
+
+  const { data: accessSecret, error: accessError } = await supabaseAdmin
+    .from("vault.decrypted_secrets")
+    .select("decrypted_secret")
+    .eq("name", accessSecretName)
+    .maybeSingle();
+
+  const { data: refreshSecret, error: refreshError } = await supabaseAdmin
+    .from("vault.decrypted_secrets")
+    .select("decrypted_secret")
+    .eq("name", refreshSecretName)
+    .maybeSingle();
+
+  if (accessError || refreshError || !accessSecret || !refreshSecret) {
+    throw new Error("VAULT_ACCESS_ERROR");
+  }
+
   return {
-    access_token: await decryptFromB64(data.access_token_enc),
-    refresh_token: await decryptFromB64(data.refresh_token_enc),
-    scope: data.scope,
+    access_token: accessSecret.decrypted_secret,
+    refresh_token: refreshSecret.decrypted_secret,
+    scope: data.scopes?.join(' ') || '',
     expires_at: data.expires_at
   };
 }
@@ -80,17 +100,36 @@ export async function upsertTokens(
   scope: string, 
   expires_at: string
 ) {
-  const access_token_enc = await encryptToB64(access_token);
-  const refresh_token_enc = await encryptToB64(refresh_token);
+  // Store tokens securely in Vault
+  const accessSecretName = `gd_access_${user_id}`;
+  const refreshSecretName = `gd_refresh_${user_id}`;
 
+  // Create/update secrets in Vault
+  const { error: accessVaultError } = await supabaseAdmin.rpc('vault.create_secret', {
+    secret: access_token,
+    name: accessSecretName,
+    description: `Google Drive access token for user ${user_id}`
+  });
+
+  const { error: refreshVaultError } = await supabaseAdmin.rpc('vault.create_secret', {
+    secret: refresh_token,
+    name: refreshSecretName,
+    description: `Google Drive refresh token for user ${user_id}`
+  });
+
+  if (accessVaultError || refreshVaultError) {
+    throw new Error("VAULT_UPSERT_ERROR");
+  }
+
+  // Update metadata table
   const { error } = await supabaseAdmin
-    .from("private.user_drive_tokens")
+    .from("google_drive_tokens")
     .upsert({ 
-      user_id, 
-      access_token_enc, 
-      refresh_token_enc, 
-      scope, 
-      expires_at, 
+      user_id,
+      access_token_secret_id: accessSecretName, // Using name as ID for simplicity
+      refresh_token_secret_id: refreshSecretName,
+      scopes: scope ? scope.split(' ') : [],
+      expires_at,
       updated_at: new Date().toISOString() 
     });
 
