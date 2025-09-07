@@ -512,12 +512,12 @@ async function handleStatus(req: Request) {
     });
 
     return Response.json({
-      data: {
-        isConnected: hasConnection,
-        isExpired: connectionData?.is_expired || false,
-        dedicatedFolder: connectionData ? {
-          id: connectionData.dedicated_folder_id,
-          name: connectionData.dedicated_folder_name
+      hasConnection,
+      isExpired: connectionData?.is_expired || false,
+      dedicatedFolderId: connectionData?.dedicated_folder_id || null,
+      dedicatedFolderName: connectionData?.dedicated_folder_name || null
+    }, {
+      headers: corsHeaders
         } : null
       },
       error: null,

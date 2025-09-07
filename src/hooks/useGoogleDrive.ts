@@ -44,7 +44,7 @@ export function useGoogleDrive() {
     isValidating 
   } = useSecurityValidation();
 
-  const getAuthHeaders = async () => {
+  const getAuthHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('Not authenticated');
@@ -53,9 +53,9 @@ export function useGoogleDrive() {
       'Authorization': `Bearer ${session.access_token}`,
       'Content-Type': 'application/json',
     };
-  };
+  }, []);
 
-  const checkStatus = async () => {
+  const checkStatus = useCallback(async () => {
     try {
       setLoading(true);
       const headers = await getAuthHeaders();
@@ -69,7 +69,6 @@ export function useGoogleDrive() {
 
       if (response.error) {
         console.error('❌ Failed to check Google Drive status:', response.error);
-        // Don't set loading false here to avoid infinite loops
         setStatus({
           isConnected: false,
           isExpired: false,
@@ -82,14 +81,20 @@ export function useGoogleDrive() {
       console.log('✅ Status data received:', statusData);
       
       // Ensure isConnected is a boolean
-      const isConnected = Boolean(statusData?.isConnected);
+      const isConnected = Boolean(statusData?.hasConnection);
       const isExpired = Boolean(statusData?.isExpired);
       
-      setStatus({
+      const newStatus = {
         isConnected,
         isExpired,
-        dedicatedFolder: statusData?.dedicatedFolder || null,
-      });
+        dedicatedFolder: statusData?.dedicatedFolderId ? {
+          id: statusData.dedicatedFolderId,
+          name: statusData.dedicatedFolderName || 'Pasta do Google Drive'
+        } : null,
+      };
+      
+      console.log('🔄 Updating status to:', newStatus);
+      setStatus(newStatus);
     } catch (error) {
       console.error('💥 Error checking Google Drive status:', error);
       setStatus({
@@ -100,11 +105,21 @@ export function useGoogleDrive() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
-  const connect = async () => {
+  const connect = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Log security event for connection attempt
+      await logSecurityEvent({
+        event_type: 'sensitive_operation',
+        metadata: {
+          action: 'google_drive_connection_attempt',
+          timestamp: new Date().toISOString()
+        }
+      });
+
       const headers = await getAuthHeaders();
       
       const response = await supabase.functions.invoke('google-drive-auth/authorize', {
@@ -127,17 +142,68 @@ export function useGoogleDrive() {
         'width=500,height=600,scrollbars=yes,resizable=yes'
       );
 
+      if (!popup) {
+        throw new Error('Popup bloqueado. Permita popups para este site.');
+      }
+
       // Listen for auth success
       const handleMessage = async (event: MessageEvent) => {
-        if (event.data.type === 'GOOGLE_DRIVE_AUTH_SUCCESS') {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
           popup?.close();
           
-          toast({
-            title: 'Conectado com sucesso!',
-            description: 'Google Drive conectado. Agora escolha uma pasta.',
+          console.log('🎉 Google Drive auth success received');
+          
+          // Validate the auth success data
+          const validationResult = await validateGoogleDriveConnection(
+            { code: event.data.code, state: event.data.state },
+            { connection_source: 'popup_callback' }
+          );
+
+          if (validationResult.isValid) {
+            // Show success toast
+            toast({
+              title: 'Conectado com sucesso!',
+              description: `Google Drive conectado${event.data.user_email ? ` como ${event.data.user_email}` : ''}. Agora escolha uma pasta.`,
+            });
+            
+            // Force refresh status immediately
+            console.log('🔄 Refreshing Google Drive status...');
+            await checkStatus();
+            
+            await logSecurityEvent({
+              event_type: 'sensitive_operation',
+              metadata: {
+                action: 'google_drive_connection_success',
+                validation_flags: validationResult.securityFlags,
+                user_email: event.data.user_email
+              }
+            });
+          } else {
+            throw new Error('Dados de conexão inválidos recebidos');
+          }
+          
+          window.removeEventListener('message', handleMessage);
+        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+          popup?.close();
+          
+          console.error('❌ Google Drive auth error:', event.data.error);
+          
+          await logSecurityEvent({
+            event_type: 'sensitive_operation',
+            metadata: {
+              action: 'google_drive_connection_error',
+              error: event.data.error
+            }
           });
           
-          await checkStatus();
+          toast({
+            variant: 'destructive',
+            title: 'Erro na autenticação',
+            description: event.data.error || 'Falha na autenticação com Google Drive',
+          });
+          
           window.removeEventListener('message', handleMessage);
         }
       };
@@ -155,33 +221,33 @@ export function useGoogleDrive() {
 
     } catch (error) {
       console.error('Error connecting to Google Drive:', error);
+      
+      await logSecurityEvent({
+        event_type: 'sensitive_operation',
+        metadata: {
+          action: 'google_drive_connection_failed',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Falha ao conectar com Google Drive',
+        description: error instanceof Error ? error.message : 'Falha ao conectar com Google Drive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders, toast, validateGoogleDriveConnection, checkStatus]);
 
-  const disconnect = async () => {
+  const disconnect = useCallback(async () => {
     try {
       setLoading(true);
       const headers = await getAuthHeaders();
       
-      const response = await supabase.functions.invoke('google-drive-auth/disconnect', {
+      await supabase.functions.invoke('google-drive-auth/disconnect', {
         headers,
       });
-
-      if (response.error) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro',
-          description: 'Falha ao desconectar Google Drive',
-        });
-        return;
-      }
 
       setStatus({
         isConnected: false,
@@ -194,7 +260,7 @@ export function useGoogleDrive() {
         description: 'Google Drive desconectado com sucesso',
       });
     } catch (error) {
-      console.error('Error disconnecting from Google Drive:', error);
+      console.error('Error disconnecting:', error);
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -203,80 +269,56 @@ export function useGoogleDrive() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders, toast]);
 
   const listFolders = useCallback(async (): Promise<GoogleDriveFolder[]> => {
     try {
       const headers = await getAuthHeaders();
-      console.log('🔍 Calling listFolders with headers:', headers);
-      
-      const response = await supabase.functions.invoke('google-drive-api/folders', {
+      const response = await supabase.functions.invoke('google-drive-api', {
+        body: { action: 'listFolders' },
         headers,
       });
 
-      console.log('📁 listFolders response:', response);
-
       if (response.error) {
-        console.error('❌ listFolders error:', response.error);
-        toast({
-          variant: 'destructive',
-          title: 'Erro ao buscar pastas',
-          description: response.error.message || 'Falha ao buscar pastas do Google Drive',
-        });
-        throw new Error(response.error.message || 'Failed to fetch folders');
+        throw new Error(response.error.message);
       }
 
-      if (!response.data) {
-        console.error('❌ No data in response');
-        toast({
-          variant: 'destructive',
-          title: 'Erro',
-          description: 'Resposta vazia do Google Drive',
-        });
-        return [];
-      }
-
-      const folders = response.data.folders || response.data || [];
-      console.log('✅ Parsed folders:', folders, 'Count:', folders.length);
-      
-      if (folders.length === 0) {
-        toast({
-          title: 'Nenhuma pasta encontrada',
-          description: 'Não foram encontradas pastas no seu Google Drive',
-        });
-      }
-      
-      return folders;
+      return response.data.folders || [];
     } catch (error) {
-      console.error('💥 Error listing folders:', error);
+      console.error('Error listing folders:', error);
       toast({
         variant: 'destructive',
-        title: 'Erro de conexão',
-        description: 'Falha ao conectar com Google Drive. Tente novamente.',
+        title: 'Erro',
+        description: 'Falha ao listar pastas do Google Drive',
       });
-      throw error;
+      return [];
     }
-  }, [toast]);
+  }, [getAuthHeaders, toast]);
 
-  const setDedicatedFolder = async (folderId: string, folderName: string) => {
+  const setDedicatedFolder = useCallback(async (folderId: string, folderName: string) => {
     try {
-      setLoading(true);
       const headers = await getAuthHeaders();
-      
-      const response = await supabase.functions.invoke('google-drive-api/set-folder', {
-        body: { folderId, folderName },
+      const response = await supabase.functions.invoke('google-drive-api', {
+        body: {
+          action: 'setDedicatedFolder',
+          folderId,
+          folderName,
+        },
         headers,
       });
 
       if (response.error) {
-        throw new Error('Failed to set dedicated folder');
+        throw new Error(response.error.message);
       }
 
-      await checkStatus();
-      
+      setStatus(prev => ({
+        ...prev,
+        dedicatedFolder: { id: folderId, name: folderName },
+      }));
+
       toast({
         title: 'Pasta configurada',
-        description: `Pasta "${folderName}" configurada como pasta dedicada`,
+        description: `Pasta dedicada: ${folderName}`,
       });
     } catch (error) {
       console.error('Error setting dedicated folder:', error);
@@ -285,77 +327,134 @@ export function useGoogleDrive() {
         title: 'Erro',
         description: 'Falha ao configurar pasta dedicada',
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [getAuthHeaders, toast]);
 
-  const listFiles = async (folderId?: string): Promise<{ files: GoogleDriveFile[]; folders: GoogleDriveFolder[] }> => {
+  const listFiles = useCallback(async (folderId?: string): Promise<GoogleDriveFile[]> => {
     try {
-      const headers = await getAuthHeaders();
-      const url = folderId ? `google-drive-api/files?folderId=${folderId}` : 'google-drive-api/files';
+      const targetFolderId = folderId || status.dedicatedFolder?.id;
       
-      const response = await supabase.functions.invoke(url, {
+      // Validate file operation parameters
+      const validationResult = await validateFileOperation(
+        { folderId: targetFolderId },
+        { operation: 'list_files' }
+      );
+
+      if (!validationResult.isValid) {
+        return [];
+      }
+
+      const headers = await getAuthHeaders();
+      const response = await supabase.functions.invoke('google-drive-api', {
+        body: {
+          action: 'listFiles',
+          folderId: validationResult.sanitizedData?.folderId
+        },
         headers,
       });
 
       if (response.error) {
-        throw new Error('Failed to fetch files');
+        throw new Error(response.error.message);
       }
 
-      return {
-        files: response.data.files || [],
-        folders: response.data.folders || [],
-      };
+      await logSecurityEvent({
+        event_type: 'sensitive_operation',
+        metadata: {
+          action: 'google_drive_list_files',
+          folder_id: validationResult.sanitizedData?.folderId,
+          file_count: response.data.files?.length || 0
+        }
+      });
+
+      return response.data.files || [];
     } catch (error) {
       console.error('Error listing files:', error);
-      throw error;
+      
+      await logSecurityEvent({
+        event_type: 'sensitive_operation',
+        metadata: {
+          action: 'google_drive_list_files_error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Falha ao listar arquivos do Google Drive',
+      });
+      return [];
     }
-  };
+  }, [getAuthHeaders, status.dedicatedFolder?.id, toast, validateFileOperation]);
 
-  const downloadFile = async (fileId: string): Promise<Blob> => {
+  const downloadFile = useCallback(async (fileId: string): Promise<Blob | null> => {
     try {
       const headers = await getAuthHeaders();
-      
-      const response = await supabase.functions.invoke(`google-drive-api/download?fileId=${fileId}`, {
+      const response = await supabase.functions.invoke('google-drive-api', {
+        body: {
+          action: 'downloadFile',
+          fileId,
+        },
         headers,
       });
 
       if (response.error) {
-        throw new Error('Failed to download file');
+        throw new Error(response.error.message);
       }
 
-      return response.data;
+      // Convert base64 to blob
+      const base64Data = response.data.data;
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: response.data.mimeType });
     } catch (error) {
       console.error('Error downloading file:', error);
-      throw error;
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Falha ao baixar arquivo do Google Drive',
+      });
+      return null;
     }
-  };
+  }, [getAuthHeaders, toast]);
 
-  const uploadFile = async (file: File, fileName?: string): Promise<void> => {
+  const uploadFile = useCallback(async (file: File, fileName?: string): Promise<boolean> => {
     try {
       const headers = await getAuthHeaders();
-      const formData = new FormData();
-      formData.append('file', file);
-      if (fileName) {
-        formData.append('fileName', fileName);
-      }
-      
-      const response = await supabase.functions.invoke('google-drive-api/upload', {
-        body: formData,
-        headers: {
-          'Authorization': headers.Authorization,
+      const base64Data = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      const response = await supabase.functions.invoke('google-drive-api', {
+        body: {
+          action: 'uploadFile',
+          fileName: fileName || file.name,
+          mimeType: file.type,
+          data: base64Data,
+          folderId: status.dedicatedFolder?.id,
         },
+        headers,
       });
 
       if (response.error) {
-        throw new Error('Failed to upload file');
+        throw new Error(response.error.message);
       }
 
       toast({
         title: 'Upload concluído',
-        description: `Arquivo "${file.name}" enviado para Google Drive`,
+        description: `Arquivo ${fileName || file.name} enviado com sucesso`,
       });
+
+      return true;
     } catch (error) {
       console.error('Error uploading file:', error);
       toast({
@@ -363,59 +462,38 @@ export function useGoogleDrive() {
         title: 'Erro no upload',
         description: 'Falha ao enviar arquivo para Google Drive',
       });
-      throw error;
+      return false;
     }
-  };
+  }, [getAuthHeaders, status.dedicatedFolder?.id, toast]);
 
-  // Import file from Google Drive to Photo Label
-  const importFileToPhotoLabel = async (fileId: string, fileName: string): Promise<File> => {
+  const importFileToPhotoLabel = useCallback(async (fileId: string, fileName: string): Promise<File | null> => {
     try {
-      setLoading(true);
-      
-      const headers = await getAuthHeaders();
-      
-      // Download file from Google Drive
-      const response = await fetch(`https://tcupxcxyylxfgsbhfdhw.supabase.co/functions/v1/google-drive-api/download?fileId=${fileId}`, {
-        headers
-      });
+      const blob = await downloadFile(fileId);
+      if (!blob) return null;
 
-      if (!response.ok) {
-        throw new Error('Failed to download file from Google Drive');
-      }
-
-      // Convert response to File object
-      const blob = await response.blob();
-      const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
-
-      return file;
+      return new File([blob], fileName, { type: blob.type });
     } catch (error) {
-      console.error('Error importing file from Google Drive:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro na importação',
-        description: `Falha ao importar ${fileName} do Google Drive`,
-      });
-      throw error;
-    } finally {
-      setLoading(false);
+      console.error('Error importing file:', error);
+      return null;
     }
-  };
+  }, [downloadFile]);
 
+  // Check status on mount
   useEffect(() => {
     checkStatus();
-  }, []);
+  }, [checkStatus]);
 
   return {
     status,
-    loading,
+    loading: loading || isValidating,
     connect,
     disconnect,
+    checkStatus,
     listFolders,
     setDedicatedFolder,
     listFiles,
     downloadFile,
     uploadFile,
     importFileToPhotoLabel,
-    checkStatus,
   };
 }

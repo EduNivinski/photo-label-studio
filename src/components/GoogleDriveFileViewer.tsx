@@ -24,9 +24,10 @@ export function GoogleDriveFileViewer({ onClose }: GoogleDriveFileViewerProps) {
     const fetchFiles = async () => {
       try {
         setFetchingFiles(true);
-        const result = await listFiles();
-        setFiles(result.files);
-        setFolders(result.folders);
+        const filesData = await listFiles();
+        setFiles(filesData);
+        // Note: listFiles now returns only files, folders are handled separately
+        setFolders([]); // You may need to implement listFolders for this component
       } catch (error) {
         console.error('Error fetching files:', error);
       } finally {
