@@ -77,6 +77,36 @@ export type Database = {
         }
         Relationships: []
       }
+      gd_token_debug: {
+        Row: {
+          at: string | null
+          err: string | null
+          id: number
+          ok: boolean | null
+          sqlstate: string | null
+          step: string | null
+          user_id: string | null
+        }
+        Insert: {
+          at?: string | null
+          err?: string | null
+          id?: number
+          ok?: boolean | null
+          sqlstate?: string | null
+          step?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          at?: string | null
+          err?: string | null
+          id?: number
+          ok?: boolean | null
+          sqlstate?: string | null
+          step?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       google_drive_token_audit: {
         Row: {
           action: string
@@ -275,6 +305,16 @@ export type Database = {
       }
       cleanup_expired_google_drive_tokens_safe: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      gd_token_debug_insert: {
+        Args: {
+          p_err: string
+          p_ok: boolean
+          p_sqlstate: string
+          p_step: string
+          p_user_id: string
+        }
         Returns: undefined
       }
       get_final_security_status: {
