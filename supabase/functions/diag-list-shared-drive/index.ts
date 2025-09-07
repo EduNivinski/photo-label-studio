@@ -1,6 +1,52 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Crypto utilities
+const b64ToU8 = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+
+let cryptoKey: CryptoKey | null = null;
+
+async function getCryptoKey() {
+  if (!cryptoKey) {
+    const keyRaw = b64ToU8(Deno.env.get("TOKEN_ENC_KEY")!);
+    cryptoKey = await crypto.subtle.importKey("raw", keyRaw, { name: "AES-GCM" }, false, ["decrypt"]);
+  }
+  return cryptoKey;
+}
+
+async function decryptFromB64(b64: string) {
+  const key = await getCryptoKey();
+  const buf = b64ToU8(b64);
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+
+// Token provider
+const supabaseAdmin = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+async function getTokens(user_id: string) {
+  const { data, error } = await supabaseAdmin
+    .from("private.user_drive_tokens")
+    .select("*")
+    .eq("user_id", user_id)
+    .maybeSingle();
+
+  if (error) throw new Error("DB_ERROR");
+  if (!data) return null;
+
+  return {
+    access_token: await decryptFromB64(data.access_token_enc),
+    refresh_token: await decryptFromB64(data.refresh_token_enc),
+    scope: data.scope,
+    expires_at: data.expires_at
+  };
+}
+
 // Utility functions
 const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
   status: s, 
@@ -40,16 +86,13 @@ serve(async (req: Request) => {
     const user_id = await parseUserId(req);
     if (!user_id) return bad("MISSING_USER_ID");
 
-    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data, error } = await sb.rpc("get_google_drive_tokens_secure", { p_user_id: user_id });
-    if (error) return fail("RPC_ERROR");
-    const access_token = data?.access_token;
-    if (!access_token) return bad("NO_ACCESS_TOKEN");
+    const tokens = await getTokens(user_id);
+    if (!tokens) return bad("NO_ACCESS_TOKEN");
 
     // First, get shared drives
     const drivesResponse = await fetch('https://www.googleapis.com/drive/v3/drives?pageSize=10&fields=drives(id,name)', {
       headers: { 
-        Authorization: `Bearer ${access_token}`,
+        Authorization: `Bearer ${tokens.access_token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -84,7 +127,7 @@ serve(async (req: Request) => {
 
     const filesResponse = await fetch(filesUrl.toString(), {
       headers: { 
-        Authorization: `Bearer ${access_token}`,
+        Authorization: `Bearer ${tokens.access_token}`,
         'Content-Type': 'application/json'
       }
     });
