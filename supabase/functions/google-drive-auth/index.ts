@@ -518,13 +518,6 @@ async function handleStatus(req: Request) {
       dedicatedFolderName: connectionData?.dedicated_folder_name || null
     }, {
       headers: corsHeaders
-        } : null
-      },
-      error: null,
-      response: {}
-    }, { 
-      status: 200,
-      headers: corsHeaders 
     });
     
   } catch (error) {
