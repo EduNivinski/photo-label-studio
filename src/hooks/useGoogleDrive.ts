@@ -447,12 +447,12 @@ export function useGoogleDrive() {
   const diagScopes = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      console.log('🔍 DIAG: Checking scopes via /diag endpoint...');
+      console.log('🔍 DIAG: Checking scopes via separate edge function...');
       
-      const response = await supabase.functions.invoke('google-drive-api/diag?type=scopes', {
-        method: 'GET',
-        headers,
+      const response = await supabase.functions.invoke('diag-scopes', {
+        body: { user_id: session?.user?.id },
       });
 
       console.log('🔍 DIAG: Scopes result:', response);
@@ -482,12 +482,12 @@ export function useGoogleDrive() {
   const diagListRoot = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      console.log('📋 DIAG: Testing root listing...');
+      console.log('📋 DIAG: Testing root listing via separate edge function...');
       
-      const response = await supabase.functions.invoke('google-drive-api/list-root', {
-        method: 'POST',
-        headers,
+      const response = await supabase.functions.invoke('diag-list-root', {
+        body: { user_id: session?.user?.id },
       });
 
       console.log('📋 DIAG: Root listing result:', response);
@@ -517,13 +517,15 @@ export function useGoogleDrive() {
   const diagListFolder = useCallback(async (folderId: string) => {
     try {
       const headers = await getAuthHeaders();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      console.log('📁 DIAG: Testing folder listing...', folderId);
+      console.log('📁 DIAG: Testing folder listing via separate edge function...', folderId);
       
-      const response = await supabase.functions.invoke('google-drive-api/list-folder', {
-        method: 'POST',
-        headers,
-        body: { folderId }
+      const response = await supabase.functions.invoke('diag-list-folder', {
+        body: { 
+          user_id: session?.user?.id,
+          folder_id: folderId 
+        },
       });
 
       console.log('📁 DIAG: Folder listing result:', response);
@@ -553,12 +555,12 @@ export function useGoogleDrive() {
   const diagListSharedDrive = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      console.log('🤝 DIAG: Testing shared drives...');
+      console.log('🤝 DIAG: Testing shared drives via separate edge function...');
       
-      const response = await supabase.functions.invoke('google-drive-api/list-shared-drive', {
-        method: 'POST',
-        headers,
+      const response = await supabase.functions.invoke('diag-list-shared-drive', {
+        body: { user_id: session?.user?.id },
       });
 
       console.log('🤝 DIAG: Shared drives result:', response);
@@ -584,6 +586,36 @@ export function useGoogleDrive() {
       };
     }
   }, [getAuthHeaders]);
+
+  const diagPing = useCallback(async () => {
+    try {
+      console.log('🏓 DIAG: Testing ping...');
+      
+      const response = await supabase.functions.invoke('diag-ping', {});
+
+      console.log('🏓 DIAG: Ping result:', response);
+
+      if (response.error) {
+        console.error('❌ DIAG: Ping error:', response.error);
+        return {
+          success: false,
+          error: response.error.message || 'Failed to ping'
+        };
+      }
+
+      return {
+        success: true,
+        data: response.data
+      };
+
+    } catch (error) {
+      console.error('💥 DIAG: Ping error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }, []);
 
   const listFolders = useCallback(async (folderId?: string, includeSharedDrives: boolean = false): Promise<{ folders: GoogleDriveFolder[]; sharedDrives: any[] }> => {
     try {
@@ -961,5 +993,6 @@ export function useGoogleDrive() {
     diagListRoot,
     diagListFolder,
     diagListSharedDrive,
+    diagPing,
   };
 }

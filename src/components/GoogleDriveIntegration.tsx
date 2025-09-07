@@ -9,7 +9,7 @@ import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 import { useToast } from '@/hooks/use-toast';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -154,6 +154,37 @@ export function GoogleDriveIntegration() {
                   <Button
                     variant="outline"
                     onClick={async () => {
+                      const result = await diagPing();
+                      console.log('🏓 DIAG PING JSON:', JSON.stringify(result.data, null, 2));
+                      if (result.success) {
+                        toast({
+                          title: '✅ Teste 0: Ping Edge Functions',
+                          description: `Edge Functions OK: ${result.data?.ok ? 'Funcionando' : 'Problema'}`,
+                        });
+                      } else {
+                        toast({
+                          title: '❌ Erro no Teste de Ping',
+                          description: result.error,
+                          variant: 'destructive'
+                        });
+                      }
+                    }}
+                    className="w-full justify-start h-auto py-3"
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="flex items-center justify-center w-8 h-8 bg-blue-500/10 rounded-full">
+                        <span className="text-sm font-medium">0</span>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium">diag-ping</div>
+                        <div className="text-sm text-muted-foreground">Testar conectividade das Edge Functions</div>
+                      </div>
+                    </div>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
                       const result = await diagScopes();
                       console.log('🔍 DIAG SCOPES JSON:', JSON.stringify(result.data, null, 2));
                       if (result.success) {
@@ -176,7 +207,7 @@ export function GoogleDriveIntegration() {
                         <span className="text-sm font-medium">1</span>
                       </div>
                       <div className="text-left">
-                        <div className="font-medium">GET /diag/scopes</div>
+                        <div className="font-medium">diag-scopes</div>
                         <div className="text-sm text-muted-foreground">Verificar escopos do token OAuth</div>
                       </div>
                     </div>
@@ -207,7 +238,7 @@ export function GoogleDriveIntegration() {
                         <span className="text-sm font-medium">2</span>
                       </div>
                       <div className="text-left">
-                        <div className="font-medium">POST /diag/list-root</div>
+                        <div className="font-medium">diag-list-root</div>
                         <div className="text-sm text-muted-foreground">Testar listagem da raiz do Meu Drive</div>
                       </div>
                     </div>
@@ -239,7 +270,7 @@ export function GoogleDriveIntegration() {
                         <span className="text-sm font-medium">3</span>
                       </div>
                       <div className="text-left">
-                        <div className="font-medium">POST /diag/list-folder</div>
+                        <div className="font-medium">diag-list-folder</div>
                         <div className="text-sm text-muted-foreground">Testar pasta específica ({status.dedicatedFolder?.name || 'root'})</div>
                       </div>
                     </div>
@@ -270,7 +301,7 @@ export function GoogleDriveIntegration() {
                         <span className="text-sm font-medium">4</span>
                       </div>
                       <div className="text-left">
-                        <div className="font-medium">POST /diag/list-shared-drive</div>
+                        <div className="font-medium">diag-list-shared-drive</div>
                         <div className="text-sm text-muted-foreground">Testar Shared Drives (se disponível)</div>
                       </div>
                     </div>
