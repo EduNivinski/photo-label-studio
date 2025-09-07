@@ -86,5 +86,8 @@ verify_jwt = false
 [functions.google-drive-oauth-callback]
 verify_jwt = false
 
+[functions.diag-test]
+verify_jwt = false
+
 [functions.test-ping]
 verify_jwt = false

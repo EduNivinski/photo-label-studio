@@ -8,7 +8,12 @@ let cryptoKey: CryptoKey | null = null;
 
 async function getCryptoKey() {
   if (!cryptoKey) {
-    const keyRaw = b64ToU8(Deno.env.get("TOKEN_ENC_KEY")!);
+    const encKey = Deno.env.get("TOKEN_ENC_KEY");
+    if (!encKey) {
+      throw new Error("TOKEN_ENC_KEY environment variable not set");
+    }
+    console.log("Initializing crypto key...");
+    const keyRaw = b64ToU8(encKey);
     cryptoKey = await crypto.subtle.importKey("raw", keyRaw, { name: "AES-GCM" }, false, ["decrypt"]);
   }
   return cryptoKey;
@@ -30,21 +35,37 @@ const supabaseAdmin = createClient(
 );
 
 async function getTokens(user_id: string) {
-  const { data, error } = await supabaseAdmin
-    .from("private.user_drive_tokens")
-    .select("*")
-    .eq("user_id", user_id)
-    .maybeSingle();
+  try {
+    console.log(`Getting tokens for user: ${user_id}`);
+    
+    const { data, error } = await supabaseAdmin
+      .from("private.user_drive_tokens")
+      .select("*")
+      .eq("user_id", user_id)
+      .maybeSingle();
 
-  if (error) throw new Error("DB_ERROR");
-  if (!data) return null;
+    if (error) {
+      console.error("Database error:", error);
+      throw new Error(`DB_ERROR: ${error.message}`);
+    }
+    
+    if (!data) {
+      console.log("No tokens found for user");
+      return null;
+    }
 
-  return {
-    access_token: await decryptFromB64(data.access_token_enc),
-    refresh_token: await decryptFromB64(data.refresh_token_enc),
-    scope: data.scope,
-    expires_at: data.expires_at
-  };
+    console.log("Found encrypted tokens, decrypting...");
+    
+    return {
+      access_token: await decryptFromB64(data.access_token_enc),
+      refresh_token: await decryptFromB64(data.refresh_token_enc),
+      scope: data.scope,
+      expires_at: data.expires_at
+    };
+  } catch (error: any) {
+    console.error("Error in getTokens:", error);
+    throw error;
+  }
 }
 
 // Utility functions
@@ -83,12 +104,21 @@ serve(async (req: Request) => {
   }
   
   try {
+    console.log("diag-list-root: Starting request processing");
+    
     const user_id = await parseUserId(req);
+    console.log(`diag-list-root: Parsed user_id: ${user_id}`);
+    
     if (!user_id) return bad("MISSING_USER_ID");
 
     const tokens = await getTokens(user_id);
-    if (!tokens) return bad("NO_ACCESS_TOKEN");
+    if (!tokens) {
+      console.log("diag-list-root: No tokens found for user");
+      return bad("NO_ACCESS_TOKEN");
+    }
 
+    console.log("diag-list-root: Tokens retrieved, querying Google Drive...");
+    
     const buildUrl = () => {
       const u = new URL("https://www.googleapis.com/drive/v3/files");
       u.searchParams.set("q", "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false");
@@ -117,7 +147,7 @@ serve(async (req: Request) => {
       echo: { corpora: "user", supportsAllDrives: true, includeItemsFromAllDrives: true, pageSize: 10 }
     });
   } catch (e: any) {
-    console.error("diag_list_root INTERNAL_ERROR", e?.message);
+    console.error("diag_list_root INTERNAL_ERROR", e?.message, e?.stack);
     return fail("INTERNAL_ERROR");
   }
 });
