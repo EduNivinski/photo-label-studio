@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image } from 'lucide-react';
+import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image, LogOut } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
 import { GoogleDriveDiagnostics } from '@/components/GoogleDriveDiagnostics';
+import { useNavigate } from 'react-router-dom';
 
 export default function User() {
   const { toast } = useToast();
   const { photos, labels } = useSupabaseData();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -185,6 +187,27 @@ export default function User() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Logout realizado",
+        description: "Você foi desconectado com sucesso.",
+      });
+      
+      navigate('/auth');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      toast({
+        title: "Erro no logout",
+        description: "Não foi possível desconectar. Tente novamente.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -408,6 +431,14 @@ export default function User() {
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Tags className="h-4 w-4" />
                   Backup Labels
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleLogout}
+                  className="w-full justify-start gap-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sair da Conta
                 </Button>
                 <Button variant="outline" className="w-full justify-start gap-2 text-destructive">
                   <UserIcon className="h-4 w-4" />
