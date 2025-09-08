@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Cloud, Folder, FileImage, Upload, Download } from 'lucide-react';
-import { SimpleGoogleDriveAuth } from '@/components/SimpleGoogleDriveAuth';
+import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
 
 export default function GoogleDrive() {
   return (
@@ -59,7 +59,7 @@ export default function GoogleDrive() {
         </div>
 
         {/* Integração Principal */}
-        <SimpleGoogleDriveAuth />
+        <GoogleDriveIntegration />
 
         {/* Informações de Segurança */}
         <Card className="bg-muted/30">
