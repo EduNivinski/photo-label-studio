@@ -428,9 +428,9 @@ async function handleDisconnect(req: Request) {
 async function handleStatus(req: Request) {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return Response.json({ error: 'Unauthorized' }, { 
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
       status: 401, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
@@ -439,9 +439,9 @@ async function handleStatus(req: Request) {
   
   if (userError || !user) {
     console.error('User authentication failed:', userError);
-    return Response.json({ error: 'Unauthorized' }, { 
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
       status: 401, 
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 
@@ -453,13 +453,13 @@ async function handleStatus(req: Request) {
     const hasConnection = !!tokenData;
     
     if (!hasConnection) {
-      return Response.json({
+      return new Response(JSON.stringify({
         hasConnection: false,
         isExpired: false,
         dedicatedFolderId: null,
         dedicatedFolderName: null
-      }, {
-        headers: corsHeaders
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
     
@@ -471,25 +471,25 @@ async function handleStatus(req: Request) {
       expiresAt: tokenData.expires_at
     });
 
-    return Response.json({
+    return new Response(JSON.stringify({
       hasConnection,
       isExpired,
       dedicatedFolderId: null, // Not used in v2 system
       dedicatedFolderName: null // Not used in v2 system  
-    }, {
-      headers: corsHeaders
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
     
   } catch (error) {
     console.error('Exception during status check:', error);
     console.error('Exception details:', error.message, error.stack);
-    return Response.json({
+    return new Response(JSON.stringify({
       error: { message: error.message },
       data: null,
       response: {}
-    }, { 
+    }), { 
       status: 500,
-      headers: corsHeaders 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 }
