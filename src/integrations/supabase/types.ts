@@ -212,6 +212,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_drive_tokens: {
+        Row: {
+          access_token_enc: string
+          created_at: string
+          expires_at: string
+          id: string
+          refresh_token_enc: string
+          scope: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_enc: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          refresh_token_enc: string
+          scope?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_enc?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          refresh_token_enc?: string
+          scope?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
