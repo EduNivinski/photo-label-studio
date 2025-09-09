@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL, SUPABASE_ANON } from '@/integrations/supabase/client';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
 import { GoogleDriveProductionTests } from '@/components/GoogleDriveProductionTests';
@@ -27,6 +27,13 @@ export default function User() {
     projectRef?: string;
     userId?: string;
   }>({ isAuthenticated: false });
+  const [authHealth, setAuthHealth] = useState({
+    clientUrl: SUPABASE_URL,
+    anonRef: "(checking…)",
+    sessionExists: false,
+    jwtRef: "(none)",
+    error: "",
+  });
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -48,8 +55,26 @@ export default function User() {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        // Boot de sessão antes de qualquer operação
+        // 1) anonRef (decodifica o payload do JWT da ANON)
+        const anonPayload = JSON.parse(atob(SUPABASE_ANON.split(".")[1]));
+        const anonRef = anonPayload?.ref || "(no-ref)";
+
+        // 2) sessão
         const { data: { session } } = await supabase.auth.getSession();
+        const sessionExists = !!session;
+
+        // 3) jwtRef (se houver sessão)
+        const jwtRef = session ? JSON.parse(atob(session.access_token.split(".")[1]))?.ref : "(none)";
+
+        // Atualizar Auth Health
+        setAuthHealth(prev => ({ 
+          ...prev, 
+          anonRef, 
+          sessionExists, 
+          jwtRef,
+          error: ""
+        }));
+
         if (!session) {
           await supabase.auth.signInWithOAuth({
             provider: "google",
@@ -120,8 +145,9 @@ export default function User() {
             customLogo: null
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro ao carregar dados do usuário:', error);
+        setAuthHealth(prev => ({ ...prev, error: error?.message || String(error) }));
         toast({
           title: "Erro",
           description: "Não foi possível carregar os dados do usuário.",
@@ -247,6 +273,41 @@ export default function User() {
     }
   };
 
+  const runAllTests = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { 
+        toast({
+          title: "Não logado",
+          description: "Tente novamente após o redirecionamento OAuth.",
+          variant: "destructive"
+        });
+        return; 
+      }
+
+      const userId = "42e4275e-4b02-4304-b6a7-7279cc855bad";
+      const s = await supabase.functions.invoke("diag-scopes", { body: { user_id: userId } });
+      const r1 = await supabase.functions.invoke("diag-list-root", { body: { user_id: userId } });
+      const r2 = await supabase.functions.invoke("diag-list-folder", { body: { user_id: userId, folderId: "root" } });
+
+      console.log("diag-scopes →", s);
+      console.log("diag-list-root →", r1);
+      console.log("diag-list-folder →", r2);
+
+      toast({
+        title: "Testes executados",
+        description: "Verifique o console para os resultados.",
+      });
+    } catch (error) {
+      console.error("RunAllTests error:", error);
+      toast({
+        title: "Erro nos testes",
+        description: "Verifique o console para detalhes.",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6 max-w-4xl flex items-center justify-center min-h-[400px]">
@@ -311,6 +372,30 @@ export default function User() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Informações Pessoais */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Auth Health Card */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Supabase Auth Health</h2>
+                <Button onClick={runAllTests} variant="outline" size="sm">
+                  Run All Tests
+                </Button>
+              </div>
+              <div className="bg-muted p-4 rounded-lg">
+                <pre className="text-sm whitespace-pre-wrap">
+                  {JSON.stringify({
+                    clientUrl: authHealth.clientUrl,
+                    anonRef: authHealth.anonRef,
+                    sessionExists: authHealth.sessionExists,
+                    jwtRef: authHealth.jwtRef
+                  }, null, 2)}
+                </pre>
+                {authHealth.error && (
+                  <div className="mt-2 p-2 bg-destructive/10 text-destructive rounded text-sm">
+                    Error: {authHealth.error}
+                  </div>
+                )}
+              </div>
+            </Card>
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">Informações Pessoais</h2>
               <div className="space-y-4">
