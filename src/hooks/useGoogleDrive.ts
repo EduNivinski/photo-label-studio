@@ -146,78 +146,95 @@ export function useGoogleDrive() {
         throw new Error('Popup bloqueado. Permita popups para este site.');
       }
 
-      // Listen for auth success
-      const handleMessage = async (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
-        
-        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          popup?.close();
+      // Create a promise that resolves when auth completes
+      const authPromise = new Promise<void>((resolve, reject) => {
+        // Listen for auth success/failure
+        const handleMessage = async (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return;
           
-          console.log('🎉 Google Drive auth success received');
-          
-          // Validate the auth success data
-          const validationResult = await validateGoogleDriveConnection(
-            { code: event.data.code, state: event.data.state },
-            { connection_source: 'popup_callback' }
-          );
-
-          if (validationResult.isValid) {
-            // Show success toast
-            toast({
-              title: 'Conectado com sucesso!',
-              description: `Google Drive conectado${event.data.user_email ? ` como ${event.data.user_email}` : ''}. Agora escolha uma pasta.`,
-            });
+          if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+            popup?.close();
             
-            // Force refresh status immediately
-            console.log('🔄 Refreshing Google Drive status...');
-            await checkStatus();
+            console.log('🎉 Google Drive auth success received');
+            
+            try {
+              // Validate the auth success data
+              const validationResult = await validateGoogleDriveConnection(
+                { code: event.data.code, state: event.data.state },
+                { connection_source: 'popup_callback' }
+              );
+
+              if (validationResult.isValid) {
+                // Show success toast
+                toast({
+                  title: 'Conectado com sucesso!',
+                  description: `Google Drive conectado${event.data.user_email ? ` como ${event.data.user_email}` : ''}. Agora escolha uma pasta.`,
+                });
+                
+                await logSecurityEvent({
+                  event_type: 'sensitive_operation',
+                  metadata: {
+                    action: 'google_drive_connection_success',
+                    validation_flags: validationResult.securityFlags,
+                    user_email: event.data.user_email
+                  }
+                });
+                
+                resolve();
+              } else {
+                reject(new Error('Dados de conexão inválidos recebidos'));
+              }
+            } catch (error) {
+              reject(error);
+            }
+            
+            window.removeEventListener('message', handleMessage);
+            clearInterval(checkClosed);
+          } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+            popup?.close();
+            
+            console.error('❌ Google Drive auth error:', event.data.error);
             
             await logSecurityEvent({
               event_type: 'sensitive_operation',
               metadata: {
-                action: 'google_drive_connection_success',
-                validation_flags: validationResult.securityFlags,
-                user_email: event.data.user_email
+                action: 'google_drive_connection_error',
+                error: event.data.error
               }
             });
-          } else {
-            throw new Error('Dados de conexão inválidos recebidos');
+            
+            toast({
+              variant: 'destructive',
+              title: 'Erro na autenticação',
+              description: event.data.error || 'Falha na autenticação com Google Drive',
+            });
+            
+            window.removeEventListener('message', handleMessage);
+            clearInterval(checkClosed);
+            reject(new Error(event.data.error || 'Falha na autenticação'));
           }
-          
-          window.removeEventListener('message', handleMessage);
-        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-          popup?.close();
-          
-          console.error('❌ Google Drive auth error:', event.data.error);
-          
-          await logSecurityEvent({
-            event_type: 'sensitive_operation',
-            metadata: {
-              action: 'google_drive_connection_error',
-              error: event.data.error
-            }
-          });
-          
-          toast({
-            variant: 'destructive',
-            title: 'Erro na autenticação',
-            description: event.data.error || 'Falha na autenticação com Google Drive',
-          });
-          
-          window.removeEventListener('message', handleMessage);
-        }
-      };
+        };
 
-      window.addEventListener('message', handleMessage);
+        window.addEventListener('message', handleMessage);
 
-      // Check if popup was closed without auth
-      const checkClosed = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', handleMessage);
-          setLoading(false);
-        }
-      }, 1000);
+        // Check if popup was closed without auth
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed);
+            window.removeEventListener('message', handleMessage);
+            // If popup was closed and no message received, it means user cancelled
+            console.log('🚪 Popup was closed, auth cancelled');
+            reject(new Error('Autenticação cancelada pelo usuário'));
+          }
+        }, 1000);
+      });
+
+      // Wait for auth to complete, then refresh status
+      await authPromise;
+      
+      // Force refresh status immediately after successful auth
+      console.log('🔄 Refreshing Google Drive status after successful auth...');
+      await checkStatus();
 
     } catch (error) {
       console.error('Error connecting to Google Drive:', error);
@@ -230,11 +247,14 @@ export function useGoogleDrive() {
         }
       });
       
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Falha ao conectar com Google Drive',
-      });
+      // Only show error toast if it's not a user cancellation
+      if (error instanceof Error && !error.message.includes('cancelada')) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro',
+          description: error.message || 'Falha ao conectar com Google Drive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -924,9 +944,29 @@ export function useGoogleDrive() {
     }
   }, [getAuthHeaders, toast]);
 
-  // Check status on mount
+  // Check status on mount and set up periodic refresh
   useEffect(() => {
     checkStatus();
+    
+    // Set up periodic status checking every 5 minutes
+    const intervalId = setInterval(() => {
+      checkStatus();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(intervalId);
+  }, [checkStatus]);
+
+  // Also check status when the page becomes visible again (user comes back from auth)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('🔄 Page became visible, checking Google Drive status...');
+        setTimeout(() => checkStatus(), 500); // Small delay to ensure any async operations complete
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [checkStatus]);
 
   const checkTokenInfo = useCallback(async () => {
@@ -971,6 +1011,12 @@ export function useGoogleDrive() {
     }
   }, [getAuthHeaders]);
 
+  // Force status refresh - useful for manual refresh buttons or after external changes
+  const forceStatusRefresh = useCallback(async () => {
+    console.log('🔄 Forcing Google Drive status refresh...');
+    await checkStatus();
+  }, [checkStatus]);
+
   return {
     status,
     loading: loading || isValidating,
@@ -978,6 +1024,7 @@ export function useGoogleDrive() {
     disconnect,
     resetIntegration,
     checkStatus,
+    forceStatusRefresh, // New function for manual refresh
     listFolders,
     setDedicatedFolder,
     listFiles,

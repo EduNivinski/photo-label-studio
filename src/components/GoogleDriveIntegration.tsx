@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing, forceStatusRefresh } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -370,6 +370,16 @@ export function GoogleDriveIntegration() {
                   </div>
                   
                   <div className="flex gap-2 pt-2 border-t">
+                    <Button
+                      onClick={forceStatusRefresh}
+                      variant="outline"
+                      size="sm"
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Atualizar Status
+                    </Button>
                     <Button
                       onClick={handleConnect}
                       variant="outline"
