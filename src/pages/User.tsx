@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
 import { useNavigate } from 'react-router-dom';
 
 export default function User() {
@@ -357,6 +358,9 @@ export default function User() {
                 </div>
               </div>
             </Card>
+
+            {/* Google Drive Integration */}
+            <GoogleDriveIntegration />
 
             {/* Atividade Recente */}
             <Card className="p-6">
