@@ -2,21 +2,48 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// CORS helper — aceitar sandbox do Lovable + localhost
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  let allowOrigin = "";
 
-function json(s: number, b: unknown) {
+  try {
+    const u = new URL(origin);
+    const isLovableRoot     = u.origin === "https://lovable.dev";
+    const isLovableSandbox  = u.hostname.endsWith(".sandbox.lovable.dev");
+    const isLocal3000       = u.origin === "http://localhost:3000";
+    const isLocal5173       = u.origin === "http://localhost:5173";
+
+    if (isLovableRoot || isLovableSandbox || isLocal3000 || isLocal5173) {
+      allowOrigin = origin; // ecoa exatamente o origin da página
+    }
+  } catch { /* ignore */ }
+
+  // Ecoa os headers solicitados no preflight (robusto)
+  const reqHeaders = req.headers.get("access-control-request-headers");
+  const allowHeaders = (reqHeaders && reqHeaders.trim().length > 0)
+    ? reqHeaders
+    : "authorization, content-type, apikey, x-client-info";
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin || "https://lovable.dev",
+    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin, Access-Control-Request-Headers",
+  };
+}
+
+function json(s: number, b: unknown, req: Request) {
   return new Response(JSON.stringify(b), { 
     status: s, 
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
   });
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders(req) });
   }
 
   try {
@@ -33,7 +60,7 @@ serve(async (req) => {
     const userId = body.user_id;
     
     if (!userId) {
-      return json(400, { error: 'USER_ID_REQUIRED' });
+      return json(400, { error: 'USER_ID_REQUIRED' }, req);
     }
 
     console.log(`🔍 Testing for user: ${userId}`);
@@ -48,7 +75,7 @@ serve(async (req) => {
       return json(500, { 
         error: 'TOKEN_ERROR', 
         message: tokenError instanceof Error ? tokenError.message : String(tokenError)
-      });
+      }, req);
     }
 
     // Test Google Drive API access
@@ -73,7 +100,7 @@ serve(async (req) => {
           error: 'DRIVE_API_ERROR', 
           status: response.status,
           message: errorText
-        });
+        }, req);
       }
 
       const driveData = await response.json();
@@ -89,14 +116,14 @@ serve(async (req) => {
           parents: f.parents
         })) || [],
         raw_response: driveData
-      });
+      }, req);
 
     } catch (fetchError) {
       console.error("❌ Fetch error:", fetchError);
       return json(500, { 
         error: 'FETCH_ERROR', 
         message: fetchError instanceof Error ? fetchError.message : String(fetchError)
-      });
+      }, req);
     }
 
   } catch (error: any) {
@@ -105,6 +132,6 @@ serve(async (req) => {
       error: "GENERAL_ERROR", 
       message: error.message,
       stack: error.stack
-    });
+    }, req);
   }
 });

@@ -1,14 +1,40 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// CORS helper — aceitar sandbox do Lovable + localhost
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  let allowOrigin = "";
+
+  try {
+    const u = new URL(origin);
+    const isLovableRoot     = u.origin === "https://lovable.dev";
+    const isLovableSandbox  = u.hostname.endsWith(".sandbox.lovable.dev");
+    const isLocal3000       = u.origin === "http://localhost:3000";
+    const isLocal5173       = u.origin === "http://localhost:5173";
+
+    if (isLovableRoot || isLovableSandbox || isLocal3000 || isLocal5173) {
+      allowOrigin = origin; // ecoa exatamente o origin da página
+    }
+  } catch { /* ignore */ }
+
+  // Ecoa os headers solicitados no preflight (robusto)
+  const reqHeaders = req.headers.get("access-control-request-headers");
+  const allowHeaders = (reqHeaders && reqHeaders.trim().length > 0)
+    ? reqHeaders
+    : "authorization, content-type, apikey, x-client-info";
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin || "https://lovable.dev",
+    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin, Access-Control-Request-Headers",
+  };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders(req) });
   }
 
   try {
@@ -137,7 +163,7 @@ serve(async (req) => {
     console.log("=== DIAGNOSTIC RESULT ===", result);
 
     return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
@@ -148,7 +174,7 @@ serve(async (req) => {
       stack: error.stack
     }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
     });
   }
 });
