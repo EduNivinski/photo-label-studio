@@ -103,8 +103,8 @@ export default function User() {
           error: ""
         }));
 
-        // Validação rigorosa do projeto
-        if (projectFromIss !== "tcupxcxyylxfgsbhfdhw" || jwtRef !== "tcupxcxyylxfgsbhfdhw") {
+        // Validação rigorosa do projeto (jwtRef pode ser undefined em OAuth)
+        if (projectFromIss !== "tcupxcxyylxfgsbhfdhw") {
           console.error("❌ Token de projeto incorreto!");
           toast({
             title: "❌ Token de projeto incorreto",
