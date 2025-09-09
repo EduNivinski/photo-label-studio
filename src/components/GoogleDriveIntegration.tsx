@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing, forceStatusRefresh } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -51,52 +51,6 @@ export function GoogleDriveIntegration() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Status Card - Always visible at the top */}
-          <div className="border rounded-lg p-4 bg-gradient-to-r from-muted/50 to-muted/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  status.isConnected && !status.isExpired 
-                    ? 'bg-green-500' 
-                    : status.isExpired 
-                    ? 'bg-yellow-500' 
-                    : 'bg-gray-400'
-                }`} />
-                <div>
-                  <h3 className="font-medium">
-                    {status.isConnected && !status.isExpired 
-                      ? '✅ Conectado ao Google Drive' 
-                      : status.isExpired 
-                      ? '⚠️ Conexão Expirada' 
-                      : '❌ Não Conectado'
-                    }
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {status.isConnected && !status.isExpired 
-                      ? 'Sua conta está conectada e funcionando' 
-                      : status.isExpired 
-                      ? 'Reconecte para renovar a integração' 
-                      : 'Conecte sua conta do Google Drive para começar'
-                    }
-                  </p>
-                </div>
-              </div>
-              
-              {status.isConnected && !status.isExpired && (
-                <div className="text-right">
-                  <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
-                    Ativo
-                  </Badge>
-                  {status.dedicatedFolder && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      📁 {status.dedicatedFolder.name}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
           {!status.isConnected && (
             <div className="space-y-4">
               <div className="text-center py-8">
@@ -416,16 +370,6 @@ export function GoogleDriveIntegration() {
                   </div>
                   
                   <div className="flex gap-2 pt-2 border-t">
-                    <Button
-                      onClick={forceStatusRefresh}
-                      variant="outline"
-                      size="sm"
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Atualizar Status
-                    </Button>
                     <Button
                       onClick={handleConnect}
                       variant="outline"
