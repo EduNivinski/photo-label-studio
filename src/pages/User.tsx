@@ -31,7 +31,8 @@ export default function User() {
     clientUrl: SUPABASE_URL,
     anonRef: "(checking…)",
     sessionExists: false,
-    jwtRef: "(none)",
+    jwtIss: "(none)",
+    projectFromIss: "(none)",
     error: "",
   });
   const [formData, setFormData] = useState({
@@ -56,6 +57,7 @@ export default function User() {
     const loadUserData = async () => {
       try {
         // 1) anonRef (decodifica o payload do JWT da ANON)
+        console.log("anon.ref =", JSON.parse(atob(SUPABASE_ANON.split(".")[1])).ref);
         const anonPayload = JSON.parse(atob(SUPABASE_ANON.split(".")[1]));
         const anonRef = anonPayload?.ref || "(no-ref)";
 
@@ -68,7 +70,8 @@ export default function User() {
             ...prev, 
             anonRef, 
             sessionExists: false, 
-            jwtRef: "(none)",
+            jwtIss: "(none)",
+            projectFromIss: "(none)",
             error: "Redirecionando para login..."
           }));
           
@@ -85,12 +88,10 @@ export default function User() {
         const payload = JSON.parse(atob(session.access_token.split(".")[1]));
         const jwtIss = payload.iss; // ex: https://tcupxcxyylxfgsbhfdhw.supabase.co/auth/v1
         const projectFromIss = new URL(jwtIss).hostname.split(".")[0];
-        const jwtRef = payload.ref;
 
         console.log({ 
           jwtIss, 
-          projectFromIss, 
-          jwtRef,
+          projectFromIss,
           expectedProject: "tcupxcxyylxfgsbhfdhw" 
         });
 
@@ -99,11 +100,12 @@ export default function User() {
           ...prev, 
           anonRef, 
           sessionExists: true, 
-          jwtRef: `${jwtRef} (from ${projectFromIss})`,
+          jwtIss,
+          projectFromIss,
           error: ""
         }));
 
-        // Validação rigorosa do projeto (jwtRef pode ser undefined em OAuth)
+        // Validação rigorosa do projeto
         if (projectFromIss !== "tcupxcxyylxfgsbhfdhw") {
           console.error("❌ Token de projeto incorreto!");
           toast({
@@ -124,7 +126,7 @@ export default function User() {
         // Atualizar status da sessão
         setSessionStatus({
           isAuthenticated: true,
-          projectRef: jwtRef,
+          projectRef: projectFromIss,
           userId: session.user.id
         });
 
@@ -442,7 +444,8 @@ export default function User() {
                     clientUrl: authHealth.clientUrl,
                     anonRef: authHealth.anonRef,
                     sessionExists: authHealth.sessionExists,
-                    jwtRef: authHealth.jwtRef,
+                    jwtIss: authHealth.jwtIss,
+                    projectFromIss: authHealth.projectFromIss,
                     localStorage: authHealth.sessionExists ? 
                       `!!localStorage["sb-tcupxcxyylxfgsbhfdhw-auth-token"] = ${!!localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token")}` : 
                       "Session required"
@@ -455,7 +458,7 @@ export default function User() {
                 )}
                 {!sessionStatus.isAuthenticated && (
                   <div className="mt-2 p-2 bg-orange-100 text-orange-800 rounded text-sm">
-                    ⚠️ Login obrigatório antes dos tesses. Aguarde redirecionamento OAuth.
+                    ⚠️ Login obrigatório antes dos testes. Aguarde redirecionamento OAuth.
                   </div>
                 )}
               </div>
