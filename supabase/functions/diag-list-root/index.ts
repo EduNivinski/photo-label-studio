@@ -3,13 +3,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 // Utility functions
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://tcupxcxyylxfgsbhfdhw.supabase.co',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-user-id',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
+};
+
 const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
-  status: s, 
+  status: s,
   headers: {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, content-type, x-user-id",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+    ...corsHeaders
   }
 });
 
@@ -17,7 +21,7 @@ serve(async (req) => {
   console.log("diag-list-root called");
 
   if (req.method === "OPTIONS") {
-    return json(200, {});
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {

@@ -72,16 +72,16 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.diag-scopes]
-verify_jwt = false
+verify_jwt = true
 
 [functions.diag-list-root]
-verify_jwt = false
+verify_jwt = true
 
 [functions.diag-list-folder]
-verify_jwt = false
+verify_jwt = true
 
 [functions.diag-list-shared-drive]
-verify_jwt = false
+verify_jwt = true
 
 [functions.google-drive-oauth-callback]
 verify_jwt = false
@@ -100,3 +100,6 @@ verify_jwt = false
 
 [functions.force-drive-reconnect]
 verify_jwt = false
+
+[functions.google-drive-disconnect]
+verify_jwt = true
