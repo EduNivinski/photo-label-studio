@@ -29,6 +29,34 @@ export const GoogleDriveProductionTests = () => {
   const [testResults, setTestResults] = useState<string>('');
   const { toast } = useToast();
 
+  // Boot de sessão antes dos testes
+  const ensureSessionAndRunTests = async (testFunction: () => Promise<void>) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin + "/user" },
+      });
+      return; // volta logado
+    }
+
+    // Debug obrigatório: confirmar que o token é deste projeto
+    const payload = JSON.parse(atob(session.access_token.split(".")[1]));
+    console.log("jwt.ref =", payload.ref); // deve imprimir: tcupxcxyylxfgsbhfdhw
+
+    if (payload.ref !== "tcupxcxyylxfgsbhfdhw") {
+      toast({
+        title: "❌ Token de projeto incorreto",
+        description: `Token ref: ${payload.ref}, esperado: tcupxcxyylxfgsbhfdhw`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Executar o teste
+    await testFunction();
+  };
+
   const updateTest = (name: string, updates: Partial<TestResult>) => {
     setTests(prev => prev.map(test => 
       test.name === name 
@@ -44,7 +72,9 @@ export const GoogleDriveProductionTests = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated - please login first');
 
-      const { data, error } = await supabase.functions.invoke('diag-scopes');
+      const { data, error } = await supabase.functions.invoke('diag-scopes', {
+        body: { user_id: session.user.id }
+      });
 
       if (error) throw error;
 
@@ -292,6 +322,7 @@ export const GoogleDriveProductionTests = () => {
   };
 
   const runAllTests = async () => {
+    // A sessão já foi verificada pela ensureSessionAndRunTests
     await runDiagScopes();
     await new Promise(resolve => setTimeout(resolve, 1000));
     await runDiagListRoot();
@@ -329,22 +360,22 @@ export const GoogleDriveProductionTests = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <Button onClick={runDiagScopes} variant="outline" size="sm">
+          <Button onClick={() => ensureSessionAndRunTests(runDiagScopes)} variant="outline" size="sm">
             🔍 diag-scopes
           </Button>
-          <Button onClick={runDiagListRoot} variant="outline" size="sm">
+          <Button onClick={() => ensureSessionAndRunTests(runDiagListRoot)} variant="outline" size="sm">
             📁 diag-list-root
           </Button>
-          <Button onClick={runDiagListFolder} variant="outline" size="sm">
+          <Button onClick={() => ensureSessionAndRunTests(runDiagListFolder)} variant="outline" size="sm">
             📂 diag-list-folder
           </Button>
-          <Button onClick={runRefreshTest} variant="outline" size="sm">
+          <Button onClick={() => ensureSessionAndRunTests(runRefreshTest)} variant="outline" size="sm">
             🔄 Refresh Test
           </Button>
-          <Button onClick={runResetTest} variant="outline" size="sm">
+          <Button onClick={() => ensureSessionAndRunTests(runResetTest)} variant="outline" size="sm">
             🗑️ Reset Test
           </Button>
-          <Button onClick={runAllTests} variant="default" size="sm">
+          <Button onClick={() => ensureSessionAndRunTests(async () => await runAllTests())} variant="default" size="sm">
             🚀 Run All Tests
           </Button>
         </div>
