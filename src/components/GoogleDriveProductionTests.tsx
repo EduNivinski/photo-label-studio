@@ -41,8 +41,8 @@ export const GoogleDriveProductionTests = () => {
     updateTest('diag-scopes', { status: 'running' });
     
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated - please login first');
 
       const { data, error } = await supabase.functions.invoke('diag-scopes');
 
@@ -81,11 +81,11 @@ export const GoogleDriveProductionTests = () => {
     updateTest('diag-list-root', { status: 'running' });
     
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated - please login first');
 
       const { data, error } = await supabase.functions.invoke('diag-list-root', {
-        body: { user_id: user.user.id }
+        body: { user_id: session.user.id }
       });
 
       if (error) throw error;
@@ -122,12 +122,12 @@ export const GoogleDriveProductionTests = () => {
     updateTest('diag-list-folder', { status: 'running' });
     
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated - please login first');
 
       const { data, error } = await supabase.functions.invoke('diag-list-folder', {
         body: { 
-          user_id: user.user.id,
+          user_id: session.user.id,
           folderId: selectedFolderId 
         }
       });
@@ -164,8 +164,8 @@ export const GoogleDriveProductionTests = () => {
     updateTest('refresh-test', { status: 'running' });
     
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated - please login first');
 
       // First, force token expiration
       const { error: updateError } = await supabase
@@ -173,7 +173,7 @@ export const GoogleDriveProductionTests = () => {
         .update({ 
           expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString() // 2 minutes from now
         })
-        .eq('user_id', user.user.id);
+        .eq('user_id', session.user.id);
 
       if (updateError) throw updateError;
 
@@ -181,7 +181,7 @@ export const GoogleDriveProductionTests = () => {
       setTimeout(async () => {
         try {
           const { data, error } = await supabase.functions.invoke('diag-list-root', {
-            body: { user_id: user.user.id }
+            body: { user_id: session.user.id }
           });
 
           if (error) throw error;
@@ -228,8 +228,8 @@ export const GoogleDriveProductionTests = () => {
     updateTest('reset-test', { status: 'running' });
     
     try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('Not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated - please login first');
 
       // Call disconnect/reset endpoint
       const { data, error } = await supabase.functions.invoke('google-drive-disconnect', {

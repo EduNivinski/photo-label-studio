@@ -9,9 +9,9 @@ const ALLOW_ORIGINS = new Set([
 ]);
 
 function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://lovable.dev";
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
   return {
-    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Origin": allowed || "https://lovable.dev",
     "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Methods": "POST,OPTIONS",
     "Vary": "Origin",
