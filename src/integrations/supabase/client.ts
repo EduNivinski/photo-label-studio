@@ -10,7 +10,6 @@ export const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzd
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON, {
   auth: {
-    storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,

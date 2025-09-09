@@ -51,7 +51,7 @@ export default function User() {
     storageLimit: '10 GB'
   };
 
-  // Boot de sessão e carregar dados do usuário
+  // Boot de sessão obrigatório e carregar dados do usuário
   useEffect(() => {
     const loadUserData = async () => {
       try {
@@ -59,23 +59,19 @@ export default function User() {
         const anonPayload = JSON.parse(atob(SUPABASE_ANON.split(".")[1]));
         const anonRef = anonPayload?.ref || "(no-ref)";
 
-        // 2) sessão
+        // 2) sessão - LOGIN OBRIGATÓRIO ANTES DOS TESTES
         const { data: { session } } = await supabase.auth.getSession();
-        const sessionExists = !!session;
-
-        // 3) jwtRef (se houver sessão)
-        const jwtRef = session ? JSON.parse(atob(session.access_token.split(".")[1]))?.ref : "(none)";
-
-        // Atualizar Auth Health
-        setAuthHealth(prev => ({ 
-          ...prev, 
-          anonRef, 
-          sessionExists, 
-          jwtRef,
-          error: ""
-        }));
-
+        
         if (!session) {
+          console.log("❌ Sem sessão, iniciando login OAuth...");
+          setAuthHealth(prev => ({ 
+            ...prev, 
+            anonRef, 
+            sessionExists: false, 
+            jwtRef: "(none)",
+            error: "Redirecionando para login..."
+          }));
+          
           await supabase.auth.signInWithOAuth({
             provider: "google",
             options: { redirectTo: window.location.origin + "/user" },
@@ -83,24 +79,52 @@ export default function User() {
           return; // volta logado após callback
         }
 
-        // Debug obrigatório: confirmar que o token é deste projeto
-        const payload = JSON.parse(atob(session.access_token.split(".")[1]));
-        console.log("jwt.ref =", payload.ref); // deve imprimir: tcupxcxyylxfgsbhfdhw
+        console.log("✅ Sessão encontrada, validando...");
 
-        if (payload.ref !== "tcupxcxyylxfgsbhfdhw") {
+        // 3) Debug do JWT - extrair informações críticas
+        const payload = JSON.parse(atob(session.access_token.split(".")[1]));
+        const jwtIss = payload.iss; // ex: https://tcupxcxyylxfgsbhfdhw.supabase.co/auth/v1
+        const projectFromIss = new URL(jwtIss).hostname.split(".")[0];
+        const jwtRef = payload.ref;
+
+        console.log({ 
+          jwtIss, 
+          projectFromIss, 
+          jwtRef,
+          expectedProject: "tcupxcxyylxfgsbhfdhw" 
+        });
+
+        // Atualizar Auth Health com informações detalhadas
+        setAuthHealth(prev => ({ 
+          ...prev, 
+          anonRef, 
+          sessionExists: true, 
+          jwtRef: `${jwtRef} (from ${projectFromIss})`,
+          error: ""
+        }));
+
+        // Validação rigorosa do projeto
+        if (projectFromIss !== "tcupxcxyylxfgsbhfdhw" || jwtRef !== "tcupxcxyylxfgsbhfdhw") {
+          console.error("❌ Token de projeto incorreto!");
           toast({
             title: "❌ Token de projeto incorreto",
-            description: `Token ref: ${payload.ref}, esperado: tcupxcxyylxfgsbhfdhw`,
+            description: `Projeto no token: ${projectFromIss}, esperado: tcupxcxyylxfgsbhfdhw`,
             variant: "destructive"
           });
           setSessionStatus({ isAuthenticated: false });
           return;
         }
 
+        console.log("✅ Token validado para o projeto correto");
+
+        // Verificar localStorage para debug
+        const hasLocalToken = !!localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token");
+        console.log("localStorage token exists:", hasLocalToken);
+
         // Atualizar status da sessão
         setSessionStatus({
           isAuthenticated: true,
-          projectRef: payload.ref,
+          projectRef: jwtRef,
           userId: session.user.id
         });
 
@@ -275,34 +299,61 @@ export default function User() {
 
   const runAllTests = async () => {
     try {
+      // Validação rigorosa: sessão DEVE existir
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { 
         toast({
-          title: "Não logado",
-          description: "Tente novamente após o redirecionamento OAuth.",
+          title: "❌ Sessão perdida",
+          description: "Recarregue a página para fazer login novamente.",
           variant: "destructive"
         });
         return; 
       }
 
-      const userId = "42e4275e-4b02-4304-b6a7-7279cc855bad";
-      const s = await supabase.functions.invoke("diag-scopes", { body: { user_id: userId } });
-      const r1 = await supabase.functions.invoke("diag-list-root", { body: { user_id: userId } });
-      const r2 = await supabase.functions.invoke("diag-list-folder", { body: { user_id: userId, folderId: "root" } });
-
-      console.log("diag-scopes →", s);
-      console.log("diag-list-root →", r1);
-      console.log("diag-list-folder →", r2);
-
-      toast({
-        title: "Testes executados",
-        description: "Verifique o console para os resultados.",
+      // Debug final antes das chamadas
+      const payload = JSON.parse(atob(session.access_token.split(".")[1]));
+      console.log("🧪 Executando testes com JWT:", {
+        projectRef: payload.ref,
+        userId: session.user.id,
+        hasLocalStorage: !!localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token")
       });
+
+      const userId = session.user.id; // usar o ID real do usuário logado
+      
+      console.log("🚀 Iniciando testes das Edge Functions...");
+      
+      // Usar SEMPRE supabase.functions.invoke (injeta JWT automaticamente)
+      const s = await supabase.functions.invoke("diag-scopes", { body: { user_id: userId } });
+      console.log("📊 diag-scopes →", s);
+      
+      const r1 = await supabase.functions.invoke("diag-list-root", { body: { user_id: userId } });
+      console.log("📁 diag-list-root →", r1);
+      
+      const r2 = await supabase.functions.invoke("diag-list-folder", { body: { user_id: userId, folderId: "root" } });
+      console.log("📂 diag-list-folder →", r2);
+
+      // Verificar se houve erros 401
+      const hasUnauthorized = [s, r1, r2].some(result => 
+        result.error && (result.error.message?.includes("401") || result.error.message?.includes("Unauthorized"))
+      );
+
+      if (hasUnauthorized) {
+        toast({
+          title: "⚠️ Alguns testes falharam com 401",
+          description: "Verifique o console. Pode ser necessário reconfigurar a autenticação.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "✅ Testes executados",
+          description: "Todos os testes completados. Verifique o console para detalhes.",
+        });
+      }
     } catch (error) {
-      console.error("RunAllTests error:", error);
+      console.error("❌ RunAllTests error:", error);
       toast({
         title: "Erro nos testes",
-        description: "Verifique o console para detalhes.",
+        description: `Erro: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
     }
@@ -376,8 +427,13 @@ export default function User() {
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">Supabase Auth Health</h2>
-                <Button onClick={runAllTests} variant="outline" size="sm">
-                  Run All Tests
+                <Button 
+                  onClick={runAllTests} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={!sessionStatus.isAuthenticated}
+                >
+                  {sessionStatus.isAuthenticated ? "Run All Tests" : "Login Required"}
                 </Button>
               </div>
               <div className="bg-muted p-4 rounded-lg">
@@ -386,12 +442,20 @@ export default function User() {
                     clientUrl: authHealth.clientUrl,
                     anonRef: authHealth.anonRef,
                     sessionExists: authHealth.sessionExists,
-                    jwtRef: authHealth.jwtRef
+                    jwtRef: authHealth.jwtRef,
+                    localStorage: authHealth.sessionExists ? 
+                      `!!localStorage["sb-tcupxcxyylxfgsbhfdhw-auth-token"] = ${!!localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token")}` : 
+                      "Session required"
                   }, null, 2)}
                 </pre>
                 {authHealth.error && (
                   <div className="mt-2 p-2 bg-destructive/10 text-destructive rounded text-sm">
                     Error: {authHealth.error}
+                  </div>
+                )}
+                {!sessionStatus.isAuthenticated && (
+                  <div className="mt-2 p-2 bg-orange-100 text-orange-800 rounded text-sm">
+                    ⚠️ Login obrigatório antes dos tesses. Aguarde redirecionamento OAuth.
                   </div>
                 )}
               </div>
