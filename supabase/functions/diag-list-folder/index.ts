@@ -3,17 +3,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 // Utility functions
+// CORS dinâmico por origin
 const ALLOW_ORIGINS = new Set([
-  "https://lovable.dev",
-  "http://localhost:3000",
-  "http://localhost:5173"
+  "https://lovable.dev",         // origin real da página /user
+  "http://localhost:3000",       // origin de dev (ajuste se necessário)
+  "http://localhost:5173"        // vite dev server
 ]);
 
 function cors(origin: string | null) {
   const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowed || "https://lovable.dev",
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Headers": "authorization, content-type, x-client-info",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Vary": "Origin",
   };
