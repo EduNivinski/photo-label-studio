@@ -22,6 +22,11 @@ export default function User() {
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [sessionStatus, setSessionStatus] = useState<{
+    isAuthenticated: boolean;
+    projectRef?: string;
+    userId?: string;
+  }>({ isAuthenticated: false });
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -39,10 +44,41 @@ export default function User() {
     storageLimit: '10 GB'
   };
 
-  // Carregar dados do usuário e perfil
+  // Boot de sessão e carregar dados do usuário
   useEffect(() => {
     const loadUserData = async () => {
       try {
+        // Boot de sessão antes de qualquer operação
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: { redirectTo: window.location.origin + "/user" },
+          });
+          return; // volta logado após callback
+        }
+
+        // Debug obrigatório: confirmar que o token é deste projeto
+        const payload = JSON.parse(atob(session.access_token.split(".")[1]));
+        console.log("jwt.ref =", payload.ref); // deve imprimir: tcupxcxyylxfgsbhfdhw
+
+        if (payload.ref !== "tcupxcxyylxfgsbhfdhw") {
+          toast({
+            title: "❌ Token de projeto incorreto",
+            description: `Token ref: ${payload.ref}, esperado: tcupxcxyylxfgsbhfdhw`,
+            variant: "destructive"
+          });
+          setSessionStatus({ isAuthenticated: false });
+          return;
+        }
+
+        // Atualizar status da sessão
+        setSessionStatus({
+          isAuthenticated: true,
+          projectRef: payload.ref,
+          userId: session.user.id
+        });
+
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) throw userError;
         
@@ -235,6 +271,18 @@ export default function User() {
             <p className="text-muted-foreground mt-1">
               Gerencie suas informações pessoais e veja estatísticas da sua biblioteca
             </p>
+            {/* Authentication Status Badge */}
+            <div className="flex items-center gap-2 mt-2">
+              {sessionStatus.isAuthenticated ? (
+                <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                  ✅ Logged in • Project: {sessionStatus.projectRef}
+                </Badge>
+              ) : (
+                <Badge variant="destructive">
+                  ❌ Not authenticated
+                </Badge>
+              )}
+            </div>
           </div>
           <Button 
             onClick={() => isEditing ? handleSave() : setIsEditing(true)}
