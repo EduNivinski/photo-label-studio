@@ -2,20 +2,27 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deleteTokens } from '../_shared/token_provider_v2.ts';
 
-// CORS dinâmico por origin
-const ALLOW_ORIGINS = new Set([
-  "https://lovable.dev",         // origin real da página /user
-  "http://localhost:3000",       // origin de dev (ajuste se necessário)
-  "http://localhost:5173"        // vite dev server
-]);
+function cors(origin: string | null, req: Request) {
+  const ALLOW_ORIGINS = new Set([
+    "https://lovable.dev",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    // "https://seu-dominio.com" // adicione se houver
+  ]);
 
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://lovable.dev";
+
+  // **pega o header do preflight** (vai incluir "apikey, authorization, content-type, x-client-info", etc.)
+  const reqHeaders = req.headers.get("access-control-request-headers");
+  const allowHeaders = reqHeaders && reqHeaders.trim().length > 0
+    ? reqHeaders
+    : "authorization, content-type, apikey, x-client-info";
+
   return {
-    "Access-Control-Allow-Origin": allowed || "https://lovable.dev",
-    "Access-Control-Allow-Headers": "authorization, content-type, x-client-info",
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": allowHeaders,
     "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Vary": "Origin",
+    "Vary": "Origin, Access-Control-Request-Headers",
   };
 }
 
@@ -23,17 +30,14 @@ serve(async (req) => {
   console.log("🗑️ Google Drive Disconnect called");
 
   if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 204, 
-      headers: cors(req.headers.get("origin")) 
-    });
+    return new Response(null, { status: 204, headers: cors(req.headers.get("origin"), req) });
   }
 
   const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
     status: s,
     headers: {
       "Content-Type": "application/json",
-      ...cors(req.headers.get("origin"))
+      ...cors(req.headers.get("origin"), req)
     }
   });
 
