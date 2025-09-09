@@ -19,6 +19,8 @@ import CollectionDetail from "./pages/CollectionDetail";
 import UserPage from "./pages/User";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import Login from "./pages/Login";
+import { RequireAuth } from "./components/RequireAuth";
 
 const queryClient = new QueryClient();
 
@@ -88,14 +90,20 @@ function AppContent() {
   } = useAdvancedFilters(photos);
 
   const showAdvancedSidebar = location.pathname === '/' || location.pathname === '/explore';
-  const hideSidebarRoutes = ['/auth'];
+  const hideSidebarRoutes = ['/auth', '/login'];
   const shouldShowSidebar = !hideSidebarRoutes.includes(location.pathname);
 
   if (!shouldShowSidebar) {
     return (
       <Routes>
         <Route path="/auth" element={<Auth />} />
-        <Route path="*" element={<Navigate to="/auth" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/app" element={
+          <RequireAuth>
+            <Navigate to="/" replace />
+          </RequireAuth>
+        } />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
@@ -110,34 +118,39 @@ function AppContent() {
         />
         <Routes>
           <Route path="/" element={
-            <ProtectedRoute>
+            <RequireAuth>
               <Index />
-            </ProtectedRoute>
+            </RequireAuth>
           } />
           <Route path="/upload" element={
-            <ProtectedRoute>
+            <RequireAuth>
               <Upload />
-            </ProtectedRoute>
+            </RequireAuth>
           } />
           <Route path="/labels" element={
-            <ProtectedRoute>
+            <RequireAuth>
               <Labels />
-            </ProtectedRoute>
+            </RequireAuth>
           } />
           <Route path="/collections" element={
-            <ProtectedRoute>
+            <RequireAuth>
               <Collections />
-            </ProtectedRoute>
+            </RequireAuth>
           } />
           <Route path="/collections/:id" element={
-            <ProtectedRoute>
+            <RequireAuth>
               <CollectionDetail />
-            </ProtectedRoute>
+            </RequireAuth>
           } />
           <Route path="/user" element={
-            <ProtectedRoute>
+            <RequireAuth>
               <UserPage />
-            </ProtectedRoute>
+            </RequireAuth>
+          } />
+          <Route path="/google-drive" element={
+            <RequireAuth>
+              <UserPage />
+            </RequireAuth>
           } />
           <Route path="*" element={<NotFound />} />
         </Routes>
