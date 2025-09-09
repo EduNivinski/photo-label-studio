@@ -277,34 +277,61 @@ async function handleDiagScopes(userId: string) {
   console.log('🔍 DIAG: Checking token scopes for user:', userId);
   
   try {
-    const { data: tokens, error: tokensError } = await supabase
-      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
-      
-    if (tokensError || !tokens || tokens.length === 0) {
+    // Get access token with auto-refresh using token_provider_v2
+    let accessToken;
+    try {
+      accessToken = await ensureAccessToken(userId);
+      console.log("Token obtained, length:", accessToken.length);
+    } catch (error) {
       console.log('❌ DIAG: No tokens found for user:', userId);
       return safeJson(400, {
         status: 400,
         error: 'NO_TOKENS',
-        details: tokensError?.message || 'No Google Drive connection found'
-      });
-    }
-
-    const tokenData = tokens[0];
-    
-    // Check token expiration
-    const isExpired = new Date(tokenData.expires_at) < new Date();
-    if (isExpired) {
-      console.log('❌ DIAG: Token expired for user:', userId);
-      return safeJson(401, {
-        status: 401,
-        error: 'TOKEN_EXPIRED',
-        details: 'Token has expired, please reconnect'
+        details: error.message || 'No Google Drive connection found'
       });
     }
     
     // Call tokeninfo endpoint
     console.log('🔍 DIAG: Calling Google tokeninfo endpoint');
-    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${tokenData.access_token}`);
+    const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+    
+    if (tokenInfoResponse.status === 401) {
+      // Force refresh and retry once
+      console.log("401 - attempting refresh and retry...");
+      try {
+        const freshToken = await ensureAccessToken(userId);
+        const retryResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${freshToken}`);
+        
+        if (!retryResponse.ok) {
+          console.log('❌ DIAG: TokenInfo retry failed with status:', retryResponse.status);
+          return safeJson(retryResponse.status, {
+            status: retryResponse.status,
+            error: 'TOKENINFO_FAILED_AFTER_REFRESH',
+            details: `Google tokeninfo returned ${retryResponse.status}`
+          });
+        }
+
+        const tokenInfo = await retryResponse.json();
+        const scopes = tokenInfo.scope ? tokenInfo.scope.split(' ') : [];
+        const expiresIn = tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null;
+        
+        console.log('✅ DIAG: TokenInfo success after retry - scopes found:', scopes.length);
+        
+        return safeJson(200, {
+          status: 200,
+          scopes: tokenInfo.scope || '',
+          expires_in: expiresIn,
+          scopesList: scopes,
+          hasRequiredScopes: [
+            'https://www.googleapis.com/auth/drive.metadata.readonly',
+            'https://www.googleapis.com/auth/drive.file'
+          ].every(scope => scopes.includes(scope)),
+          retried: true
+        });
+      } catch (refreshError) {
+        return safeJson(401, { error: "REFRESH_FAILED", message: refreshError.message });
+      }
+    }
     
     if (!tokenInfoResponse.ok) {
       console.log('❌ DIAG: TokenInfo failed with status:', tokenInfoResponse.status);
@@ -346,14 +373,14 @@ async function handleDiagListRoot(userId: string) {
   console.log('📋 DIAG: Testing root folder listing for user:', userId);
   
   try {
-    const { data: tokens, error: tokensError } = await supabase
-      .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
-      
-    if (tokensError || !tokens || tokens.length === 0) {
+    // Get access token with auto-refresh using token_provider_v2
+    let accessToken;
+    try {
+      accessToken = await ensureAccessToken(userId);
+      console.log("Token obtained, length:", accessToken.length);
+    } catch (error) {
       return safeJson(400, { status: 400, error: 'NO_TOKENS' });
     }
-
-    const tokenData = tokens[0];
     
     // Build exact query as specified
     const url = new URL("https://www.googleapis.com/drive/v3/files");
@@ -368,7 +395,7 @@ async function handleDiagListRoot(userId: string) {
 
     const driveResponse = await fetch(url.toString(), {
       headers: { 
-        'Authorization': `Bearer ${tokenData.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       }
     });
