@@ -1,11 +1,22 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useEffect } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: ""
+  });
 
   useEffect(() => {
     // Check if user is already logged in
@@ -38,10 +49,77 @@ export default function Login() {
       });
       
       if (error) {
-        console.error("Erro no login:", error.message);
+        toast({
+          title: "Erro no login",
+          description: error.message,
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error("Erro no login:", error);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        // Sign up flow
+        if (formData.password !== formData.confirmPassword) {
+          toast({
+            title: "Erro",
+            description: "As senhas não coincidem",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const { error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/app`
+          }
+        });
+
+        if (error) {
+          toast({
+            title: "Erro no cadastro",
+            description: error.message,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Cadastro realizado!",
+            description: "Verifique seu email para confirmar a conta."
+          });
+        }
+      } else {
+        // Sign in flow
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (error) {
+          toast({
+            title: "Erro no login",
+            description: error.message,
+            variant: "destructive"
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Erro na autenticação:", error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro inesperado",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -51,14 +129,92 @@ export default function Login() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">📷 PhotoLabel</CardTitle>
           <CardDescription>
-            Entre com sua conta para organizar suas fotos
+            {isSignUp ? "Crie sua conta para organizar suas fotos" : "Entre com sua conta para organizar suas fotos"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="seu@email.com"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                required
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Digite sua senha"
+                value={formData.password}
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                required
+                disabled={loading}
+                minLength={6}
+              />
+            </div>
+            
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirme sua senha"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  required
+                  disabled={loading}
+                  minLength={6}
+                />
+              </div>
+            )}
+            
+            <Button 
+              type="submit" 
+              className="w-full" 
+              size="lg"
+              disabled={loading}
+            >
+              {loading ? "Processando..." : (isSignUp ? "Criar Conta" : "Entrar")}
+            </Button>
+          </form>
+          
+          <div className="text-center">
+            <Button
+              variant="link"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setFormData({ email: "", password: "", confirmPassword: "" });
+              }}
+              disabled={loading}
+            >
+              {isSignUp ? "Já tem uma conta? Faça login" : "Não tem uma conta? Cadastre-se"}
+            </Button>
+          </div>
+          
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <Separator className="w-full" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">ou</span>
+            </div>
+          </div>
+          
           <Button 
             onClick={handleGoogleLogin}
+            variant="outline"
             className="w-full"
             size="lg"
+            disabled={loading}
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path
