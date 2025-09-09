@@ -44,11 +44,7 @@ export const GoogleDriveProductionTests = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.functions.invoke('diag-scopes', {
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        }
-      });
+      const { data, error } = await supabase.functions.invoke('diag-scopes');
 
       if (error) throw error;
 
@@ -89,10 +85,7 @@ export const GoogleDriveProductionTests = () => {
       if (!user.user) throw new Error('Not authenticated');
 
       const { data, error } = await supabase.functions.invoke('diag-list-root', {
-        body: { user_id: user.user.id },
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        }
+        body: { user_id: user.user.id }
       });
 
       if (error) throw error;
@@ -136,9 +129,6 @@ export const GoogleDriveProductionTests = () => {
         body: { 
           user_id: user.user.id,
           folderId: selectedFolderId 
-        },
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
         }
       });
 
@@ -191,10 +181,7 @@ export const GoogleDriveProductionTests = () => {
       setTimeout(async () => {
         try {
           const { data, error } = await supabase.functions.invoke('diag-list-root', {
-            body: { user_id: user.user.id },
-            headers: {
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            }
+            body: { user_id: user.user.id }
           });
 
           if (error) throw error;
@@ -246,20 +233,13 @@ export const GoogleDriveProductionTests = () => {
 
       // Call disconnect/reset endpoint
       const { data, error } = await supabase.functions.invoke('google-drive-disconnect', {
-        body: {},
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        }
+        body: {}
       });
 
       if (error) throw error;
 
       // Verify that diagnostic endpoints now return NO_ACCESS_TOKEN
-      const { data: diagData, error: diagError } = await supabase.functions.invoke('diag-scopes', {
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        }
-      });
+      const { data: diagData, error: diagError } = await supabase.functions.invoke('diag-scopes');
 
       const isExpectedError = diagError?.message?.includes('NO_ACCESS_TOKEN') || 
                              diagData?.error === 'NO_ACCESS_TOKEN';

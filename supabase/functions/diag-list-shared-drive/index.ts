@@ -3,26 +3,39 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 // Utility functions
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://tcupxcxyylxfgsbhfdhw.supabase.co',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-user-id',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
-};
+const ALLOW_ORIGINS = new Set([
+  "https://lovable.dev",
+  "http://localhost:3000",
+  "http://localhost:5173"
+]);
 
-const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
-  status: s,
-  headers: {
-    "Content-Type": "application/json",
-    ...corsHeaders
-  }
-});
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://lovable.dev";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
 serve(async (req) => {
   console.log("diag-list-shared-drive called");
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204, 
+      headers: cors(req.headers.get("origin")) 
+    });
   }
+
+  const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
+    status: s,
+    headers: {
+      "Content-Type": "application/json",
+      ...cors(req.headers.get("origin"))
+    }
+  });
 
   try {
     const authHeader = req.headers.get("Authorization");

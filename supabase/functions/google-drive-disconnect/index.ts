@@ -2,77 +2,73 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { deleteTokens } from '../_shared/token_provider_v2.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://tcupxcxyylxfgsbhfdhw.supabase.co',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+const ALLOW_ORIGINS = new Set([
+  "https://lovable.dev",
+  "http://localhost:3000",
+  "http://localhost:5173"
+]);
+
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://lovable.dev";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
 serve(async (req) => {
   console.log("🗑️ Google Drive Disconnect called");
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204, 
+      headers: cors(req.headers.get("origin")) 
+    });
   }
+
+  const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
+    status: s,
+    headers: {
+      "Content-Type": "application/json",
+      ...cors(req.headers.get("origin"))
+    }
+  });
 
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'MISSING_AUTH', message: 'Authorization header required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(401, { error: 'MISSING_AUTH', message: 'Authorization header required' });
     }
 
+    const jwt = authHeader.replace('Bearer ', '');
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Use the JWT to authenticate and get user
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'INVALID_USER', message: 'Failed to authenticate user' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error("Auth error:", userError);
+      return json(401, { error: "INVALID_JWT", details: userError });
     }
 
-    console.log(`🗑️ Disconnecting Google Drive for user: ${user.id}`);
+    console.log("🗑️ Disconnecting Google Drive for user:", user.id);
 
-    // Delete tokens using the secure token provider
-    await deleteTokens(user.id);
-
-    console.log(`✅ Successfully disconnected Google Drive for user: ${user.id}`);
-
-    return new Response(
-      JSON.stringify({ 
-        status: 'OK', 
-        message: 'Google Drive disconnected successfully',
-        user_id: user.id
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    // Delete all tokens for this user
+    const result = await deleteTokens(user.id);
+    
+    return json(200, {
+      status: "OK",
+      message: "Google Drive connection removed",
+      user_id: user.id,
+      deleted_tokens: result
+    });
 
   } catch (error: any) {
-    console.error('❌ Error in google-drive-disconnect:', error);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'INTERNAL_ERROR', 
-        message: error.message || 'An internal error occurred' 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    console.error("Error in google-drive-disconnect:", error);
+    return json(500, { error: "INTERNAL_ERROR", message: error.message });
   }
 });
