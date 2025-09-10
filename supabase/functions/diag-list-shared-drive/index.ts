@@ -2,34 +2,24 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
-// CORS helper — aceitar sandbox do Lovable + localhost
+// CORS helper - updated for new domain
+const ALLOW_ORIGINS = new Set([
+  "https://photo-label-studio.lovable.app",                    // novo domínio publicado
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev", // sandbox
+  "https://lovable.dev",                                       // editor (se necessário)
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
 function corsHeaders(req: Request) {
-  const origin = req.headers.get("origin") || "";
-  let allowOrigin = "";
-
-  try {
-    const u = new URL(origin);
-    const isLovableRoot     = u.origin === "https://lovable.dev";
-    const isLovableSandbox  = u.hostname.endsWith(".sandbox.lovable.dev");
-    const isLocal3000       = u.origin === "http://localhost:3000";
-    const isLocal5173       = u.origin === "http://localhost:5173";
-
-    if (isLovableRoot || isLovableSandbox || isLocal3000 || isLocal5173) {
-      allowOrigin = origin; // ecoa exatamente o origin da página
-    }
-  } catch { /* ignore */ }
-
-  // Ecoa os headers solicitados no preflight (robusto)
-  const reqHeaders = req.headers.get("access-control-request-headers");
-  const allowHeaders = (reqHeaders && reqHeaders.trim().length > 0)
-    ? reqHeaders
-    : "authorization, content-type, apikey, x-client-info";
-
+  const origin = req.headers.get("origin");
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
+  
   return {
-    "Access-Control-Allow-Origin": allowOrigin || "https://lovable.dev",
-    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Allow-Origin": allowed || "https://photo-label-studio.lovable.app",
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin, Access-Control-Request-Headers",
+    "Vary": "Origin",
   };
 }
 

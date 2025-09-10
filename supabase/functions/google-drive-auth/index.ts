@@ -3,10 +3,26 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.52.1';
 import { upsertTokens, getTokens, refreshAccessToken, deleteTokens } from "../_shared/token_provider_v2.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// CORS helper - updated for new domain
+const ALLOW_ORIGINS = new Set([
+  "https://photo-label-studio.lovable.app",                    // novo domínio publicado
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev", // sandbox
+  "https://lovable.dev",                                       // editor (se necessário)
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
+function corsHeaders(req: Request) {
+  const origin = req.headers.get("origin");
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
+  
+  return {
+    "Access-Control-Allow-Origin": allowed || "https://photo-label-studio.lovable.app",
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -57,7 +73,7 @@ async function logSecurityEvent(event: {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders(req) });
   }
 
   const url = new URL(req.url);
@@ -94,7 +110,7 @@ serve(async (req) => {
 
     return new Response('Not found', { 
       status: 404, 
-      headers: corsHeaders 
+      headers: corsHeaders(req) 
     });
   } catch (error) {
     console.error('Error in google-drive-auth function:', error);
@@ -112,7 +128,7 @@ serve(async (req) => {
     // Don't expose internal error details to clients
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
 });
@@ -122,7 +138,7 @@ async function handleAuthorize(req: Request) {
   if (!authHeader) {
     return new Response('Unauthorized', { 
       status: 401, 
-      headers: corsHeaders 
+      headers: corsHeaders(req) 
     });
   }
 
