@@ -280,7 +280,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         
-        const response = await fetch(`${supabaseUrl}/rest/v1/google_drive_tokens?user_id=eq.${userId}`, {
+        const response = await fetch(`${supabaseUrl}/rest/v1/user_drive_tokens?user_id=eq.${userId}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${supabaseServiceKey}`,
