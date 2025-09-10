@@ -68,38 +68,38 @@ verify_jwt = false
 [functions.google-drive-api]
 verify_jwt = false
 
-[functions.diag-ping]
+[functions."diag-ping"]
 verify_jwt = false
 
-[functions.diag-scopes]
+[functions."diag-scopes"]
 verify_jwt = false
 
-[functions.diag-list-root]
-verify_jwt = true
-
-[functions.diag-list-folder]
-verify_jwt = true
-
-[functions.diag-list-shared-drive]
-verify_jwt = true
-
-[functions.google-drive-oauth-callback]
+[functions."diag-list-root"]
 verify_jwt = false
 
-[functions.diag-test]
+[functions."diag-list-folder"]
 verify_jwt = false
 
-[functions.test-ping]
+[functions."diag-list-shared-drive"]
 verify_jwt = false
 
-[functions.diag-folder-list]
+[functions."google-drive-oauth-callback"]
 verify_jwt = false
 
-[functions.simple-drive-test]
+[functions."diag-test"]
 verify_jwt = false
 
-[functions.force-drive-reconnect]
+[functions."test-ping"]
 verify_jwt = false
 
-[functions.google-drive-disconnect]
+[functions."diag-folder-list"]
+verify_jwt = false
+
+[functions."simple-drive-test"]
+verify_jwt = false
+
+[functions."force-drive-reconnect"]
+verify_jwt = false
+
+[functions."google-drive-disconnect"]
 verify_jwt = true
