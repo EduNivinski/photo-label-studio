@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw } from 'lucide-react';
+import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw, FileImage } from 'lucide-react';
 import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
@@ -45,6 +45,20 @@ export function GoogleDriveIntegration() {
           <CardTitle className="flex items-center gap-2">
             <Cloud className="h-6 w-6" />
             Integração Google Drive
+            {/* Status indicator icon */}
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : status.isConnected ? (
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-600 font-medium">Conectado</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
+                <span className="text-xs text-muted-foreground font-medium">Desconectado</span>
+              </div>
+            )}
           </CardTitle>
           <CardDescription>
             Conecte e sincronize suas fotos com o Google Drive
@@ -133,30 +147,7 @@ export function GoogleDriveIntegration() {
 
           {status.isConnected && !status.isExpired && (
             <div className="space-y-6">
-              {/* Status atual */}
-              <div className="border rounded-lg p-4 bg-blue-50/50">
-                <h4 className="font-medium mb-3">🔍 Status Atual</h4>
-                <div className="space-y-2 text-sm">
-                  <div>Conectado: <code className="bg-muted px-1 rounded">{String(status.isConnected)}</code></div>
-                  <div>Expirado: <code className="bg-muted px-1 rounded">{String(status.isExpired)}</code></div>
-                  <div>Pasta Dedicada: <code className="bg-muted px-1 rounded">{status.dedicatedFolder?.name || 'Nenhuma'}</code></div>
-                </div>
-                <Button
-                  onClick={checkStatus}
-                  variant="outline"
-                  size="sm"
-                  disabled={loading}
-                  className="mt-3 flex items-center gap-2"
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Verificar Status
-                </Button>
-              </div>
-
+              {/* Status Badge */}
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
                   ✅ Conectado
@@ -168,12 +159,66 @@ export function GoogleDriveIntegration() {
                 )}
               </div>
 
-              {/* Seção de Testes de Diagnóstico */}
+              {/* Management Section - Always show when connected */}
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium mb-4">🔧 Gerenciamento</h4>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFolderSelector(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Folder className="h-4 w-4" />
+                      {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
+                    </Button>
+                    
+                    {status.dedicatedFolder && (
+                      <Button
+                        onClick={() => setShowFileViewer(true)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <FileImage className="h-4 w-4" />
+                        Ver Arquivos
+                      </Button>
+                    )}
+                    
+                    <Button
+                      variant="outline"
+                      onClick={handleDisconnect}
+                      className="flex items-center gap-2"
+                    >
+                      <Unplug className="h-4 w-4" />
+                      Desconectar
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={handleReconnectWithPermissions}
+                      disabled={loading}
+                      className="flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Reconectar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção de Testes de Diagnóstico - Collapsible */}
               <div className="border rounded-lg p-4 bg-muted/30">
-                <h4 className="font-medium mb-4 text-lg">🔬 Testes de Diagnóstico Completo</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Execute os testes abaixo em ordem para validar a integração Google Drive:
-                </p>
+                <details className="space-y-4">
+                  <summary className="cursor-pointer font-medium text-lg hover:text-primary">
+                    🔬 Testes de Diagnóstico (Clique para expandir)
+                  </summary>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Execute os testes abaixo em ordem para validar a integração Google Drive:
+                  </p>
                 
                 <div className="space-y-3">
                   <Button
@@ -331,7 +376,8 @@ export function GoogleDriveIntegration() {
                       </div>
                     </div>
                   </Button>
-                </div>
+                  </div>
+                </details>
               </div>
 
               {/* Teste de Conectividade */}
