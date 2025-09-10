@@ -41,6 +41,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const subpath = url.pathname.split("/").slice(4).join("/"); // depois de /functions/v1/google-drive-auth
+  const isCallback = req.method === "GET" && subpath === "callback";
 
   try {
     // POST /functions/v1/google-drive-auth  (pedir authorizeUrl)
