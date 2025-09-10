@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image, LogOut } from 'lucide-react';
+import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image, LogOut, Settings } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -419,6 +419,62 @@ export default function User() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Informações Pessoais */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Acesso Rápido aos Recursos */}
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Acesso Rápido aos Recursos
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  onClick={() => navigate('/upload')} 
+                  className="h-16 flex-col gap-2 text-left"
+                  variant="outline"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Upload className="h-5 w-5" />
+                    <span className="font-medium">Upload de Fotos</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Adicione novas fotos à sua biblioteca</span>
+                </Button>
+                
+                <Button 
+                  onClick={() => navigate('/labels')} 
+                  className="h-16 flex-col gap-2 text-left"
+                  variant="outline"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Tags className="h-5 w-5" />
+                    <span className="font-medium">Gestão de Labels</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Organize e gerencie suas etiquetas</span>
+                </Button>
+                
+                <Button 
+                  onClick={() => navigate('/collections')} 
+                  className="h-16 flex-col gap-2 text-left"
+                  variant="outline"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Archive className="h-5 w-5" />
+                    <span className="font-medium">Minhas Coleções</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Visualize e organize suas coleções</span>
+                </Button>
+                
+                <Button 
+                  onClick={() => navigate('/')} 
+                  className="h-16 flex-col gap-2 text-left"
+                  variant="outline"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Camera className="h-5 w-5" />
+                    <span className="font-medium">Biblioteca de Fotos</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">Visualize todas as suas fotos</span>
+                </Button>
+              </div>
+            </Card>
             {/* Auth Health Card */}
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
