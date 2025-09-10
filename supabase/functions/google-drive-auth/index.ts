@@ -27,7 +27,27 @@ const googleClientSecret = Deno.env.get('GOOGLE_DRIVE_CLIENT_SECRET')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Enhanced security validation functions
+function validateInput(input: string, maxLength: number = 255): boolean {
+  if (!input || typeof input !== 'string') return false;
+  if (input.length > maxLength) return false;
+  
+  // Check for suspicious patterns
+  const dangerousPatterns = [
+    /<script/i, /javascript:/i, /on\w+\s*=/i, /\0/,
+    /union\s+select/i, /drop\s+table/i, /';--/i
+  ];
+  
+  return !dangerousPatterns.some(pattern => pattern.test(input));
+}
+
+function sanitizeInput(input: string): string {
+  return input
+    .trim()
+    .replace(/[<>\"'&]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/\0/g, '');
+}
 function validateInput(input: string, maxLength: number = 255): boolean {
   if (!input || typeof input !== 'string') return false;
   if (input.length > maxLength) return false;
@@ -196,9 +216,9 @@ async function handleCallback(req: Request, origin: string | null) {
 
   if (!tokenResponse.ok) {
     console.error('Token exchange failed:', tokens);
-    return new Response('Failed to exchange authorization code', { 
+    return new Response(JSON.stringify({ ok: false, reason: "TOKEN_EXCHANGE_FAILED" }), { 
       status: 400, 
-      headers: corsHeaders 
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
@@ -462,87 +482,6 @@ async function handleResetIntegration(req: Request, origin: string | null) {
     }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...cors(origin) }
-    });
-  }
-    console.error('Exception details:', error.message, error.stack);
-    return new Response(JSON.stringify({
-      error: { message: error.message },
-      data: null,
-      response: {}
-    }), { 
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-async function handleResetIntegration(req: Request) {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Authentication required' }), { 
-      status: 401, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-  
-  if (userError || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid authentication' }), { 
-      status: 401, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  try {
-    console.log('🔄 Resetting Google Drive integration for user:', user.id);
-
-    // 1. Remove encrypted tokens
-    await deleteTokens(user.id);
-
-    // 2. Cleanup is handled by deleteTokens function
-    console.log('✅ Tokens and metadata cleared');
-
-    // 3. Clear sync state (if we had drive_sync_state table)
-    // This would reset start_page_token, last_synced_at, etc.
-    // For now, we'll just log that this step would happen
-    console.log('📋 Sync state cleared (placeholder for future implementation)');
-
-    await logSecurityEvent({
-      event_type: 'GOOGLE_DRIVE_INTEGRATION_RESET',
-      user_id: user.id,
-      metadata: { 
-        metadata_cleared: true,
-        sync_cleared: true
-      }
-    });
-
-    console.log('✅ Google Drive integration reset complete for user:', user.id);
-
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Google Drive integration completely reset',
-      resetComplete: true,
-      nextSteps: 'Ready for fresh OAuth connection with new scopes'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    console.error('❌ Reset integration error:', error);
-    await logSecurityEvent({
-      event_type: 'GOOGLE_DRIVE_RESET_ERROR',
-      user_id: user.id,
-      metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
-    });
-    
-    return new Response(JSON.stringify({
-      error: 'Failed to reset integration',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 }
