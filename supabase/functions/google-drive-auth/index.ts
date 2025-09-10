@@ -1,12 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { upsertTokens } from "../_shared/token_provider_v2.ts";
 
-// CORS helper with all domains
 const ALLOW_ORIGINS = new Set([
   "https://photo-label-studio.lovable.app",
   "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
   "http://localhost:3000",
-  "http://localhost:5173"
+  "http://localhost:5173",
 ]);
 
 function cors(origin: string | null) {
@@ -19,81 +18,54 @@ function cors(origin: string | null) {
   };
 }
 
-function json(status: number, body: unknown, origin: string | null) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json", ...cors(origin) }
-  });
-}
+const j = (s: number, b: unknown, o: string | null) =>
+  new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json", ...cors(o) }});
 
-function html(status: number, body: string, origin: string | null) {
-  return new Response(body, { 
-    status, 
-    headers: { "Content-Type": "text/html", ...cors(origin) } 
-  });
-}
+const h = (s: number, b: string, o: string | null) =>
+  new Response(b, { status: s, headers: { "Content-Type": "text/html", ...cors(o) }});
 
-function parseJwtSub(authHeader: string | null): string | null {
+function subFromAuth(hd: string | null): string | null {
   try {
-    if (!authHeader?.startsWith("Bearer ")) return null;
-    const jwt = authHeader.slice(7);
-    const payload = JSON.parse(atob(jwt.split(".")[1]));
-    return payload.sub || null;
-  } catch { 
-    return null; 
-  }
+    if (!hd?.startsWith("Bearer ")) return null;
+    const jwt = hd.slice(7);
+    const p = JSON.parse(atob(jwt.split(".")[1]));
+    return p?.sub || null;
+  } catch { return null; }
 }
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
 
-  // 1) Preflight sempre permitido
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors(origin) });
-  }
+  // Preflight sempre permitido
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
 
   const url = new URL(req.url);
-  // Suporta:
-  //  - POST /functions/v1/google-drive-auth           (action: "authorize")
-  //  - GET  /functions/v1/google-drive-auth/callback  (?code=..&state=..)
-  const path = url.pathname.split("/").slice(4).join("/");
+  const subpath = url.pathname.split("/").slice(4).join("/"); // depois de /functions/v1/google-drive-auth
 
   try {
-    // 2) Iniciar OAuth: requer usuário logado (JWT no Authorization)
-    if (req.method === "POST" && (path === "" || path === "/")) {
+    // POST /functions/v1/google-drive-auth  (pedir authorizeUrl)
+    if (req.method === "POST" && (subpath === "" || subpath === "/")) {
       let body: any = {};
-      try { 
-        body = await req.json(); 
-      } catch {
-        return json(400, { ok: false, reason: "INVALID_JSON" }, origin);
-      }
-      
-      if (body?.action !== "authorize") {
-        return json(400, { ok: false, reason: "UNKNOWN_ACTION" }, origin);
-      }
+      try { body = await req.json(); } catch {}
+      if (body?.action !== "authorize") return j(400, { ok:false, reason:"UNKNOWN_ACTION" }, origin);
 
-      const userId = parseJwtSub(req.headers.get("authorization"));
-      if (!userId) {
-        return json(401, { ok: false, reason: "NO_JWT" }, origin);
-      }
+      const userId = subFromAuth(req.headers.get("authorization"));
+      if (!userId) return j(401, { ok:false, reason:"NO_JWT" }, origin);
 
       const redirect = String(body.redirect || "");
-      if (!redirect) {
-        return json(400, { ok: false, reason: "MISSING_REDIRECT" }, origin);
-      }
+      if (!redirect) return j(400, { ok:false, reason:"MISSING_REDIRECT" }, origin);
 
-      // Monte a URL de autorização do Google:
       const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
       const REDIRECT_URI = `${url.origin}/functions/v1/google-drive-auth/callback`;
+
       const scope = [
-        "openid", "email", "profile",
+        "openid","email","profile",
         "https://www.googleapis.com/auth/drive.metadata.readonly",
         "https://www.googleapis.com/auth/drive.file"
       ].join(" ");
 
-      // Proteção CSRF: empacote estado (inclui userId e redirect) + nonce
       const stateObj = { userId, redirect, nonce: crypto.randomUUID() };
-      const state = btoa(JSON.stringify(stateObj));
+      const state = btoa(JSON.stringify(stateObj)); // pode trocar por HMAC assinado
 
       const authorizeUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -109,64 +81,46 @@ Deno.serve(async (req) => {
         }).toString();
 
       console.log(`✅ Generated authorize URL for user ${userId}`);
-      return json(200, { ok: true, authorizeUrl }, origin);
+      return j(200, { ok:true, authorizeUrl }, origin);
     }
 
-    // 3) Callback do Google: trocar code -> tokens, salvar e redirecionar
-    if (req.method === "GET" && path === "callback") {
-      const code = url.searchParams.get("code");
+    // GET /functions/v1/google-drive-auth/callback  (troca code -> tokens)
+    if (req.method === "GET" && subpath === "callback") {
+      const code  = url.searchParams.get("code");
       const state = url.searchParams.get("state");
-      const error = url.searchParams.get("error");
-      
-      if (error) {
-        return html(400, `<html><body><h1>Google Drive Error</h1><p>${error}</p></body></html>`, origin);
-      }
-      
-      if (!code || !state) {
-        return html(400, `<html><body><h1>Missing code/state</h1></body></html>`, origin);
-      }
+      const err   = url.searchParams.get("error");
+      if (err) return h(400, `<h1>Google error</h1><p>${err}</p>`, origin);
+      if (!code || !state) return h(400, `<h1>Missing code/state</h1>`, origin);
 
-      // Validar state
       let st: any = null;
-      try { 
-        st = JSON.parse(atob(state)); 
-      } catch {
-        return html(400, `<html><body><h1>Invalid state format</h1></body></html>`, origin);
-      }
-      
-      if (!st?.userId || !st?.redirect) {
-        return html(400, `<html><body><h1>Invalid state content</h1></body></html>`, origin);
-      }
+      try { st = JSON.parse(atob(state)); } catch {}
+      if (!st?.userId || !st?.redirect) return h(400, `<h1>Invalid state</h1>`, origin);
 
-      // Trocar code por tokens
       const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
       const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
       const REDIRECT_URI = `${url.origin}/functions/v1/google-drive-auth/callback`;
 
       console.log(`🔄 Exchanging code for tokens for user ${st.userId}`);
-      
-      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+
+      const tr = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          code, 
-          client_id: CLIENT_ID, 
-          client_secret: CLIENT_SECRET,
-          redirect_uri: REDIRECT_URI, 
-          grant_type: "authorization_code"
+          code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
+          redirect_uri: REDIRECT_URI, grant_type: "authorization_code"
         })
       });
-
-      if (!tokenResp.ok) {
-        const errorText = await tokenResp.text();
+      
+      if (!tr.ok) {
+        const errorText = await tr.text();
         console.error(`❌ Token exchange failed: ${errorText}`);
-        return html(500, `<html><body><h1>Token exchange failed</h1><pre>${errorText}</pre></body></html>`, origin);
+        return h(500, `<h1>Token exchange failed</h1><pre>${errorText}</pre>`, origin);
       }
       
-      const tokens = await tokenResp.json();
+      const tokens = await tr.json();
       console.log(`✅ Tokens received for user ${st.userId}`);
 
-      // Salvar tokens usando o token_provider_v2
+      // Salvar tokens via token_provider_v2
       try {
         const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
         const scopeString = tokens.scope || scope;
@@ -175,12 +129,12 @@ Deno.serve(async (req) => {
         console.log(`✅ Tokens saved for user ${st.userId}`);
       } catch (saveError) {
         console.error(`❌ Failed to save tokens: ${saveError}`);
-        return html(500, `<html><body><h1>Failed to save tokens</h1><p>${saveError}</p></body></html>`, origin);
+        return h(500, `<h1>Failed to save tokens</h1><pre>${saveError}</pre>`, origin);
       }
 
-      // Redirecionar de volta para a UI
-      const backUrl = st.redirect;
-      return html(200, `
+      // Redirecionar de volta pra /user
+      const back = st.redirect || `${url.origin}/user`;
+      return h(200, `
         <html>
         <head>
           <meta charset="UTF-8">
@@ -191,10 +145,10 @@ Deno.serve(async (req) => {
           <p>Redirecionando...</p>
           <script>
             if (window.opener) {
-              window.opener.location.href = ${JSON.stringify(backUrl)};
+              window.opener.location.href = ${JSON.stringify(back)};
               window.close();
             } else {
-              window.location.href = ${JSON.stringify(backUrl)};
+              window.location.href = ${JSON.stringify(back)};
             }
           </script>
         </body>
@@ -202,13 +156,13 @@ Deno.serve(async (req) => {
       `, origin);
     }
 
-    return json(404, { ok: false, reason: "NOT_FOUND", path }, origin);
+    return j(404, { ok:false, reason:"NOT_FOUND", subpath }, origin);
 
   } catch (error) {
     console.error('❌ Error in google-drive-auth:', error);
-    return json(500, { 
-      ok: false, 
-      reason: "INTERNAL_ERROR", 
+    return j(500, { 
+      ok:false, 
+      reason:"INTERNAL_ERROR", 
       error: error instanceof Error ? error.message : 'Unknown error' 
     }, origin);
   }

@@ -62,7 +62,7 @@ enable_password_signup = true
 [functions.suggest-labels]
 verify_jwt = false
 
-# ⚠️ Importante para o preflight funcionar
+# ⚠️ Para o preflight OPTIONS não ser barrado pela borda
 [functions."google-drive-auth"]
 verify_jwt = false
 
