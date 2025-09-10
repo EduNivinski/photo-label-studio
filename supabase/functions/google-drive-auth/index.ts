@@ -14,22 +14,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
       (path.endsWith("/google-drive-auth") && url.searchParams.has("code"))
     );
 
-  // CORS básico
-  const ALLOW = new Set([
+  // Updated CORS helper
+  const ALLOW_ORIGINS = new Set([
     "https://photo-label-studio.lovable.app",
     "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
     "http://localhost:3000",
     "http://localhost:5173",
   ]);
-  const cors = (o: string | null) => ({
-    "Access-Control-Allow-Origin": (o && ALLOW.has(o)) ? o : "https://photo-label-studio.lovable.app",
-    "Access-Control-Allow-Headers": "authorization, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
-  });
-  const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
-    status: s, headers: { "Content-Type": "application/json", ...cors(origin) }
-  });
+
+  function cors(origin: string | null) {
+    const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
+    return {
+      "Access-Control-Allow-Origin": allowed,
+      "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Vary": "Origin",
+    };
+  }
+
+  const json = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json", ...cors(origin) },
+    });
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors(origin) });
   }

@@ -2,16 +2,29 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Updated CORS helper
+const ALLOW_ORIGINS = new Set([
+  "https://photo-label-studio.lovable.app",
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin",
+  };
+}
 
 // Safe JSON response helper
-const safeJson = (status: number, body: unknown) =>
+const safeJson = (status: number, body: unknown, origin?: string | null) =>
   new Response(JSON.stringify(body), { 
     status, 
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    headers: { "Content-Type": "application/json", ...cors(origin) } 
   });
 
 //Functions que estão dando erro 
@@ -23,7 +36,7 @@ serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('✅ OPTIONS request');
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
   }
 
   try {

@@ -1,21 +1,34 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Updated CORS helper
+const ALLOW_ORIGINS = new Set([
+  "https://photo-label-studio.lovable.app",
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
 
-function json(s: number, b: unknown) {
-  return new Response(JSON.stringify(b), { 
-    status: s, 
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin",
+  };
+}
+
+function json(status: number, body: unknown, origin?: string | null) {
+  return new Response(JSON.stringify(body), { 
+    status, 
+    headers: { "Content-Type": "application/json", ...cors(origin) }
   });
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: cors(req.headers.get("origin")) });
   }
 
   try {

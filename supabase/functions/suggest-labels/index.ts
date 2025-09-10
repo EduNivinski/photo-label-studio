@@ -1,9 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { HfInference } from 'https://esm.sh/@huggingface/inference@2.3.2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Updated CORS helper
+const ALLOW_ORIGINS = new Set([
+  "https://photo-label-studio.lovable.app",
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin",
+  };
 }
 
 // Mock data fallback when API is not available
@@ -21,7 +34,7 @@ function getRandomMockSuggestions(): string[] {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: cors(req.headers.get("origin")) })
   }
 
   try {
@@ -30,7 +43,7 @@ serve(async (req) => {
     if (!imageUrl) {
       return new Response(
         JSON.stringify({ error: 'Image URL is required' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
@@ -44,7 +57,7 @@ serve(async (req) => {
           suggestions: getRandomMockSuggestions(),
           source: 'mock'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -94,7 +107,7 @@ serve(async (req) => {
           suggestions: suggestions.length > 0 ? suggestions : getRandomMockSuggestions(),
           source: suggestions.length > 0 ? 'ai' : 'mock'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' } }
       )
 
     } catch (aiError) {
@@ -106,7 +119,7 @@ serve(async (req) => {
           suggestions: getRandomMockSuggestions(),
           source: 'mock'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -120,7 +133,7 @@ serve(async (req) => {
         source: 'mock',
         error: 'Fallback to mock data'
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -1,21 +1,18 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-// CORS helper - updated for new domain
+// Updated CORS helper
 const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",                    // novo domínio publicado
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev", // sandbox
-  "https://lovable.dev",                                       // editor (se necessário)
+  "https://photo-label-studio.lovable.app",
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
   "http://localhost:3000",
   "http://localhost:5173",
 ]);
 
-function corsHeaders(req: Request) {
-  const origin = req.headers.get("origin");
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
-  
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
   return {
-    "Access-Control-Allow-Origin": allowed || "https://photo-label-studio.lovable.app",
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Vary": "Origin",
   };
@@ -38,16 +35,14 @@ serve(async (req) => {
   console.log("diag-scopes called");
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(req) });
+    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
   }
 
-  const json = (s: number, b: unknown) => new Response(JSON.stringify(b), {
-    status: s,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeaders(req)
-    }
-  });
+  const json = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json", ...cors(req.headers.get("origin")) },
+    });
 
   const auth = req.headers.get("authorization");
   const claims = decodeJwtClaims(auth);
