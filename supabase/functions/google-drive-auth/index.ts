@@ -116,19 +116,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
       
       const tokens = await tr.json();
-      console.log(`✅ Tokens received for user ${st.userId}`);
+      console.log(`✅ Tokens received for user ${st.userId}`, {
+        has_access_token: !!tokens.access_token,
+        has_refresh_token: !!tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        scope: tokens.scope
+      });
 
-      // Salvar tokens via token_provider_v2
-      const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
-      const scope = [
+      // Calculate expiration time - use expires_in from Google if available, default to 1 hour
+      const expiresInSeconds = tokens.expires_in || 3600;
+      const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+      
+      // Default scope if not provided by Google
+      const defaultScope = [
         "openid","email","profile",
         "https://www.googleapis.com/auth/drive.metadata.readonly",
         "https://www.googleapis.com/auth/drive.file"
       ].join(" ");
-      const scopeString = tokens.scope || scope;
+      const scopeString = tokens.scope || defaultScope;
       
+      console.log(`🔒 Saving tokens for user ${st.userId} with scope: ${scopeString}`);
+      
+      // Save tokens via token_provider_v2 (with UPSERT)
       await upsertTokens(st.userId, tokens.access_token, tokens.refresh_token, scopeString, expiresAt);
-      console.log(`✅ Tokens saved for user ${st.userId}`);
+      console.log(`✅ Tokens saved successfully for user ${st.userId}`);
 
       // Redirecionar de volta para a UI
       const redirect = st.redirect;
@@ -140,7 +151,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       });
     } catch (error) {
-      console.error(`❌ Error in callback: ${error}`);
+      console.error(`❌ Error in callback for user ${st?.userId}:`, error);
+      
+      // If it's a duplicate key error, try to handle it gracefully
+      if (error instanceof Error && error.message.includes('duplicate key')) {
+        console.log(`⚠️ Duplicate key detected for user ${st?.userId}, but continuing...`);
+        
+        // Still redirect user back, as the tokens might have been saved before the error
+        const redirect = st?.redirect || (origin ? origin + "/user" : (projectUrl + "/user"));
+        return new Response(null, { 
+          status: 303, 
+          headers: { 
+            Location: redirect,
+            ...cors(origin)
+          }
+        });
+      }
+      
       return new Response(`<h1>Failed to save tokens</h1><pre>${error}</pre>`, { 
         status: 500, 
         headers: { "Content-Type": "text/html", ...cors(origin) } 

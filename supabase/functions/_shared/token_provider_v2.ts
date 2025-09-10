@@ -62,7 +62,8 @@ export async function upsertTokens(
         expires_at: expiresAt,
         updated_at: new Date().toISOString()
       }, {
-        onConflict: 'user_id'
+        onConflict: 'user_id',
+        ignoreDuplicates: false
       });
 
     if (error) {
