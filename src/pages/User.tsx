@@ -12,27 +12,66 @@ export default function UserPage() {
   });
 
   useEffect(() => { 
+    console.log("🚀 UserPage montada, iniciando verificação de auth...");
+    console.log("Current URL:", window.location.href);
+    console.log("SUPABASE_URL:", SUPABASE_URL);
+    
     (async () => {
       try {
+        console.log("1️⃣ Decodificando ANON token...");
         const anonPayload = JSON.parse(atob(SUPABASE_ANON.split(".")[1]));
         const anonRef = anonPayload?.ref || "(no-ref)";
+        console.log("Anon ref:", anonRef);
 
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log("2️⃣ Verificando sessão existente...");
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("❌ Erro ao obter sessão:", sessionError);
+          setState(s => ({ ...s, anonRef, sessionExists: false, error: sessionError.message }));
+          return;
+        }
+        
         if (!session) {
+          console.log("❌ Sem sessão, iniciando OAuth...");
           setState(s => ({ ...s, anonRef, sessionExists: false }));
-          await supabase.auth.signInWithOAuth({
+          
+          const redirectUrl = window.location.origin + "/user";
+          console.log("Redirect URL:", redirectUrl);
+          
+          const { error: oauthError } = await supabase.auth.signInWithOAuth({
             provider: "google",
-            options: { redirectTo: window.location.origin + "/user" },
+            options: { redirectTo: redirectUrl },
           });
-          return; // após login, a página volta aqui já com sessão
+          
+          if (oauthError) {
+            console.error("❌ Erro no OAuth:", oauthError);
+            setState(s => ({ ...s, error: oauthError.message }));
+          }
+          return;
         }
 
+        console.log("✅ Sessão encontrada:", session.user.email);
+        console.log("3️⃣ Decodificando JWT da sessão...");
+        
         const p = JSON.parse(atob(session.access_token.split(".")[1]));
         const jwtIss = p.iss || "(no-iss)";
         const projectFromIss = new URL(jwtIss).hostname.split(".")[0];
+        
+        console.log("JWT iss:", jwtIss);
+        console.log("Project from iss:", projectFromIss);
 
-        setState(s => ({ ...s, anonRef, sessionExists: true, jwtIss, projectFromIss }));
+        setState(s => ({ 
+          ...s, 
+          anonRef, 
+          sessionExists: true, 
+          jwtIss, 
+          projectFromIss 
+        }));
+        
+        console.log("✅ Auth health atualizado com sucesso");
       } catch (e: any) {
+        console.error("❌ Erro na verificação de auth:", e);
         setState(s => ({ ...s, error: e?.message || String(e) }));
       }
     })(); 

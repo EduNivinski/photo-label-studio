@@ -90,7 +90,7 @@ function AppContent() {
   } = useAdvancedFilters(photos);
 
   const showAdvancedSidebar = location.pathname === '/' || location.pathname === '/explore';
-  const hideSidebarRoutes = ['/auth', '/login'];
+  const hideSidebarRoutes = ['/auth', '/login', '/user', '/google-drive'];
   const shouldShowSidebar = !hideSidebarRoutes.includes(location.pathname);
 
   if (!shouldShowSidebar) {
@@ -98,6 +98,8 @@ function AppContent() {
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/user" element={<UserPage />} />
+        <Route path="/google-drive" element={<UserPage />} />
         <Route path="/app" element={
           <RequireAuth>
             <Navigate to="/" replace />
@@ -140,16 +142,6 @@ function AppContent() {
           <Route path="/collections/:id" element={
             <RequireAuth>
               <CollectionDetail />
-            </RequireAuth>
-          } />
-          <Route path="/user" element={
-            <RequireAuth>
-              <UserPage />
-            </RequireAuth>
-          } />
-          <Route path="/google-drive" element={
-            <RequireAuth>
-              <UserPage />
             </RequireAuth>
           } />
           <Route path="*" element={<NotFound />} />
