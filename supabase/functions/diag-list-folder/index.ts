@@ -1,24 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-
-// Utility functions
-// Updated CORS helper
-const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
-  "http://localhost:3000",
-  "http://localhost:5173",
-]);
-
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
-  };
-}
+import { corsHeaders, preflight, jsonResponse } from "../_shared/cors.ts";
 
 function getUserIdFromAuth(auth: string | null) {
   if (!auth?.startsWith("Bearer ")) return null;
@@ -34,22 +16,16 @@ function getUserIdFromAuth(auth: string | null) {
 serve(async (req) => {
   console.log("diag-list-folder called");
 
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
-  }
-
-  const json = (status: number, body: unknown) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json", ...cors(req.headers.get("origin")) },
-    });
+  // CORS preflight
+  const pf = preflight(req);
+  if (pf) return pf;
 
   try {
     const auth = req.headers.get("authorization");
     const userId = getUserIdFromAuth(auth);
     
     if (!userId) {
-      return json(401, { reason: "NO_JWT" });
+      return jsonResponse({ reason: "NO_JWT" }, 401, req);
     }
 
     console.log("User authenticated:", userId);
@@ -66,7 +42,7 @@ serve(async (req) => {
       console.log("Token obtained, length:", accessToken.length);
     } catch (error) {
       console.error("Token error:", error);
-      return json(400, { reason: "NO_ACCESS_TOKEN", message: error.message });
+      return jsonResponse({ reason: "NO_ACCESS_TOKEN", message: error.message }, 400, req);
     }
 
     // Build query for folder contents
@@ -101,41 +77,41 @@ serve(async (req) => {
         });
         
         if (!retryResp.ok) {
-          return json(retryResp.status, { 
+          return jsonResponse({ 
             status: retryResp.status, 
             reason: "UNAUTHORIZED_AFTER_REFRESH" 
-          });
+          }, retryResp.status, req);
         }
         
         const retryData = await retryResp.json();
-        return json(200, {
+        return jsonResponse({
           status: "OK",
           folderId: folderId,
           items: retryData.files || [],
           echo: { corpora: "user" },
           retried: true
-        });
+        }, 200, req);
       } catch (refreshError) {
-        return json(401, { error: "REFRESH_FAILED", message: refreshError.message });
+        return jsonResponse({ error: "REFRESH_FAILED", message: refreshError.message }, 401, req);
       }
     }
 
     if (!resp.ok) {
       const errorText = await resp.text();
       console.error("API error:", errorText);
-      return json(resp.status, { status: resp.status, reason: errorText });
+      return jsonResponse({ status: resp.status, reason: errorText }, resp.status, req);
     }
 
     const data = await resp.json();
-    return json(200, {
+    return jsonResponse({
       status: "OK",
       folderId: folderId,
       items: data.files || [],
       echo: { corpora: "user" }
-    });
+    }, 200, req);
 
   } catch (error: any) {
     console.error("Error in diag-list-folder:", error);
-    return json(500, { error: "INTERNAL_ERROR", message: error.message });
+    return jsonResponse({ error: "INTERNAL_ERROR", message: error.message }, 500, req);
   }
 });
