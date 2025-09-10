@@ -843,41 +843,91 @@ export function useGoogleDrive() {
   useEffect(() => {
     // Only check once on mount
     if (hasCheckedInitialStatus) {
+      console.log('📋 Initial status already checked, skipping useEffect');
       return;
     }
 
+    let isMounted = true;
+
     const checkInitialStatus = async () => {
       try {
+        console.log('🚀 Starting initial status check...');
         const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
         if (session?.access_token) {
           console.log('🔄 User is authenticated, checking Google Drive status...');
-          await checkStatus();
+          
+          // Call checkStatus directly to avoid dependency issues
+          try {
+            setLoading(true);
+            const headers = {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            };
+            
+            const response = await supabase.functions.invoke('google-drive-auth', {
+              body: { action: "status" },
+              headers,
+            });
+
+            if (!isMounted) return;
+
+            if (response.error) {
+              console.error('❌ Failed to check Google Drive status:', response.error);
+              setStatus({
+                isConnected: false,
+                isExpired: false,
+                dedicatedFolder: null,
+              });
+            } else {
+              const statusData = response.data;
+              const isConnected = Boolean(statusData?.connected);
+              const isExpired = statusData?.reason === "EXPIRED";
+              
+              setStatus({
+                isConnected,
+                isExpired,
+                dedicatedFolder: statusData?.folderId ? {
+                  id: statusData.folderId,
+                  name: 'Drive Folder'
+                } : null,
+              });
+            }
+          } catch (error) {
+            console.error('💥 Error in initial status check:', error);
+            if (isMounted) {
+              setStatus({
+                isConnected: false,
+                isExpired: false,
+                dedicatedFolder: null,
+              });
+            }
+          } finally {
+            if (isMounted) {
+              setLoading(false);
+            }
+          }
         } else {
           console.log('⚠️ User not authenticated, skipping status check');
-          setHasCheckedInitialStatus(true);
         }
       } catch (error) {
         console.error('❌ Error in initial status check:', error);
-        setHasCheckedInitialStatus(true);
+      } finally {
+        if (isMounted) {
+          setHasCheckedInitialStatus(true);
+          console.log('✅ Initial status check completed');
+        }
       }
     };
 
     checkInitialStatus();
 
-    // Also check when the user comes back to the tab (from OAuth redirect)
-    const handleVisibilityChange = () => {
-      if (!document.hidden && !hasCheckedInitialStatus) {
-        console.log('👁️ Page became visible, checking status...');
-        checkInitialStatus();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      isMounted = false;
     };
-  }, [checkStatus, hasCheckedInitialStatus]); // Include hasCheckedInitialStatus to prevent re-runs
+  }, [hasCheckedInitialStatus]); // Only depend on hasCheckedInitialStatus
 
   const checkTokenInfo = useCallback(async () => {
     try {

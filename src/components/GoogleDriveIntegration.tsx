@@ -3,14 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw, FileImage } from 'lucide-react';
-import { useGoogleDrive } from '@/hooks/useGoogleDrive';
+import { useGoogleDriveSimple } from '@/hooks/useGoogleDriveSimple';
 import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
 import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing, checkStatus } = useGoogleDrive();
+  const { status, loading, connect, disconnect, checkStatus } = useGoogleDriveSimple();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -24,7 +23,7 @@ export function GoogleDriveIntegration() {
   };
 
   const handleReconnectWithPermissions = async () => {
-    await resetIntegration();
+    await disconnect();
     setTimeout(() => {
       handleConnect();
     }, 1000);
@@ -243,260 +242,6 @@ export function GoogleDriveIntegration() {
                   </div>
                 </div>
               </div>
-
-              {/* Seção de Testes de Diagnóstico - Collapsible */}
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <details className="space-y-4">
-                  <summary className="cursor-pointer font-medium text-lg hover:text-primary">
-                    🔬 Testes de Diagnóstico (Clique para expandir)
-                  </summary>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Execute os testes abaixo em ordem para validar a integração Google Drive:
-                  </p>
-                
-                <div className="space-y-3">
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      const result = await diagPing();
-                      console.log('🏓 DIAG PING JSON:', JSON.stringify(result.data, null, 2));
-                      if (result.success) {
-                        toast({
-                          title: '✅ Teste 0: Ping Edge Functions',
-                          description: `Edge Functions OK: ${result.data?.ok ? 'Funcionando' : 'Problema'}`,
-                        });
-                      } else {
-                        toast({
-                          title: '❌ Erro no Teste de Ping',
-                          description: result.error,
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    className="w-full justify-start h-auto py-3"
-                  >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="flex items-center justify-center w-8 h-8 bg-blue-500/10 rounded-full">
-                        <span className="text-sm font-medium">0</span>
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium">diag-ping</div>
-                        <div className="text-sm text-muted-foreground">Testar conectividade das Edge Functions</div>
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      const result = await diagScopes();
-                      console.log('🔍 DIAG SCOPES JSON:', JSON.stringify(result.data, null, 2));
-                      if (result.success) {
-                        toast({
-                          title: '✅ Teste 1: Escopos',
-                          description: `Status: ${result.data?.status} | Escopos: ${result.data?.hasRequiredScopes ? 'OK' : 'Faltam'}`,
-                        });
-                      } else {
-                        toast({
-                          title: '❌ Erro no Teste de Escopos',
-                          description: result.error,
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    className="w-full justify-start h-auto py-3"
-                  >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
-                        <span className="text-sm font-medium">1</span>
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium">diag-scopes</div>
-                        <div className="text-sm text-muted-foreground">Verificar escopos do token OAuth</div>
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      const result = await diagListRoot();
-                      console.log('📋 DIAG LIST ROOT JSON:', JSON.stringify(result.data, null, 2));
-                      if (result.success) {
-                        toast({
-                          title: '✅ Teste 2: Listagem Raiz',
-                          description: `Status: ${result.data?.status} | Pastas: ${result.data?.filesCount}`,
-                        });
-                      } else {
-                        toast({
-                          title: '❌ Erro no Teste de Listagem',
-                          description: result.error,
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    className="w-full justify-start h-auto py-3"
-                  >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
-                        <span className="text-sm font-medium">2</span>
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium">diag-list-root</div>
-                        <div className="text-sm text-muted-foreground">Testar listagem da raiz do Meu Drive</div>
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      const folderId = status.dedicatedFolder?.id || 'root';
-                      const result = await diagListFolder(folderId);
-                      console.log('📁 DIAG LIST FOLDER JSON:', JSON.stringify(result.data, null, 2));
-                      if (result.success) {
-                        toast({
-                          title: '✅ Teste 3: Pasta Dedicada',
-                          description: `Status: ${result.data?.status} | Itens: ${result.data?.filesCount}`,
-                        });
-                      } else {
-                        toast({
-                          title: '❌ Erro no Teste da Pasta',
-                          description: result.error,
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    className="w-full justify-start h-auto py-3"
-                  >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
-                        <span className="text-sm font-medium">3</span>
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium">diag-list-folder</div>
-                        <div className="text-sm text-muted-foreground">Testar pasta específica ({status.dedicatedFolder?.name || 'root'})</div>
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      const result = await diagListSharedDrive();
-                      console.log('🤝 DIAG LIST SHARED JSON:', JSON.stringify(result.data, null, 2));
-                      if (result.success) {
-                        toast({
-                          title: '✅ Teste 4: Shared Drives',
-                          description: `Status: ${result.data?.status} | Drive: ${result.data?.drive?.name || 'N/A'}`,
-                        });
-                      } else {
-                        toast({
-                          title: '❌ Erro no Teste Shared Drives',
-                          description: result.error,
-                          variant: 'destructive'
-                        });
-                      }
-                    }}
-                    className="w-full justify-start h-auto py-3"
-                  >
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full">
-                        <span className="text-sm font-medium">4</span>
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium">diag-list-shared-drive</div>
-                        <div className="text-sm text-muted-foreground">Testar Shared Drives (se disponível)</div>
-                      </div>
-                    </div>
-                  </Button>
-                  </div>
-                </details>
-              </div>
-
-              {/* Teste de Conectividade */}
-              <div className="border rounded-lg p-4 bg-yellow-50/50">
-                <h4 className="font-medium mb-4">🧪 Teste de Conectividade</h4>
-                <div className="space-y-3">
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      console.log("🧪 TEST: Testando conectividade básica...");
-                      try {
-                        const { data, error } = await supabase.functions.invoke('test-ping');
-                        console.log("🧪 TEST PING JSON:", JSON.stringify(data, null, 2));
-                        if (error) {
-                          console.error("❌ TEST PING ERROR:", error);
-                        }
-                      } catch (err) {
-                        console.error("❌ TEST PING EXCEPTION:", err);
-                      }
-                    }}
-                    className="w-full justify-start"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 bg-yellow-500/10 rounded-full">
-                        <span className="text-sm font-medium">T</span>
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium">test-ping</div>
-                        <div className="text-sm text-muted-foreground">Teste básico de conectividade</div>
-                      </div>
-                    </div>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Seção de Gerenciamento */}
-              <div className="border rounded-lg p-4">
-                <h4 className="font-medium mb-4">🔧 Gerenciamento</h4>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowFolderSelector(true)}
-                      className="flex items-center gap-2"
-                    >
-                      <Folder className="h-4 w-4" />
-                      {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
-                    </Button>
-                    
-                    {status.dedicatedFolder && (
-                      <Button
-                        onClick={() => setShowFileViewer(true)}
-                        variant="outline"
-                        className="flex items-center gap-2"
-                      >
-                        <Folder className="h-4 w-4" />
-                        Ver Arquivos
-                      </Button>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Button
-                      onClick={handleConnect}
-                      variant="outline"
-                      size="sm"
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Reconectar
-                    </Button>
-                    <Button
-                      onClick={handleDisconnect}
-                      variant="destructive"
-                      size="sm"
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      <Unplug className="h-4 w-4" />
-                      Desconectar
-                    </Button>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </CardContent>
@@ -508,8 +253,8 @@ export function GoogleDriveIntegration() {
           onClose={() => setShowFolderSelector(false)}
         />
       )}
-
-      {showFileViewer && status.dedicatedFolder && (
+      
+      {showFileViewer && (
         <GoogleDriveFileViewer
           onClose={() => setShowFileViewer(false)}
         />
