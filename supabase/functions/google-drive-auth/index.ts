@@ -55,10 +55,14 @@ Deno.serve(async (req) => {
       const redirect = String(body.redirect || "");
       if (!redirect) return j(400, { ok:false, reason:"MISSING_REDIRECT" }, origin);
 
-    // Cálculo robusto do origin (sempre https)
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-    const originHttps = host ? `https://${host}` : "https://tcupxcxyylxfgsbhfdhw.supabase.co"; // fallback seguro
-    const REDIRECT_URI = `${originHttps}/functions/v1/google-drive-auth/callback`;
+    // 🔒 Nunca derive o redirect do req.url/origin do Edge.
+    // Use sempre o SUPABASE_URL do seu projeto.
+    const projectUrl =
+      (Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "") ||
+      // fallback seguro (troque pelo seu ref se precisar)
+      "https://tcupxcxyylxfgsbhfdhw.supabase.co";
+
+    const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
 
     const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
 
@@ -84,6 +88,8 @@ Deno.serve(async (req) => {
         state
       }).toString();
 
+      // (opcional) log de debug seguro (REMOVER depois):
+      console.log("[gd-auth] using redirect_uri =", REDIRECT_URI);
       console.log(`✅ Generated authorize URL for user ${userId}`);
       return j(200, { ok:true, authorizeUrl }, origin);
     }
@@ -100,13 +106,14 @@ Deno.serve(async (req) => {
       try { st = JSON.parse(atob(state)); } catch {}
       if (!st?.userId || !st?.redirect) return h(400, `<h1>Invalid state</h1>`, origin);
 
-      // Cálculo robusto do origin para callback também
-      const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-      const originHttps = host ? `https://${host}` : "https://tcupxcxyylxfgsbhfdhw.supabase.co";
+      // 🔒 Use sempre o SUPABASE_URL do seu projeto para callback também.
+      const projectUrl =
+        (Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "") ||
+        "https://tcupxcxyylxfgsbhfdhw.supabase.co";
       
       const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
       const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
-      const REDIRECT_URI = `${originHttps}/functions/v1/google-drive-auth/callback`;
+      const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
 
       console.log(`🔄 Exchanging code for tokens for user ${st.userId}`);
 
