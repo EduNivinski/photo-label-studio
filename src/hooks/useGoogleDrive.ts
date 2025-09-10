@@ -120,13 +120,16 @@ export function useGoogleDrive() {
         }
       });
 
-      const headers = await getAuthHeaders();
-      
-      const response = await supabase.functions.invoke('google-drive-auth/authorize', {
-        headers,
+      // Use o novo fluxo POST para obter authorizeUrl
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+        body: { 
+          action: "authorize", 
+          redirect: window.location.origin + "/google-drive" 
+        },
       });
-
-      if (response.error) {
+      
+      if (error) {
+        console.error('❌ Erro ao obter authorizeUrl:', error);
         toast({
           variant: 'destructive',
           title: 'Erro ao conectar',
@@ -134,90 +137,15 @@ export function useGoogleDrive() {
         });
         return;
       }
-
-      // Open popup for OAuth
-      const popup = window.open(
-        response.data.authUrl,
-        'google-drive-auth',
-        'width=500,height=600,scrollbars=yes,resizable=yes'
-      );
-
-      if (!popup) {
-        throw new Error('Popup bloqueado. Permita popups para este site.');
+      
+      if (!data?.authorizeUrl) {
+        throw new Error('authorizeUrl não retornada pela função');
       }
-
-      // Listen for auth success
-      const handleMessage = async (event: MessageEvent) => {
-        if (event.origin !== window.location.origin) return;
-        
-        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          popup?.close();
-          
-          console.log('🎉 Google Drive auth success received');
-          
-          // Validate the auth success data
-          const validationResult = await validateGoogleDriveConnection(
-            { code: event.data.code, state: event.data.state },
-            { connection_source: 'popup_callback' }
-          );
-
-          if (validationResult.isValid) {
-            // Show success toast
-            toast({
-              title: 'Conectado com sucesso!',
-              description: `Google Drive conectado${event.data.user_email ? ` como ${event.data.user_email}` : ''}. Agora escolha uma pasta.`,
-            });
-            
-            // Force refresh status immediately
-            console.log('🔄 Refreshing Google Drive status...');
-            await checkStatus();
-            
-            await logSecurityEvent({
-              event_type: 'sensitive_operation',
-              metadata: {
-                action: 'google_drive_connection_success',
-                validation_flags: validationResult.securityFlags,
-                user_email: event.data.user_email
-              }
-            });
-          } else {
-            throw new Error('Dados de conexão inválidos recebidos');
-          }
-          
-          window.removeEventListener('message', handleMessage);
-        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-          popup?.close();
-          
-          console.error('❌ Google Drive auth error:', event.data.error);
-          
-          await logSecurityEvent({
-            event_type: 'sensitive_operation',
-            metadata: {
-              action: 'google_drive_connection_error',
-              error: event.data.error
-            }
-          });
-          
-          toast({
-            variant: 'destructive',
-            title: 'Erro na autenticação',
-            description: event.data.error || 'Falha na autenticação com Google Drive',
-          });
-          
-          window.removeEventListener('message', handleMessage);
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-
-      // Check if popup was closed without auth
-      const checkClosed = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', handleMessage);
-          setLoading(false);
-        }
-      }, 1000);
+      
+      console.log('✅ AuthorizeUrl obtida, redirecionando...');
+      
+      // Redirecionar para a URL de autorização do Google (mesma aba)
+      window.location.href = data.authorizeUrl;
 
     } catch (error) {
       console.error('Error connecting to Google Drive:', error);
@@ -238,7 +166,7 @@ export function useGoogleDrive() {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders, toast, validateGoogleDriveConnection, checkStatus]);
+  }, [toast]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -446,14 +374,9 @@ export function useGoogleDrive() {
 
   const diagScopes = useCallback(async () => {
     try {
-      const headers = await getAuthHeaders();
-      const { data: { session } } = await supabase.auth.getSession();
-      
       console.log('🔍 DIAG: Checking scopes via separate edge function...');
       
-      const response = await supabase.functions.invoke('diag-scopes', {
-        body: { user_id: session?.user?.id },
-      });
+      const response = await supabase.functions.invoke('diag-scopes');
 
       console.log('🔍 DIAG: Scopes result:', response);
 
@@ -477,18 +400,13 @@ export function useGoogleDrive() {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
-  }, [getAuthHeaders]);
+  }, []);
 
   const diagListRoot = useCallback(async () => {
     try {
-      const headers = await getAuthHeaders();
-      const { data: { session } } = await supabase.auth.getSession();
-      
       console.log('📋 DIAG: Testing root listing via separate edge function...');
       
-      const response = await supabase.functions.invoke('diag-list-root', {
-        body: { user_id: session?.user?.id },
-      });
+      const response = await supabase.functions.invoke('diag-list-root');
 
       console.log('📋 DIAG: Root listing result:', response);
 
@@ -512,7 +430,7 @@ export function useGoogleDrive() {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
-  }, [getAuthHeaders]);
+  }, []);
 
   const diagListFolder = useCallback(async (folderId: string) => {
     try {

@@ -36,13 +36,22 @@ export const GoogleDriveTest = () => {
     setStatus('Testing authorize endpoint...');
     
     try {
-      // Use popup approach
-      const { data } = await supabase.functions.invoke('google-drive-auth/authorize');
+      // Use o novo fluxo POST para obter authorizeUrl
+      const { data, error } = await supabase.functions.invoke('google-drive-auth', {
+        body: { 
+          action: "authorize", 
+          redirect: window.location.origin + "/google-drive" 
+        },
+      });
       
-      if (data?.authorizeUrl) {
-        setStatus('Opening popup...');
-        window.open(data.authorizeUrl, "gd_auth", "width=480,height=700");
-        setResult({ popup: 'opened', url: data.authorizeUrl });
+      
+      if (error) {
+        setStatus('Error');
+        setResult({ error: error.message });
+      } else if (data?.authorizeUrl) {
+        setStatus('Opening redirect...');
+        window.location.href = data.authorizeUrl;
+        setResult({ redirect: 'opened', url: data.authorizeUrl });
       } else {
         setStatus('No URL returned');
         setResult(data);

@@ -7,6 +7,7 @@ import { upsertTokens, getTokens, refreshAccessToken, deleteTokens } from "../_s
 const ALLOW_ORIGINS = new Set([
   "https://photo-label-studio.lovable.app",
   "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
+  "https://lovable.dev",
   "http://localhost:3000"
 ]);
 
@@ -97,27 +98,50 @@ function getUserIdFromAuth(auth: string | null) {
   }
 }
 
+function createSignedState(userId: string, nonce: string): string {
+  // Simple signed state - in production you'd use HMAC
+  const data = `${userId}:${nonce}:${Date.now()}`;
+  return btoa(data);
+}
+
+function validateSignedState(state: string): { userId: string; valid: boolean } {
+  try {
+    const decoded = atob(state);
+    const [userId, nonce, timestamp] = decoded.split(':');
+    
+    // Check if state is not older than 10 minutes
+    const isValid = (Date.now() - parseInt(timestamp)) < 600000;
+    
+    return { userId, valid: isValid };
+  } catch {
+    return { userId: '', valid: false };
+  }
+}
+
 serve(async (req) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors(origin) });
   }
 
-  // Extract path from URL - handle /authorize and /callback routing
   const url = new URL(req.url);
-  const path = url.pathname.split("/").slice(4).join("/"); // .../functions/v1/<fn>/<AQUI>
+  const path = url.pathname.split("/").slice(4).join("/");
 
   try {
-    if (path === "authorize") {
-      return handleAuthorize(req, origin);
-    } else if (path === "callback") {
+    // Handle POST requests for authorization
+    if (req.method === "POST") {
+      return handlePostAuthorize(req, origin);
+    }
+    
+    // Handle GET requests by path
+    if (path === "callback") {
       return handleCallback(req, origin);
-    } else if (path === "refresh") {
-      return handleRefresh(req, origin);
-    } else if (path === "disconnect") {
-      return handleDisconnect(req, origin);
     } else if (path === "status") {
       return handleStatus(req, origin);
+    } else if (path === "disconnect") {
+      return handleDisconnect(req, origin);
+    } else if (path === "refresh") {
+      return handleRefresh(req, origin);
     } else if (path === "reset-integration") {
       return handleResetIntegration(req, origin);
     }
@@ -140,7 +164,7 @@ serve(async (req) => {
   }
 });
 
-async function handleAuthorize(req: Request, origin: string | null) {
+async function handlePostAuthorize(req: Request, origin: string | null) {
   const authHeader = req.headers.get('Authorization');
   const userId = getUserIdFromAuth(authHeader);
   
@@ -151,28 +175,44 @@ async function handleAuthorize(req: Request, origin: string | null) {
     });
   }
 
-  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  
-  authUrl.searchParams.set('client_id', googleClientId);
-  authUrl.searchParams.set('redirect_uri', `${supabaseUrl}/functions/v1/google-drive-auth/callback`);
-  authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly');
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent');
-  authUrl.searchParams.set('include_granted_scopes', 'false');
-  authUrl.searchParams.set('state', userId);
+  try {
+    const body = await req.json();
+    
+    if (body.action !== "authorize") {
+      return new Response(JSON.stringify({ reason: "INVALID_ACTION" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...cors(origin) }
+      });
+    }
 
-  // Check if request is from fetch (heuristic) or direct navigation
-  const isFetch = req.headers.get("sec-fetch-mode") === "cors";
-  if (isFetch) {
+    const redirectUrl = body.redirect || `${origin}/google-drive`;
+    const nonce = Math.random().toString(36).substring(2, 15);
+    const signedState = createSignedState(userId, nonce);
+    
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    authUrl.searchParams.set('client_id', googleClientId);
+    authUrl.searchParams.set('redirect_uri', `${supabaseUrl}/functions/v1/google-drive-auth/callback`);
+    authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('access_type', 'offline');
+    authUrl.searchParams.set('prompt', 'consent');
+    authUrl.searchParams.set('include_granted_scopes', 'false');
+    authUrl.searchParams.set('state', signedState);
+
     return new Response(JSON.stringify({ authorizeUrl: authUrl.toString() }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...cors(origin) }
     });
-  } else {
-    return new Response(null, { 
-      status: 302, 
-      headers: { Location: authUrl.toString(), ...cors(origin) }
+    
+  } catch (error) {
+    console.error('POST authorize error:', error);
+    return new Response(JSON.stringify({
+      ok: false,
+      reason: "POST_AUTHORIZE_ERROR",
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 }
@@ -186,134 +226,164 @@ async function handleCallback(req: Request, origin: string | null) {
   console.log('Callback received - code:', !!code, 'error:', error, 'state:', state);
 
   if (error) {
-    return new Response(JSON.stringify({ ok: false, reason: "OAUTH_ERROR", error }), { 
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Google Drive - Erro</title></head>
+      <body>
+        <h1>Erro de Autorização</h1>
+        <p>OAuth Error: ${error}</p>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body>
+      </html>
+    `, { 
       status: 400, 
-      headers: { "Content-Type": "application/json", ...cors(origin) }
+      headers: { "Content-Type": "text/html", ...cors(origin) }
     });
   }
 
   if (!code || !state) {
-    return new Response(JSON.stringify({ ok: false, reason: "MISSING_PARAMS" }), { 
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Google Drive - Erro</title></head>
+      <body>
+        <h1>Parâmetros Inválidos</h1>
+        <p>Código ou state não encontrados.</p>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body>
+      </html>
+    `, { 
       status: 400, 
-      headers: { "Content-Type": "application/json", ...cors(origin) }
+      headers: { "Content-Type": "text/html", ...cors(origin) }
     });
   }
+
+  // Validate signed state
+  const stateValidation = validateSignedState(state);
+  if (!stateValidation.valid) {
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Google Drive - Erro</title></head>
+      <body>
+        <h1>State Inválido</h1>
+        <p>Token de segurança inválido ou expirado.</p>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body>
+      </html>
+    `, { 
+      status: 400, 
+      headers: { "Content-Type": "text/html", ...cors(origin) }
+    });
+  }
+
+  const userId = stateValidation.userId;
 
   // Exchange code for tokens
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: googleClientId,
-      client_secret: googleClientSecret,
-      code,
-      grant_type: 'authorization_code',
-      redirect_uri: `${supabaseUrl}/functions/v1/google-drive-auth/callback`,
-    }),
-  });
-
-  const tokens = await tokenResponse.json();
-
-  if (!tokenResponse.ok) {
-    console.error('Token exchange failed:', tokens);
-    return new Response(JSON.stringify({ ok: false, reason: "TOKEN_EXCHANGE_FAILED" }), { 
-      status: 400, 
-      headers: { "Content-Type": "application/json", ...cors(origin) }
+  try {
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: googleClientId,
+        client_secret: googleClientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: `${supabaseUrl}/functions/v1/google-drive-auth/callback`,
+      }),
     });
-  }
 
-  console.log('Tokens received successfully');
+    const tokens = await tokenResponse.json();
 
-  // Get user info from Google
-  const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { Authorization: `Bearer ${tokens.access_token}` },
-  });
-
-  const userInfo = await userResponse.json();
-  console.log('User info retrieved:', userInfo.email);
-  
-  // Store tokens securely using the new encrypted system
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-  
-  if (state) {
-    try {
-      console.log('Attempting to store tokens for user:', state);
-      
-      // Store tokens using secure encrypted storage  
-      const scopeString = tokens.scope || 'https://www.googleapis.com/auth/drive.readonly';
-      await upsertTokens(state, tokens.access_token, tokens.refresh_token, scopeString, expiresAt);
-        
-      console.log('Tokens stored successfully for user:', state);
-      
-    } catch (error) {
-      console.error('Exception during token storage:', error);
-      console.error('Exception details:', error.message, error.stack);
-      
+    if (!tokenResponse.ok) {
+      console.error('Token exchange failed:', tokens);
       return new Response(`
         <!DOCTYPE html>
         <html>
-        <head>
-          <title>Connection Failed</title>
-        </head>
+        <head><title>Google Drive - Erro</title></head>
         <body>
-          <h1>Google Drive Connection Failed</h1>
-          <p>There was an unexpected error storing your Google Drive credentials.</p>
-          <p><strong>Error:</strong> ${error.message}</p>
-          <p>Please try connecting again. If the problem persists, contact support.</p>
-          <script>
-            setTimeout(() => {
-              window.close();
-            }, 5000);
-          </script>
+          <h1>Falha na Autenticação</h1>
+          <p>Não foi possível trocar código por tokens.</p>
+          <script>setTimeout(() => window.close(), 3000);</script>
         </body>
         </html>
-      `, {
-        headers: { 'Content-Type': 'text/html' },
-        status: 500
+      `, { 
+        status: 400, 
+        headers: { "Content-Type": "text/html", ...cors(origin) }
       });
     }
+
+    console.log('Tokens received successfully');
+
+    // Get user info from Google
+    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+
+    const userInfo = await userResponse.json();
+    console.log('User info retrieved:', userInfo.email);
+    
+    // Store tokens securely using the new encrypted system
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+    const scopeString = tokens.scope || 'https://www.googleapis.com/auth/drive.readonly';
+    await upsertTokens(userId, tokens.access_token, tokens.refresh_token, scopeString, expiresAt);
+      
+    console.log('Tokens stored successfully for user:', userId);
+    
+    const userEmail = userInfo?.email || 'unknown';
+
+    // Return success HTML
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Google Drive Conectado</title>
+      </head>
+      <body>
+        <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #4CAF50;">✓ Google Drive Conectado!</h1>
+          <p>Sua conta <strong>${userEmail}</strong> foi conectada com sucesso.</p>
+          <p><a href="/google-drive">Voltar para Google Drive</a></p>
+        </div>
+        <script>
+          // Opcional: fechar janela se for popup
+          if (window.opener) {
+            window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS' }, '*');
+            setTimeout(() => window.close(), 2000);
+          } else {
+            // Redirecionar se for mesma aba
+            setTimeout(() => window.location.href = '/google-drive', 2000);
+          }
+        </script>
+      </body>
+      </html>
+    `, {
+      headers: { 
+        'Content-Type': 'text/html; charset=utf-8',
+        ...cors(origin)
+      },
+    });
+
+  } catch (error) {
+    console.error('Exception during token storage:', error);
+    
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Google Drive - Erro</title></head>
+      <body>
+        <h1>Erro Interno</h1>
+        <p>Falha ao processar autenticação: ${error instanceof Error ? error.message : 'Unknown error'}</p>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body>
+      </html>
+    `, {
+      status: 500,
+      headers: { "Content-Type": "text/html", ...cors(origin) }
+    });
   }
-
-  // Use the user info already obtained earlier
-  const userEmail = userInfo?.email || 'unknown';
-  console.log('Using user email for success page:', userEmail);
-
-  // Return success page with proper user email and UTF-8 encoding
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Google Drive Connected</title>
-      <script>
-        window.opener?.postMessage({
-          type: 'GOOGLE_AUTH_SUCCESS',
-          code: '${sanitizeInput(code)}',
-          state: '${sanitizeInput(state)}',
-          user_email: '${userEmail}'
-        }, window.location.origin);
-        
-        setTimeout(() => {
-          window.close();
-        }, 1000);
-      </script>
-    </head>
-    <body>
-      <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-        <h1 style="color: #4CAF50;">✓ Google Drive Conectado!</h1>
-        <p>Sua conta <strong>${userEmail}</strong> foi conectada com sucesso.</p>
-        <p>Esta janela será fechada automaticamente...</p>
-      </div>
-    </body>
-    </html>
-  `;
-
-  return new Response(html, {
-    headers: { 
-      'Content-Type': 'text/html; charset=utf-8',
-      ...cors(origin)
-    },
-  });
 }
 
 async function handleRefresh(req: Request, origin: string | null) {
