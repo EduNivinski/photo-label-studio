@@ -63,7 +63,7 @@ enable_password_signup = true
 verify_jwt = false
 
 [functions.google-drive-auth]
-verify_jwt = false
+verify_jwt = true
 
 [functions.google-drive-api]
 verify_jwt = false

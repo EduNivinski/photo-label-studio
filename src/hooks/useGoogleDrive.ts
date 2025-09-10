@@ -80,16 +80,16 @@ export function useGoogleDrive() {
       const statusData = response.data;
       console.log('✅ Status data received:', statusData);
       
-      // Ensure isConnected is a boolean
-      const isConnected = Boolean(statusData?.hasConnection);
-      const isExpired = Boolean(statusData?.isExpired);
+      // Handle the new response format from google-drive-auth
+      const isConnected = Boolean(statusData?.connected);
+      const isExpired = statusData?.reason === "EXPIRED";
       
       const newStatus = {
         isConnected,
         isExpired,
-        dedicatedFolder: statusData?.dedicatedFolderId ? {
-          id: statusData.dedicatedFolderId,
-          name: statusData.dedicatedFolderName || 'Pasta do Google Drive'
+        dedicatedFolder: statusData?.folderId ? {
+          id: statusData.folderId,
+          name: 'Drive Folder'
         } : null,
       };
       
