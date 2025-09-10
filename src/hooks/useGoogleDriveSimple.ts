@@ -20,9 +20,24 @@ export function useGoogleDriveSimple() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const hasInitialized = useRef(false);
+  const isCheckingStatus = useRef(false);
+  const isConnecting = useRef(false);
 
   const checkStatus = useCallback(async (showErrors = false) => {
+    // Prevent multiple simultaneous calls
+    if (isCheckingStatus.current) {
+      console.log('⏳ Status check already in progress, aborting duplicate call');
+      return;
+    }
+
+    // Prevent check during loading
+    if (loading) {
+      console.log('⏳ Already loading, skipping status check');
+      return;
+    }
+
     try {
+      isCheckingStatus.current = true;
       setLoading(true);
       
       const { data: { session } } = await supabase.auth.getSession();
@@ -94,11 +109,19 @@ export function useGoogleDriveSimple() {
       }
     } finally {
       setLoading(false);
+      isCheckingStatus.current = false;
     }
-  }, [toast]);
+  }, [toast, loading]);
 
   const connect = useCallback(async () => {
+    // Prevent multiple simultaneous connections
+    if (isConnecting.current) {
+      console.log('⏳ Connection already in progress, aborting duplicate call');
+      return;
+    }
+
     try {
+      isConnecting.current = true;
       setLoading(true);
       
       console.log('🔗 Iniciando conexão Google Drive...');
@@ -137,6 +160,7 @@ export function useGoogleDriveSimple() {
       });
     } finally {
       setLoading(false);
+      isConnecting.current = false;
     }
   }, [toast]);
 

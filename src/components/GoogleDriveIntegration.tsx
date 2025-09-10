@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw, FileImage } from 'lucide-react';
 import { useGoogleDriveSimple } from '@/hooks/useGoogleDriveSimple';
-import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
-import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
+// import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
+// import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
 import { useToast } from '@/hooks/use-toast';
 
 export function GoogleDriveIntegration() {
@@ -199,7 +199,12 @@ export function GoogleDriveIntegration() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Button
                       variant="outline"
-                      onClick={() => setShowFolderSelector(true)}
+                      onClick={() => {
+                        toast({
+                          title: 'Funcionalidade temporariamente desabilitada',
+                          description: 'Seleção de pasta será reativada em breve',
+                        });
+                      }}
                       className="flex items-center gap-2"
                     >
                       <Folder className="h-4 w-4" />
@@ -208,7 +213,12 @@ export function GoogleDriveIntegration() {
                     
                     {status.dedicatedFolder && (
                       <Button
-                        onClick={() => setShowFileViewer(true)}
+                        onClick={() => {
+                          toast({
+                            title: 'Funcionalidade temporariamente desabilitada',
+                            description: 'Visualização de arquivos será reativada em breve',
+                          });
+                        }}
                         variant="outline"
                         className="flex items-center gap-2"
                       >
@@ -247,6 +257,7 @@ export function GoogleDriveIntegration() {
         </CardContent>
       </Card>
 
+      {/* Temporarily disabled to fix loop issues 
       {showFolderSelector && (
         <GoogleDriveFolderSelector
           onFolderSelected={handleFolderSelected}
@@ -259,6 +270,7 @@ export function GoogleDriveIntegration() {
           onClose={() => setShowFileViewer(false)}
         />
       )}
+      */}
     </div>
   );
 }
