@@ -170,31 +170,14 @@ export function useGoogleDriveSimple() {
     }
   }, [toast]);
 
-  // Initialize once
+  // Only initialize on first mount, no automatic checking
   useEffect(() => {
     if (hasInitialized.current) {
       return;
     }
 
-    const initialize = async () => {
-      try {
-        console.log('🚀 Initializing Google Drive hook...');
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.access_token) {
-          console.log('👤 User authenticated, checking status');
-          await checkStatus();
-        } else {
-          console.log('👤 User not authenticated, skipping status check');
-        }
-      } catch (error) {
-        console.error('❌ Error during initialization:', error);
-      } finally {
-        hasInitialized.current = true;
-      }
-    };
-
-    initialize();
+    console.log('🚀 Google Drive hook initialized - call checkStatus manually to verify connection');
+    hasInitialized.current = true;
   }, []); // Empty dependency array - only run once
 
   return {
