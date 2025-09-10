@@ -72,7 +72,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.diag-scopes]
-verify_jwt = true
+verify_jwt = false
 
 [functions.diag-list-root]
 verify_jwt = true
