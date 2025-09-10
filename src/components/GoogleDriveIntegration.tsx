@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing } = useGoogleDrive();
+  const { status, loading, connect, disconnect, resetIntegration, runDiagnostics, diagnoseScopes, diagnoseListing, checkTokenInfo, diagScopes, diagListRoot, diagListFolder, diagListSharedDrive, diagPing, checkStatus } = useGoogleDrive();
   const [showFolderSelector, setShowFolderSelector] = useState(false);
   const [showFileViewer, setShowFileViewer] = useState(false);
   const { toast } = useToast();
@@ -133,6 +133,30 @@ export function GoogleDriveIntegration() {
 
           {status.isConnected && !status.isExpired && (
             <div className="space-y-6">
+              {/* Status atual */}
+              <div className="border rounded-lg p-4 bg-blue-50/50">
+                <h4 className="font-medium mb-3">🔍 Status Atual</h4>
+                <div className="space-y-2 text-sm">
+                  <div>Conectado: <code className="bg-muted px-1 rounded">{String(status.isConnected)}</code></div>
+                  <div>Expirado: <code className="bg-muted px-1 rounded">{String(status.isExpired)}</code></div>
+                  <div>Pasta Dedicada: <code className="bg-muted px-1 rounded">{status.dedicatedFolder?.name || 'Nenhuma'}</code></div>
+                </div>
+                <Button
+                  onClick={checkStatus}
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                  className="mt-3 flex items-center gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Verificar Status
+                </Button>
+              </div>
+
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
                   ✅ Conectado

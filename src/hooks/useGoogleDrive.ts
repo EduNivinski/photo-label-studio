@@ -60,7 +60,8 @@ export function useGoogleDrive() {
       const headers = await getAuthHeaders();
       
       console.log('🔍 Checking Google Drive status...');
-      const response = await supabase.functions.invoke('google-drive-auth/status', {
+      const response = await supabase.functions.invoke('google-drive-auth', {
+        body: { action: "status" },
         headers,
       });
 
@@ -157,7 +158,8 @@ export function useGoogleDrive() {
       setLoading(true);
       const headers = await getAuthHeaders();
       
-      await supabase.functions.invoke('google-drive-auth/disconnect', {
+      await supabase.functions.invoke('google-drive-auth', {
+        body: { action: "reset" },
         headers,
       });
 
@@ -191,7 +193,8 @@ export function useGoogleDrive() {
       
       const headers = await getAuthHeaders();
       
-      const response = await supabase.functions.invoke('google-drive-auth/reset-integration', {
+      const response = await supabase.functions.invoke('google-drive-auth', {
+        body: { action: "reset" },
         headers,
       });
 
