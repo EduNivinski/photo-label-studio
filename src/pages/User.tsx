@@ -457,8 +457,19 @@ export default function User() {
                   </div>
                 )}
                 {!sessionStatus.isAuthenticated && (
-                  <div className="mt-2 p-2 bg-orange-100 text-orange-800 rounded text-sm">
-                    ⚠️ Login obrigatório antes dos testes. Aguarde redirecionamento OAuth.
+                  <div className="mt-2 space-y-2">
+                    <div className="p-2 bg-orange-100 text-orange-800 rounded text-sm">
+                      ⚠️ Login obrigatório antes dos testes. Use o botão abaixo para fazer login.
+                    </div>
+                    <Button 
+                      onClick={() => supabase.auth.signInWithOAuth({
+                        provider: "google",
+                        options: { redirectTo: window.location.origin + "/user" },
+                      })}
+                      className="w-full"
+                    >
+                      Sign in with Google
+                    </Button>
                   </div>
                 )}
               </div>
