@@ -36,6 +36,7 @@ export function useGoogleDrive() {
     dedicatedFolder: null,
   });
   const [loading, setLoading] = useState(false);
+  const [hasCheckedInitialStatus, setHasCheckedInitialStatus] = useState(false);
   const { toast } = useToast();
   const { 
     validateGoogleDriveConnection, 
@@ -54,7 +55,13 @@ export function useGoogleDrive() {
     };
   }, []);
 
-  const checkStatus = useCallback(async () => {
+  const checkStatus = useCallback(async (force = false) => {
+    // Prevent multiple simultaneous checks unless forced
+    if (loading && !force) {
+      console.log('⏳ Status check already in progress, skipping...');
+      return;
+    }
+
     try {
       setLoading(true);
       const headers = await getAuthHeaders();
@@ -74,6 +81,15 @@ export function useGoogleDrive() {
           isExpired: false,
           dedicatedFolder: null,
         });
+        
+        // Show error only if this is a manual check
+        if (force) {
+          toast({
+            variant: 'destructive',
+            title: 'Erro ao verificar status',
+            description: 'Não foi possível verificar o status do Google Drive',
+          });
+        }
         return;
       }
 
@@ -95,6 +111,7 @@ export function useGoogleDrive() {
       
       console.log('🔄 Updating status to:', newStatus);
       setStatus(newStatus);
+      setHasCheckedInitialStatus(true);
     } catch (error) {
       console.error('💥 Error checking Google Drive status:', error);
       setStatus({
@@ -102,10 +119,20 @@ export function useGoogleDrive() {
         isExpired: false,
         dedicatedFolder: null,
       });
+      setHasCheckedInitialStatus(true);
+      
+      // Show error only if this is a manual check
+      if (force) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de conexão',
+          description: 'Falha ao conectar com o serviço do Google Drive',
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, loading, toast]);
 
   const connect = useCallback(async () => {
     try {
@@ -814,6 +841,11 @@ export function useGoogleDrive() {
 
   // Check status on mount and when user returns from OAuth
   useEffect(() => {
+    // Only check once on mount
+    if (hasCheckedInitialStatus) {
+      return;
+    }
+
     const checkInitialStatus = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -822,9 +854,11 @@ export function useGoogleDrive() {
           await checkStatus();
         } else {
           console.log('⚠️ User not authenticated, skipping status check');
+          setHasCheckedInitialStatus(true);
         }
       } catch (error) {
         console.error('❌ Error in initial status check:', error);
+        setHasCheckedInitialStatus(true);
       }
     };
 
@@ -832,7 +866,7 @@ export function useGoogleDrive() {
 
     // Also check when the user comes back to the tab (from OAuth redirect)
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && !hasCheckedInitialStatus) {
         console.log('👁️ Page became visible, checking status...');
         checkInitialStatus();
       }
@@ -843,7 +877,7 @@ export function useGoogleDrive() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []); // Empty deps to avoid infinite re-renders
+  }, [checkStatus, hasCheckedInitialStatus]); // Include hasCheckedInitialStatus to prevent re-runs
 
   const checkTokenInfo = useCallback(async () => {
     try {

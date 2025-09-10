@@ -88,7 +88,7 @@ export function GoogleDriveIntegration() {
                     Conectar Google Drive
                   </Button>
                   <Button
-                    onClick={checkStatus}
+                    onClick={() => checkStatus(true)}
                     variant="outline"
                     size="lg"
                     disabled={loading}
@@ -178,7 +178,7 @@ export function GoogleDriveIntegration() {
                 
                 {/* Manual Status Check Button */}
                 <Button
-                  onClick={checkStatus}
+                  onClick={() => checkStatus(true)}
                   variant="outline"
                   size="sm"
                   disabled={loading}
