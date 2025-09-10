@@ -186,22 +186,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.log(`🔍 Checking connection status for user ${userId}`);
 
       try {
-        // Check if user has Google Drive tokens using Supabase client
+        // Check if user has Google Drive tokens using direct table query
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         
-        const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_google_drive_connection_status`, {
-          method: "POST",
+        console.log(`🔍 Querying user_drive_tokens for user ${userId}`);
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/user_drive_tokens?user_id=eq.${userId}&select=expires_at,created_at`, {
+          method: "GET",
           headers: {
             "Authorization": `Bearer ${supabaseServiceKey}`,
             "Content-Type": "application/json",
             "apikey": supabaseServiceKey
-          },
-          body: JSON.stringify({ p_user_id: userId })
+          }
         });
 
         if (!response.ok) {
-          console.log(`❌ Error checking status: ${response.status}`);
+          console.log(`❌ Error checking status: ${response.status} - ${await response.text()}`);
           return json(200, {
             ok: true,
             hasConnection: false,
@@ -225,12 +226,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
 
         const connectionData = statusData[0];
+        const isExpired = new Date(connectionData.expires_at) < new Date();
+        
         return json(200, {
           ok: true,
           hasConnection: true,
-          isExpired: connectionData.is_expired || false,
-          dedicatedFolderId: connectionData.dedicated_folder_id,
-          dedicatedFolderName: connectionData.dedicated_folder_name
+          isExpired,
+          dedicatedFolderId: null, // TODO: Add dedicated folder support later
+          dedicatedFolderName: null
         });
 
       } catch (error) {
