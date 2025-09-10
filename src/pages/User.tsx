@@ -530,6 +530,29 @@ export default function User() {
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">Google Drive Test Console</h2>
               <GoogleDriveTest />
+              
+              {/* Debug Info for Production */}
+              <div className="mt-6 p-4 bg-muted rounded-lg">
+                <h3 className="font-medium mb-2">🔍 Debug Info (Produção)</h3>
+                <div className="text-sm space-y-1 font-mono">
+                  <div><strong>URL atual:</strong> <span className="text-primary">{typeof window !== 'undefined' ? window.location.origin : 'Loading...'}</span></div>
+                  <div><strong>Supabase URL:</strong> <span className="text-primary">https://tcupxcxyylxfgsbhfdhw.supabase.co</span></div>
+                  <div><strong>Auth Estado:</strong> <span className="text-primary">{user ? '✅ Logado' : '❌ Não logado'}</span></div>
+                  {user && <div><strong>User ID:</strong> <span className="text-primary">{user.id.substring(0, 8)}...</span></div>}
+                  <div><strong>Environment:</strong> <span className="text-primary">{typeof window !== 'undefined' && window.location.hostname.includes('lovable.app') ? '🚀 Produção' : '🏠 Local'}</span></div>
+                </div>
+              </div>
+              
+              {/* Debug Info for Production */}
+              <div className="mt-6 p-4 bg-muted rounded-lg">
+                <h3 className="font-medium mb-2">Debug Info (Produção)</h3>
+                <div className="text-sm space-y-1">
+                  <div>URL atual: <code>{typeof window !== 'undefined' ? window.location.origin : 'Loading...'}</code></div>
+                  <div>Supabase URL: <code>https://tcupxcxyylxfgsbhfdhw.supabase.co</code></div>
+                  <div>Auth Estado: <code>{user ? 'Logado' : 'Não logado'}</code></div>
+                  {user && <div>User ID: <code>{user.id}</code></div>}
+                </div>
+              </div>
             </Card>
 
             <Card className="p-6">
