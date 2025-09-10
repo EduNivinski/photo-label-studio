@@ -55,30 +55,34 @@ Deno.serve(async (req) => {
       const redirect = String(body.redirect || "");
       if (!redirect) return j(400, { ok:false, reason:"MISSING_REDIRECT" }, origin);
 
-      const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
-      const REDIRECT_URI = `${url.origin}/functions/v1/google-drive-auth/callback`;
+    // Cálculo robusto do origin (sempre https)
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const originHttps = host ? `https://${host}` : "https://tcupxcxyylxfgsbhfdhw.supabase.co"; // fallback seguro
+    const REDIRECT_URI = `${originHttps}/functions/v1/google-drive-auth/callback`;
 
-      const scope = [
-        "openid","email","profile",
-        "https://www.googleapis.com/auth/drive.metadata.readonly",
-        "https://www.googleapis.com/auth/drive.file"
-      ].join(" ");
+    const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
 
-      const stateObj = { userId, redirect, nonce: crypto.randomUUID() };
-      const state = btoa(JSON.stringify(stateObj)); // pode trocar por HMAC assinado
+    const scope = [
+      "openid","email","profile",
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.file"
+    ].join(" ");
 
-      const authorizeUrl =
-        `https://accounts.google.com/o/oauth2/v2/auth?` +
-        new URLSearchParams({
-          client_id: CLIENT_ID,
-          redirect_uri: REDIRECT_URI,
-          response_type: "code",
-          access_type: "offline",
-          include_granted_scopes: "false",
-          prompt: "consent",
-          scope,
-          state
-        }).toString();
+    const stateObj = { userId, redirect, nonce: crypto.randomUUID() };
+    const state = btoa(JSON.stringify(stateObj)); // pode trocar por HMAC assinado
+
+    const authorizeUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth?` +
+      new URLSearchParams({
+        client_id: CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: "code",
+        access_type: "offline",
+        include_granted_scopes: "false",
+        prompt: "consent select_account",
+        scope,
+        state
+      }).toString();
 
       console.log(`✅ Generated authorize URL for user ${userId}`);
       return j(200, { ok:true, authorizeUrl }, origin);
@@ -96,9 +100,13 @@ Deno.serve(async (req) => {
       try { st = JSON.parse(atob(state)); } catch {}
       if (!st?.userId || !st?.redirect) return h(400, `<h1>Invalid state</h1>`, origin);
 
+      // Cálculo robusto do origin para callback também
+      const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+      const originHttps = host ? `https://${host}` : "https://tcupxcxyylxfgsbhfdhw.supabase.co";
+      
       const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
       const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
-      const REDIRECT_URI = `${url.origin}/functions/v1/google-drive-auth/callback`;
+      const REDIRECT_URI = `${originHttps}/functions/v1/google-drive-auth/callback`;
 
       console.log(`🔄 Exchanging code for tokens for user ${st.userId}`);
 
