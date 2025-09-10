@@ -3,24 +3,20 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.52.1';
 import { upsertTokens, getTokens, refreshAccessToken, deleteTokens } from "../_shared/token_provider_v2.ts";
 
-// CORS helper - updated for new domain
+// CORS helper with dynamic origin support
 const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",                    // novo domínio publicado
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev", // sandbox
-  "https://lovable.dev",                                       // editor (se necessário)
-  "http://localhost:3000",
-  "http://localhost:5173",
+  "https://photo-label-studio.lovable.app",
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
+  "http://localhost:3000"
 ]);
 
-function corsHeaders(req: Request) {
-  const origin = req.headers.get("origin");
+function cors(origin: string | null) {
   const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "";
-  
   return {
     "Access-Control-Allow-Origin": allowed || "https://photo-label-studio.lovable.app",
     "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
+    "Vary": "Origin"
   };
 }
 
@@ -70,85 +66,68 @@ async function logSecurityEvent(event: {
   }
 }
 
+function getUserIdFromAuth(auth: string | null) {
+  if (!auth?.startsWith("Bearer ")) return null;
+  try {
+    const token = auth.split(" ")[1];
+    const [, payload] = token.split(".");
+    return JSON.parse(atob(payload)).sub as string;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders(req) });
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: cors(origin) });
   }
 
+  // Extract path from URL - handle /authorize and /callback routing
   const url = new URL(req.url);
-  const path = url.pathname.split('/').pop();
-  const userAgent = req.headers.get('user-agent') || 'unknown';
-  const authHeader = req.headers.get('authorization');
-
-  // Enhanced request logging
-  await logSecurityEvent({
-    event_type: 'api_request',
-    metadata: {
-      path,
-      method: req.method,
-      user_agent: userAgent,
-      timestamp: new Date().toISOString(),
-      has_auth: !!authHeader
-    }
-  });
+  const path = url.pathname.split("/").slice(4).join("/"); // .../functions/v1/<fn>/<AQUI>
 
   try {
-    if (path === 'authorize') {
-      return handleAuthorize(req);
-    } else if (path === 'callback') {
-      return handleCallback(req);
-    } else if (path === 'refresh') {
-      return handleRefresh(req);
-    } else if (path === 'disconnect') {
-      return handleDisconnect(req);
-    } else if (path === 'status') {
-      return handleStatus(req);
-    } else if (path === 'reset-integration') {
-      return handleResetIntegration(req);
+    if (path === "authorize") {
+      return handleAuthorize(req, origin);
+    } else if (path === "callback") {
+      return handleCallback(req, origin);
+    } else if (path === "refresh") {
+      return handleRefresh(req, origin);
+    } else if (path === "disconnect") {
+      return handleDisconnect(req, origin);
+    } else if (path === "status") {
+      return handleStatus(req, origin);
+    } else if (path === "reset-integration") {
+      return handleResetIntegration(req, origin);
     }
 
-    return new Response('Not found', { 
-      status: 404, 
-      headers: corsHeaders(req) 
+    return new Response(JSON.stringify({ ok: false, reason: "UNKNOWN_PATH", path }), {
+      status: 404,
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   } catch (error) {
     console.error('Error in google-drive-auth function:', error);
     
-    // Log the error securely
-    await logSecurityEvent({
-      event_type: 'api_error',
-      metadata: {
-        path,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-    // Don't expose internal error details to clients
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    return new Response(JSON.stringify({ 
+      ok: false, 
+      reason: "INTERNAL_ERROR", 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }), {
       status: 500,
-      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 });
 
-async function handleAuthorize(req: Request) {
+async function handleAuthorize(req: Request, origin: string | null) {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response('Unauthorized', { 
-      status: 401, 
-      headers: corsHeaders(req) 
-    });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  const userId = getUserIdFromAuth(authHeader);
   
-  if (userError || !user) {
-    return new Response('Unauthorized', { 
+  if (!userId) {
+    return new Response(JSON.stringify({ reason: "NO_JWT" }), { 
       status: 401, 
-      headers: corsHeaders 
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
@@ -156,37 +135,47 @@ async function handleAuthorize(req: Request) {
   
   authUrl.searchParams.set('client_id', googleClientId);
   authUrl.searchParams.set('redirect_uri', `${supabaseUrl}/functions/v1/google-drive-auth/callback`);
-  authUrl.searchParams.set('scope', 'openid email profile https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file');
+  authUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly');
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent'); // Force consent for updated scopes
-  authUrl.searchParams.set('include_granted_scopes', 'false'); // Fresh request, not incremental
-  authUrl.searchParams.set('state', user.id); // Pass user ID in state parameter
+  authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('include_granted_scopes', 'false');
+  authUrl.searchParams.set('state', userId);
 
-  return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  // Check if request is from fetch (heuristic) or direct navigation
+  const isFetch = req.headers.get("sec-fetch-mode") === "cors";
+  if (isFetch) {
+    return new Response(JSON.stringify({ authorizeUrl: authUrl.toString() }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...cors(origin) }
+    });
+  } else {
+    return new Response(null, { 
+      status: 302, 
+      headers: { Location: authUrl.toString(), ...cors(origin) }
+    });
+  }
 }
 
-async function handleCallback(req: Request) {
+async function handleCallback(req: Request, origin: string | null) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
   const error = url.searchParams.get('error');
-  const state = url.searchParams.get('state'); // User ID passed in state
+  const state = url.searchParams.get('state');
 
   console.log('Callback received - code:', !!code, 'error:', error, 'state:', state);
 
   if (error) {
-    return new Response(`OAuth Error: ${error}`, { 
+    return new Response(JSON.stringify({ ok: false, reason: "OAUTH_ERROR", error }), { 
       status: 400, 
-      headers: corsHeaders 
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
-  if (!code) {
-    return new Response('Authorization code not found', { 
+  if (!code || !state) {
+    return new Response(JSON.stringify({ ok: false, reason: "MISSING_PARAMS" }), { 
       status: 400, 
-      headers: corsHeaders 
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
@@ -301,171 +290,110 @@ async function handleCallback(req: Request) {
 
   return new Response(html, {
     headers: { 
-      'Content-Type': 'text/html; charset=utf-8'
+      'Content-Type': 'text/html; charset=utf-8',
+      ...cors(origin)
     },
   });
 }
 
-async function handleRefresh(req: Request) {
+async function handleRefresh(req: Request, origin: string | null) {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Authentication required' }), { 
-      status: 401, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  const userId = getUserIdFromAuth(authHeader);
   
-  if (userError || !user) {
-    return new Response(JSON.stringify({ error: 'Invalid authentication' }), { 
+  if (!userId) {
+    return new Response(JSON.stringify({ reason: "NO_JWT" }), { 
       status: 401, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
   try {
     // Get current tokens from secure storage
-    const tokenData = await getTokens(user.id);
+    const tokenData = await getTokens(userId);
     
     if (!tokenData) {
-      await logSecurityEvent({
-        event_type: 'GOOGLE_DRIVE_REFRESH_NO_TOKENS',
-        user_id: user.id,
-        metadata: { error: 'No tokens found' }
-      });
-      
-      return new Response(JSON.stringify({
-        error: 'No refresh token available',
-        message: 'Please reconnect your Google Drive account.'
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      return new Response(JSON.stringify({ reason: "NO_ACCESS_TOKEN" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...cors(origin) }
       });
     }
     
     // Use our built-in refresh mechanism
-    const newAccessToken = await refreshAccessToken(user.id);
-    
-    await logSecurityEvent({
-      event_type: 'GOOGLE_DRIVE_TOKEN_REFRESHED',
-      user_id: user.id,
-      metadata: { scopes: tokenData.scope }
-    });
+    const newAccessToken = await refreshAccessToken(userId);
     
     return new Response(JSON.stringify({
-      success: true,
+      ok: true,
       message: 'Token refreshed successfully'
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
     
   } catch (error) {
     console.error('Refresh error:', error);
-    await logSecurityEvent({
-      event_type: 'GOOGLE_DRIVE_REFRESH_ERROR',
-      user_id: user.id,
-      metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
-    });
     
     return new Response(JSON.stringify({
-      error: 'Authentication failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ok: false,
+      reason: "REFRESH_ERROR",
+      error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 }
 
-async function handleDisconnect(req: Request) {
+async function handleDisconnect(req: Request, origin: string | null) {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response('Unauthorized', { 
-      status: 401, 
-      headers: corsHeaders 
-    });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  const userId = getUserIdFromAuth(authHeader);
   
-  if (userError || !user) {
-    return new Response('Unauthorized', { 
+  if (!userId) {
+    return new Response(JSON.stringify({ reason: "NO_JWT" }), { 
       status: 401, 
-      headers: corsHeaders 
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
   try {
-    // Complete reset: Delete Google Drive tokens from new encrypted storage
-    await deleteTokens(user.id);
-
-    // Clean up is handled by deleteTokens function
+    await deleteTokens(userId);
     console.log('✅ Tokens deleted successfully');
 
-    // Clear any sync state (if we had it)
-    // This would reset start_page_token, etc. for clean reconnect
-
-    await logSecurityEvent({
-      event_type: 'GOOGLE_DRIVE_DISCONNECTED_COMPLETE',
-      user_id: user.id,
-      metadata: { forced_reset: true }
-    });
-
-    console.log(`Successfully disconnected and cleaned up tokens for user: ${user.id}`);
+    console.log(`Successfully disconnected and cleaned up tokens for user: ${userId}`);
 
     return new Response(JSON.stringify({
-      success: true,
-      message: 'Google Drive completely disconnected. Next connection will request fresh permissions.',
-      reset_complete: true
+      ok: true,
+      message: 'Google Drive completely disconnected.'
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   } catch (error) {
     console.error('Disconnect error:', error);
-    await logSecurityEvent({
-      event_type: 'GOOGLE_DRIVE_DISCONNECT_ERROR',
-      user_id: user.id, 
-      metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
-    });
     
     return new Response(JSON.stringify({
-      error: 'Failed to disconnect',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ok: false,
+      reason: "DISCONNECT_ERROR",
+      error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 }
 
-async function handleStatus(req: Request) {
+async function handleStatus(req: Request, origin: string | null) {
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-      status: 401, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  }
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+  const userId = getUserIdFromAuth(authHeader);
   
-  if (userError || !user) {
-    console.error('User authentication failed:', userError);
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+  if (!userId) {
+    return new Response(JSON.stringify({ reason: "NO_JWT" }), { 
       status: 401, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
   }
 
   try {
-    console.log('Checking connection status for user:', user.id);
+    console.log('Checking connection status for user:', userId);
     
-    // Check if user has tokens stored  
-    const tokenData = await getTokens(user.id);
+    const tokenData = await getTokens(userId);
     const hasConnection = !!tokenData;
     
     if (!hasConnection) {
@@ -475,29 +403,67 @@ async function handleStatus(req: Request) {
         dedicatedFolderId: null,
         dedicatedFolderName: null
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json", ...cors(origin) }
       });
     }
     
     const isExpired = new Date(tokenData.expires_at).getTime() < Date.now();
-    
-    console.log('Status check result:', {
-      hasConnection,
-      isExpired,
-      expiresAt: tokenData.expires_at
-    });
 
     return new Response(JSON.stringify({
       hasConnection,
       isExpired,
-      dedicatedFolderId: null, // Not used in v2 system
-      dedicatedFolderName: null // Not used in v2 system  
+      dedicatedFolderId: null,
+      dedicatedFolderName: null
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json", ...cors(origin) }
     });
     
   } catch (error) {
     console.error('Exception during status check:', error);
+    return new Response(JSON.stringify({
+      ok: false,
+      reason: "STATUS_ERROR",
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...cors(origin) }
+    });
+  }
+}
+
+async function handleResetIntegration(req: Request, origin: string | null) {
+  const authHeader = req.headers.get('Authorization');
+  const userId = getUserIdFromAuth(authHeader);
+  
+  if (!userId) {
+    return new Response(JSON.stringify({ reason: "NO_JWT" }), { 
+      status: 401, 
+      headers: { "Content-Type": "application/json", ...cors(origin) }
+    });
+  }
+
+  try {
+    await deleteTokens(userId);
+    console.log('Integration reset completed for user:', userId);
+
+    return new Response(JSON.stringify({
+      ok: true,
+      message: 'Integration reset completed'
+    }), {
+      headers: { "Content-Type": "application/json", ...cors(origin) }
+    });
+  } catch (error) {
+    console.error('Reset error:', error);
+    
+    return new Response(JSON.stringify({
+      ok: false,
+      reason: "RESET_ERROR", 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...cors(origin) }
+    });
+  }
     console.error('Exception details:', error.message, error.stack);
     return new Response(JSON.stringify({
       error: { message: error.message },

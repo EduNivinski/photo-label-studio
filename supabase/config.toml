@@ -62,8 +62,8 @@ enable_password_signup = true
 [functions.suggest-labels]
 verify_jwt = false
 
-[functions.google-drive-auth]
-verify_jwt = false
+[functions."google-drive-auth"]
+verify_jwt = true
 
 [functions.google-drive-api]
 verify_jwt = false
@@ -100,6 +100,9 @@ verify_jwt = false
 
 [functions."force-drive-reconnect"]
 verify_jwt = false
+
+[functions."security-log"]
+verify_jwt = true
 
 [functions."google-drive-disconnect"]
 verify_jwt = true

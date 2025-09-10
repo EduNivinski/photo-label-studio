@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User as UserIcon, Mail, Calendar, Camera, Tags, Archive, Edit2, Save, Upload, Image, LogOut, Settings } from 'lucide-react';
+import { GoogleDriveTest } from '@/test/GoogleDriveTest';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -523,6 +524,12 @@ export default function User() {
                   </div>
                 )}
               </div>
+            </Card>
+
+            {/* Google Drive Test Console */}
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Google Drive Test Console</h2>
+              <GoogleDriveTest />
             </Card>
 
             <Card className="p-6">
