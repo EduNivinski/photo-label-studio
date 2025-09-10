@@ -36,8 +36,8 @@ export const GoogleDriveTest = () => {
     setStatus('Testing authorize endpoint...');
     
     try {
-      // Use o novo fluxo POST para obter authorizeUrl
-      const { data, error } = await supabase.functions.invoke('google-drive-auth', {
+      // Usar o novo fluxo POST simplificado
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
         body: { 
           action: "authorize", 
           redirect: window.location.origin + "/google-drive" 

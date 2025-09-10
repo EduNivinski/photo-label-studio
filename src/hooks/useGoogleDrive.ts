@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSecurityValidation } from '@/hooks/useSecurityValidation';
-import { logSecurityEvent } from '@/lib/securityMonitoring';
 
 export interface GoogleDriveFile {
   id: string;
@@ -111,16 +110,9 @@ export function useGoogleDrive() {
     try {
       setLoading(true);
       
-      // Log security event for connection attempt
-      await logSecurityEvent({
-        event_type: 'sensitive_operation',
-        metadata: {
-          action: 'google_drive_connection_attempt',
-          timestamp: new Date().toISOString()
-        }
-      });
-
-      // Use o novo fluxo POST para obter authorizeUrl
+      console.log('🔗 Iniciando conexão Google Drive...');
+      
+      // Usar o novo fluxo POST simplificado
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
         body: { 
           action: "authorize", 
@@ -149,14 +141,6 @@ export function useGoogleDrive() {
 
     } catch (error) {
       console.error('Error connecting to Google Drive:', error);
-      
-      await logSecurityEvent({
-        event_type: 'sensitive_operation',
-        metadata: {
-          action: 'google_drive_connection_failed',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
       
       toast({
         variant: 'destructive',
@@ -665,26 +649,9 @@ export function useGoogleDrive() {
         throw new Error(response.error.message);
       }
 
-      await logSecurityEvent({
-        event_type: 'sensitive_operation',
-        metadata: {
-          action: 'google_drive_list_files',
-          folder_id: validationResult.sanitizedData?.folderId,
-          file_count: response.data.files?.length || 0
-        }
-      });
-
       return response.data.files || [];
     } catch (error) {
       console.error('Error listing files:', error);
-      
-      await logSecurityEvent({
-        event_type: 'sensitive_operation',
-        metadata: {
-          action: 'google_drive_list_files_error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
       
       toast({
         variant: 'destructive',
