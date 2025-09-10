@@ -72,16 +72,16 @@ verify_jwt = false
 [functions."diag-ping"]
 verify_jwt = false
 
-[functions."diag-scopes"]
+[functions.diag-scopes]
 verify_jwt = true
 
-[functions."diag-list-root"]
+[functions.diag-list-root]
 verify_jwt = true
 
-[functions."diag-list-folder"]
+[functions.diag-list-folder]
 verify_jwt = true
 
-[functions."diag-list-shared-drive"]
+[functions.diag-list-shared-drive]
 verify_jwt = true
 
 [functions."google-drive-oauth-callback"]

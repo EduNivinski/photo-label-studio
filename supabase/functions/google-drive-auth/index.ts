@@ -35,13 +35,23 @@ function subFromAuth(hd: string | null): string | null {
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
+  
+  const url = new URL(req.url);
+  const subpath = url.pathname.split("/").slice(4).join("/"); // depois de /functions/v1/google-drive-auth
+  const isCallback = req.method === "GET" && subpath === "callback";
 
   // Preflight sempre permitido
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
 
-  const url = new URL(req.url);
-  const subpath = url.pathname.split("/").slice(4).join("/"); // depois de /functions/v1/google-drive-auth
-  const isCallback = req.method === "GET" && subpath === "callback";
+  // 👉 apenas endpoints NÃO-callback exigem Authorization
+  if (!isCallback) {
+    const userId = subFromAuth(req.headers.get("authorization"));
+    if (!userId) return j(401, { ok:false, reason:"NO_JWT" }, origin);
+  }
+
+  // ---- construir constantes com base no SUPABASE_URL (evita edge-runtime) ----
+  const projectUrl = (Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "") || "https://tcupxcxyylxfgsbhfdhw.supabase.co";
+  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
 
   try {
     // POST /functions/v1/google-drive-auth  (pedir authorizeUrl)
@@ -56,44 +66,35 @@ Deno.serve(async (req) => {
       const redirect = String(body.redirect || "");
       if (!redirect) return j(400, { ok:false, reason:"MISSING_REDIRECT" }, origin);
 
-    // 🔒 Nunca derive o redirect do req.url/origin do Edge.
-    // Use sempre o SUPABASE_URL do seu projeto.
-    const projectUrl =
-      (Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "") ||
-      // fallback seguro (troque pelo seu ref se precisar)
-      "https://tcupxcxyylxfgsbhfdhw.supabase.co";
+      const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
 
-    const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
+      const scope = [
+        "openid","email","profile",
+        "https://www.googleapis.com/auth/drive.metadata.readonly",
+        "https://www.googleapis.com/auth/drive.file"
+      ].join(" ");
 
-    const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
+      const stateObj = { userId, redirect, nonce: crypto.randomUUID() };
+      const state = btoa(JSON.stringify(stateObj)); // pode trocar por HMAC assinado
 
-    const scope = [
-      "openid","email","profile",
-      "https://www.googleapis.com/auth/drive.metadata.readonly",
-      "https://www.googleapis.com/auth/drive.file"
-    ].join(" ");
+      const authorizeUrl =
+        `https://accounts.google.com/o/oauth2/v2/auth?` +
+        new URLSearchParams({
+          client_id: CLIENT_ID,
+          redirect_uri: REDIRECT_URI,
+          response_type: "code",
+          access_type: "offline",
+          include_granted_scopes: "false",
+          prompt: "consent select_account",
+          scope,
+          state
+        }).toString();
 
-    const stateObj = { userId, redirect, nonce: crypto.randomUUID() };
-    const state = btoa(JSON.stringify(stateObj)); // pode trocar por HMAC assinado
-
-    const authorizeUrl =
-      `https://accounts.google.com/o/oauth2/v2/auth?` +
-      new URLSearchParams({
-        client_id: CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        response_type: "code",
-        access_type: "offline",
-        include_granted_scopes: "false",
-        prompt: "consent select_account",
-        scope,
-        state
-      }).toString();
-
-      // (opcional) log de debug seguro (REMOVER depois):
-      console.log("[gd-auth] using redirect_uri =", REDIRECT_URI);
-      console.log(`✅ Generated authorize URL for user ${userId}`);
-      return j(200, { ok:true, authorizeUrl }, origin);
-    }
+        // (opcional) log de debug seguro (REMOVER depois):
+        console.log("[gd-auth] using redirect_uri =", REDIRECT_URI);
+        console.log(`✅ Generated authorize URL for user ${userId}`);
+        return j(200, { ok:true, authorizeUrl }, origin);
+      }
 
     // GET /functions/v1/google-drive-auth/callback  (troca code -> tokens)
     if (req.method === "GET" && subpath === "callback") {
@@ -101,20 +102,15 @@ Deno.serve(async (req) => {
       const state = url.searchParams.get("state");
       const err   = url.searchParams.get("error");
       if (err) return h(400, `<h1>Google error</h1><p>${err}</p>`, origin);
-      if (!code || !state) return h(400, `<h1>Missing code/state</h1>`, origin);
+      if (!code) return j(400, { code: 400, reason: "MISSING_CODE" }, origin);
+      if (!state) return j(400, { code: 400, reason: "MISSING_STATE" }, origin);
 
       let st: any = null;
       try { st = JSON.parse(atob(state)); } catch {}
       if (!st?.userId || !st?.redirect) return h(400, `<h1>Invalid state</h1>`, origin);
 
-      // 🔒 Use sempre o SUPABASE_URL do seu projeto para callback também.
-      const projectUrl =
-        (Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "") ||
-        "https://tcupxcxyylxfgsbhfdhw.supabase.co";
-      
       const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
       const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
-      const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
 
       console.log(`🔄 Exchanging code for tokens for user ${st.userId}`);
 
@@ -139,6 +135,11 @@ Deno.serve(async (req) => {
       // Salvar tokens via token_provider_v2
       try {
         const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
+        const scope = [
+          "openid","email","profile",
+          "https://www.googleapis.com/auth/drive.metadata.readonly",
+          "https://www.googleapis.com/auth/drive.file"
+        ].join(" ");
         const scopeString = tokens.scope || scope;
         
         await upsertTokens(st.userId, tokens.access_token, tokens.refresh_token, scopeString, expiresAt);
@@ -148,28 +149,15 @@ Deno.serve(async (req) => {
         return h(500, `<h1>Failed to save tokens</h1><pre>${saveError}</pre>`, origin);
       }
 
-      // Redirecionar de volta pra /user
-      const back = st.redirect || `${url.origin}/user`;
-      return h(200, `
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Google Drive Connected</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-          <h1 style="color: #4CAF50;">✓ Google Drive Conectado!</h1>
-          <p>Redirecionando...</p>
-          <script>
-            if (window.opener) {
-              window.opener.location.href = ${JSON.stringify(back)};
-              window.close();
-            } else {
-              window.location.href = ${JSON.stringify(back)};
-            }
-          </script>
-        </body>
-        </html>
-      `, origin);
+      // Redirecionar de volta pra URL que veio no state.redirect
+      const back = st.redirect;
+      return new Response(null, { 
+        status: 303, 
+        headers: { 
+          Location: back,
+          ...cors(origin)
+        }
+      });
     }
 
     return j(404, { ok:false, reason:"NOT_FOUND", subpath }, origin);
