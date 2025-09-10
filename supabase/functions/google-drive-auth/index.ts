@@ -179,6 +179,100 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json(200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
     }
 
+    if (action === "status") {
+      const userId = subFromAuth(req.headers.get("authorization"));
+      if (!userId) return json(401, { ok: false, reason: "NO_JWT" });
+
+      console.log(`🔍 Checking connection status for user ${userId}`);
+
+      try {
+        // Check if user has Google Drive tokens using Supabase client
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_google_drive_connection_status`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+            "apikey": supabaseServiceKey
+          },
+          body: JSON.stringify({ p_user_id: userId })
+        });
+
+        if (!response.ok) {
+          console.log(`❌ Error checking status: ${response.status}`);
+          return json(200, {
+            ok: true,
+            hasConnection: false,
+            isExpired: false,
+            dedicatedFolderId: null,
+            dedicatedFolderName: null
+          });
+        }
+
+        const statusData = await response.json();
+        console.log(`✅ Status data:`, statusData);
+
+        if (!statusData || statusData.length === 0) {
+          return json(200, {
+            ok: true,
+            hasConnection: false,
+            isExpired: false,
+            dedicatedFolderId: null,
+            dedicatedFolderName: null
+          });
+        }
+
+        const connectionData = statusData[0];
+        return json(200, {
+          ok: true,
+          hasConnection: true,
+          isExpired: connectionData.is_expired || false,
+          dedicatedFolderId: connectionData.dedicated_folder_id,
+          dedicatedFolderName: connectionData.dedicated_folder_name
+        });
+
+      } catch (error) {
+        console.error(`❌ Error checking connection status:`, error);
+        return json(500, { ok: false, reason: "STATUS_CHECK_ERROR", error: error.message });
+      }
+    }
+
+    if (action === "reset") {
+      const userId = subFromAuth(req.headers.get("authorization"));
+      if (!userId) return json(401, { ok: false, reason: "NO_JWT" });
+
+      console.log(`🔄 Resetting integration for user ${userId}`);
+
+      try {
+        // Delete tokens using Supabase client
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/google_drive_tokens?user_id=eq.${userId}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+            "apikey": supabaseServiceKey
+          }
+        });
+
+        if (!response.ok) {
+          console.error(`❌ Error deleting tokens: ${response.status}`);
+          return json(500, { ok: false, reason: "DELETE_ERROR" });
+        }
+
+        console.log(`✅ Integration reset successfully for user ${userId}`);
+        return json(200, { ok: true, message: "Integration reset successfully" });
+
+      } catch (error) {
+        console.error(`❌ Error resetting integration:`, error);
+        return json(500, { ok: false, reason: "RESET_ERROR", error: error.message });
+      }
+    }
+
     // ...demais ações (status, reset etc) que exigem Authorization seguem aqui...
   }
 
