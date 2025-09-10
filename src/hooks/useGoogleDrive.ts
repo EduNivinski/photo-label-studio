@@ -812,10 +812,38 @@ export function useGoogleDrive() {
     }
   }, [getAuthHeaders, toast]);
 
-  // Check status on mount
+  // Check status on mount and when user returns from OAuth
   useEffect(() => {
-    checkStatus();
-  }, [checkStatus]);
+    const checkInitialStatus = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          console.log('🔄 User is authenticated, checking Google Drive status...');
+          await checkStatus();
+        } else {
+          console.log('⚠️ User not authenticated, skipping status check');
+        }
+      } catch (error) {
+        console.error('❌ Error in initial status check:', error);
+      }
+    };
+
+    checkInitialStatus();
+
+    // Also check when the user comes back to the tab (from OAuth redirect)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('👁️ Page became visible, checking status...');
+        checkInitialStatus();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []); // Empty deps to avoid infinite re-renders
 
   const checkTokenInfo = useCallback(async () => {
     try {

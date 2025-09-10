@@ -73,19 +73,35 @@ export function GoogleDriveIntegration() {
                 <p className="text-muted-foreground mb-6">
                   Conecte sua conta do Google Drive para fazer backup e importar suas fotos
                 </p>
-                <Button 
-                  onClick={handleConnect}
-                  disabled={loading}
-                  size="lg"
-                  className="flex items-center gap-2"
-                >
-                  {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Cloud className="h-5 w-5" />
-                  )}
-                  Conectar Google Drive
-                </Button>
+                <div className="flex items-center justify-center gap-3">
+                  <Button 
+                    onClick={handleConnect}
+                    disabled={loading}
+                    size="lg"
+                    className="flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Cloud className="h-5 w-5" />
+                    )}
+                    Conectar Google Drive
+                  </Button>
+                  <Button
+                    onClick={checkStatus}
+                    variant="outline"
+                    size="lg"
+                    disabled={loading}
+                    className="flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Verificar Status
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -148,15 +164,33 @@ export function GoogleDriveIntegration() {
           {status.isConnected && !status.isExpired && (
             <div className="space-y-6">
               {/* Status Badge */}
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
-                  ✅ Conectado
-                </Badge>
-                {status.dedicatedFolder && (
-                  <Badge variant="outline" className="text-xs">
-                    📁 {status.dedicatedFolder.name}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
+                    ✅ Conectado
                   </Badge>
-                )}
+                  {status.dedicatedFolder && (
+                    <Badge variant="outline" className="text-xs">
+                      📁 {status.dedicatedFolder.name}
+                    </Badge>
+                  )}
+                </div>
+                
+                {/* Manual Status Check Button */}
+                <Button
+                  onClick={checkStatus}
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                  className="flex items-center gap-1 text-xs"
+                >
+                  {loading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  Verificar Status
+                </Button>
               </div>
 
               {/* Management Section - Always show when connected */}
