@@ -15,3 +15,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON, {
     detectSessionInUrl: true,
   }
 });
+
+// DEBUG temporário: expor no window para eu testar no console
+if (typeof window !== "undefined") (window as any).supabase = supabase;
+
+// (opcional) sanity-check do ANON no dev:
+console.log("anon.ref =", JSON.parse(atob(SUPABASE_ANON.split(".")[1])).ref);
