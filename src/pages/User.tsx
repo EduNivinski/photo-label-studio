@@ -182,6 +182,26 @@ export default function User() {
     loadUserData();
   }, [toast]);
 
+  // Listen for postMessage from Google Drive OAuth callback
+  useEffect(() => {
+    function onMsg(e: MessageEvent) {
+      if (e?.data?.source === "gdrive-oauth") {
+        // opcional: checar e.data.ok
+        supabase.functions.invoke("google-drive-auth", { body: { action: "status" } })
+          .then(r => {
+            // Force a status refresh in GoogleDriveIntegration component
+            // This will trigger the useGoogleDriveSimple hook to update
+            window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
+          })
+          .catch(() => {
+            console.warn("Failed to check status after OAuth callback");
+          });
+      }
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
   // Atividade recente baseada em dados reais
   const recentActivity = [
     { action: `Upload de ${photos.length > 0 ? Math.min(photos.length, 20) : 0} fotos`, date: '2 horas atrás' },

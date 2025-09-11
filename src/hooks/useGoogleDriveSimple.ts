@@ -204,6 +204,17 @@ export function useGoogleDriveSimple() {
     hasInitialized.current = true;
   }, []); // Empty dependency array - only run once
 
+  // Listen for status change events from OAuth callback
+  useEffect(() => {
+    const handleStatusChange = () => {
+      console.log('📡 Received Google Drive status change event, checking status...');
+      checkStatus(false);
+    };
+
+    window.addEventListener('google-drive-status-changed', handleStatusChange);
+    return () => window.removeEventListener('google-drive-status-changed', handleStatusChange);
+  }, [checkStatus]);
+
   return {
     status,
     loading,
