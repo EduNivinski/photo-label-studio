@@ -200,6 +200,9 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
   const redirectUrl = origin ? `${origin}/user` : `${projectUrl}/user`;
   
+  // Lê forceConsent do body
+  const { forceConsent } = await req.json().catch(() => ({})) || {};
+  
   const state = btoa(JSON.stringify({
     userId,
     redirect: redirectUrl,
@@ -215,7 +218,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
     response_type: "code",
     access_type: "offline",
     include_granted_scopes: "true",
-    prompt: "select_account",
+    prompt: forceConsent ? "consent select_account" : "select_account",
     scope: "openid email profile https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file",
     state
   });
@@ -231,16 +234,18 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 
 async function handleDisconnect(req: Request, userId: string) {
   try {
-    await deleteTokens(userId);
-    return jsonCors(req, 200, { 
-      ok: true, 
-      message: "Disconnected successfully" 
-    });
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { error } = await admin.from("user_drive_tokens").delete().eq("user_id", userId);
+    if (error) {
+      console.error("Error disconnecting:", error);
+      return jsonCors(req, 500, { ok: false, reason: "RESET_FAILED" });
+    }
+    return jsonCors(req, 200, { ok: true, reset: true });
   } catch (error) {
     console.error("Error disconnecting:", error);
     return jsonCors(req, 500, { 
       ok: false, 
-      reason: "DISCONNECT_ERROR" 
+      reason: "RESET_FAILED" 
     });
   }
 }
