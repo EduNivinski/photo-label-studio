@@ -42,15 +42,40 @@ async function decryptPacked(encB64: string): Promise<string> {
 export async function upsertTokens(
   userId: string,
   accessToken: string,
-  refreshToken: string,
+  refreshToken: string | null | undefined,
   scope: string,
   expiresAt: string
 ): Promise<void> {
   console.log(`🔒 Storing encrypted tokens for user: ${userId}`);
   
   try {
+    // If refreshToken is missing, try to preserve the existing one
+    let finalRefreshToken = refreshToken;
+    if (!finalRefreshToken) {
+      console.log("🔄 Missing refresh token, attempting to preserve existing one");
+      const { data: existing, error: selectError } = await admin
+        .from('user_drive_tokens')
+        .select('refresh_token_enc')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!selectError && existing?.refresh_token_enc) {
+        try {
+          finalRefreshToken = await decryptPacked(existing.refresh_token_enc);
+          console.log("✅ Preserved existing refresh token");
+        } catch (decryptError) {
+          console.warn("⚠️ Could not decrypt existing refresh token:", decryptError);
+        }
+      }
+    }
+
+    if (!finalRefreshToken) {
+      console.warn("⚠️ No refresh token available - user may need to reconnect");
+      throw new Error("Missing refresh token - reconnection required");
+    }
+
     const access_token_enc = await encryptPacked(accessToken);
-    const refresh_token_enc = await encryptPacked(refreshToken);
+    const refresh_token_enc = await encryptPacked(finalRefreshToken);
 
     const { error } = await admin
       .from('user_drive_tokens')
@@ -71,7 +96,7 @@ export async function upsertTokens(
       throw new Error(`Database error: ${error.message || JSON.stringify(error)}`);
     }
 
-    console.log("✅ Tokens stored successfully");
+    console.log("✅ Tokens stored successfully (refresh token preserved)");
   } catch (error) {
     console.error("❌ Error in upsertTokens:", error);
     // Re-throw with a proper error message

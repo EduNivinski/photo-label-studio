@@ -147,7 +147,7 @@ async function decrypt(encryptedData: string): Promise<string> {
 }
 
 // Use shared token provider functions (already uses Service Role internally)
-import { getTokens, upsertTokens, deleteTokens } from "../_shared/token_provider_v2.ts";
+import { getTokens, upsertTokens, deleteTokens, ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 async function getEncryptedTokens(userId: string) {
   try {
@@ -213,55 +213,42 @@ async function getUserFolderId(userId: string): Promise<string | null> {
 // Action handlers (callback removed - handled by dedicated function)
 
 async function handleStatus(req: Request, userId: string) {
-  const tokens = await getEncryptedTokens(userId);
-  if (!tokens) {
-    return json(req, 200, { connected: false, reason: "NO_TOKENS" });
-  }
-  
-  let { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt, scope: scopes } = tokens;
-  
-  // Check if token is expiring soon (30 seconds buffer)
-  if (Date.now() > new Date(expiresAt).getTime() - 30_000) {
-    const refreshed = await refreshGoogle(accessToken, refreshToken);
-    if (!refreshed.ok) {
-      return json(req, 200, { connected: false, reason: "EXPIRED" });
+  try {
+    const accessToken = await ensureAccessToken(userId);
+    
+    // Validate token with Google Drive API
+    const driveResponse = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    
+    if (driveResponse.status === 401 || driveResponse.status === 403) {
+      return json(req, 200, { connected: false, reason: "TOKEN_INVALID" });
     }
     
-    accessToken = refreshed.access_token;
-    refreshToken = refreshed.refresh_token;
-    expiresAt = refreshed.expiry_date;
-    scopes = refreshed.scope;
+    const { user } = await driveResponse.json();
+    const tokens = await getTokens(userId);
+    const expiresInSec = tokens ? Math.max(0, Math.floor((new Date(tokens.expires_at).getTime() - Date.now()) / 1000)) : 0;
+    const scopesList = tokens ? (tokens.scope || "").split(/\s+/).filter(Boolean) : [];
+    const folderId = await getUserFolderId(userId);
     
-    await saveTokensUpsert(userId, {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expiry_date: expiresAt,
-      scope: scopes
+    return json(req, 200, {
+      connected: true,
+      reason: "OK",
+      email: user?.emailAddress || null,
+      scopes: scopesList,
+      expiresInSec,
+      folderId: folderId || null
     });
+  } catch (error) {
+    console.error("Status check failed:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (errorMessage === "NO_ACCESS_TOKEN") {
+      return json(req, 200, { connected: false, reason: "NO_TOKENS" });
+    }
+    
+    return json(req, 200, { connected: false, reason: "EXPIRED_OR_INVALID" });
   }
-  
-  // Validate token with Google Drive API
-  const driveResponse = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  
-  if (driveResponse.status === 401 || driveResponse.status === 403) {
-    return json(req, 200, { connected: false, reason: "TOKEN_INVALID" });
-  }
-  
-  const { user } = await driveResponse.json();
-  const expiresInSec = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
-  const scopesList = (scopes || "").split(/\s+/).filter(Boolean);
-  const folderId = await getUserFolderId(userId);
-  
-  return json(req, 200, {
-    connected: true,
-    reason: "OK",
-    email: user?.emailAddress || null,
-    scopes: scopesList,
-    expiresInSec,
-    folderId: folderId || null
-  });
 }
 
 async function handleAuthorize(req: Request, userId: string, url: URL) {

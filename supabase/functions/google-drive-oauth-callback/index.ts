@@ -64,7 +64,7 @@ serve(async (req) => {
 
     // Persist tokens using service_role client
     try {
-      await upsertTokens(user_id, access_token, refresh_token ?? "", scopeStr, expires_at);
+      await upsertTokens(user_id, access_token, refresh_token || null, scopeStr, expires_at);
       console.log(`OAuth callback successful for user ${user_id} - access_token length: ${access_token.length}`);
     } catch (e: any) {
       // Log internal error without exposing tokens
