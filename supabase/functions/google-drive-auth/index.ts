@@ -203,11 +203,13 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   // Lê forceConsent do body
   const { forceConsent } = await req.json().catch(() => ({})) || {};
   
-  const state = btoa(JSON.stringify({
+  // gerar state simples e confiável
+  const stateObj = {
     userId,
-    redirect: redirectUrl,
-    nonce: crypto.randomUUID()
-  }));
+    ts: Date.now(),
+    nonce: crypto.getRandomValues(new Uint32Array(1))[0].toString(36),
+  };
+  const state = btoa(JSON.stringify(stateObj)); // Base64
   
   // ✅ Use a função DEDICADA de callback (verify_jwt = false)
   const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
