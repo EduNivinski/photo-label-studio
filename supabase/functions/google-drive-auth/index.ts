@@ -1,20 +1,38 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
-// CORS configuration - usando mesmo padrão dos diags
-const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",        // PROD
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev", // Sandbox
-  "https://lovable.dev",                            // Builder
+// --- CORS (configurável por ENV) ---
+const DEFAULT_ALLOWED = [
+  "https://photo-label-studio.lovable.app",
   "http://localhost:3000",
   "http://localhost:5173",
-]);
+  // adicione aqui seu sandbox atual, EXEMPLO:
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
+];
 
-const cors = (origin: string | null) => ({
-  "Access-Control-Allow-Origin": (origin && ALLOW_ORIGINS.has(origin)) ? origin : "https://photo-label-studio.lovable.app",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Vary": "Origin"
-});
+function getAllowedOrigins(): Set<string> {
+  const fromEnv = Deno.env.get("CORS_ALLOWED_ORIGINS"); // CSV
+  if (!fromEnv) return new Set(DEFAULT_ALLOWED);
+  return new Set(
+    fromEnv
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean)
+  );
+}
+
+const ALLOW_ORIGINS = getAllowedOrigins();
+
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin)
+    ? origin
+    : "https://photo-label-studio.lovable.app"; // fallback seguro
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Vary": "Origin"
+  };
+}
 
 const json = (req: Request, status: number, body: unknown) =>
   new Response(JSON.stringify(body), { 
@@ -390,12 +408,18 @@ async function handleDisconnect(req: Request, userId: string) {
 
 // Main handler
 export default async (req: Request) => {
+  const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
-    return new Response(null, { 
-      status: 204, 
-      headers: cors(req.headers.get("origin")) 
-    });
+    // Preflight
+    return new Response(null, { status: 204, headers: cors(origin) });
   }
+
+  // (opcional) logs para depuração
+  console.log("[google-drive-auth]", {
+    method: req.method,
+    origin,
+    url: req.url
+  });
   
   const url = new URL(req.url);
   const action = (await captureAction(req, url)) as "authorize"|"callback"|"status"|"disconnect";
