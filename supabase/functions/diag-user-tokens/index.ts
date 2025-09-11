@@ -1,40 +1,37 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// CORS helper — aceitar sandbox do Lovable + localhost
-function corsHeaders(req: Request) {
-  const origin = req.headers.get("origin") || "";
-  let allowOrigin = "";
+const DEFAULT_ALLOWED = [
+  "https://photo-label-studio.lovable.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  // adicione seu sandbox atual, ex.:
+  // "https://<SEU-SANDBOX>.sandbox.lovable.dev",
+];
 
-  try {
-    const u = new URL(origin);
-    const isLovableRoot     = u.origin === "https://lovable.dev";
-    const isLovableSandbox  = u.hostname.endsWith(".sandbox.lovable.dev");
-    const isLocal3000       = u.origin === "http://localhost:3000";
-    const isLocal5173       = u.origin === "http://localhost:5173";
+function getAllowedOrigins() {
+  const csv = Deno.env.get("CORS_ALLOWED_ORIGINS");
+  return new Set(
+    (csv ? csv.split(",") : DEFAULT_ALLOWED).map(s => s.trim()).filter(Boolean)
+  );
+}
+const ALLOW_ORIGINS = getAllowedOrigins();
 
-    if (isLovableRoot || isLovableSandbox || isLocal3000 || isLocal5173) {
-      allowOrigin = origin; // ecoa exatamente o origin da página
-    }
-  } catch { /* ignore */ }
-
-  // Ecoa os headers solicitados no preflight (robusto)
-  const reqHeaders = req.headers.get("access-control-request-headers");
-  const allowHeaders = (reqHeaders && reqHeaders.trim().length > 0)
-    ? reqHeaders
-    : "authorization, content-type, apikey, x-client-info";
-
+function cors(origin: string | null) {
+  const allowed = origin && ALLOW_ORIGINS.has(origin)
+    ? origin
+    : "https://photo-label-studio.lovable.app";
   return {
-    "Access-Control-Allow-Origin": allowOrigin || "https://lovable.dev",
-    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin, Access-Control-Request-Headers",
+    "Vary": "Origin",
   };
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders(req) });
+    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
   }
 
   try {
@@ -45,7 +42,7 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'NO_AUTH' }), {
         status: 401,
-        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
+        headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
       });
     }
 
@@ -64,7 +61,7 @@ serve(async (req) => {
         details: authError?.message 
       }), {
         status: 401,
-        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
+        headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
       });
     }
 
@@ -151,7 +148,7 @@ serve(async (req) => {
     };
 
     return new Response(JSON.stringify(result, null, 2), {
-      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
+      headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
@@ -162,7 +159,7 @@ serve(async (req) => {
       stack: error.stack
     }), {
       status: 500,
-      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
+      headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
     });
   }
 });
