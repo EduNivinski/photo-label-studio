@@ -28,13 +28,16 @@ serve(async (req) => {
     if (!user_id) return json(400, { status: 400, reason: "MISSING_USER_ID_IN_STATE" });
 
     // Exchange code for tokens with Google (server-side using secrets)
+    const projectUrl = Deno.env.get('SUPABASE_URL')!.replace(/\/$/, "");
+    const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
+    
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: Deno.env.get('GOOGLE_REDIRECT_URI') || 'postmessage',
+        redirect_uri: REDIRECT_URI,
         client_id: Deno.env.get('GOOGLE_DRIVE_CLIENT_ID')!,
         client_secret: Deno.env.get('GOOGLE_DRIVE_CLIENT_SECRET')!,
       }).toString(),
@@ -69,11 +72,79 @@ serve(async (req) => {
       return json(500, { status: 500, reason: "DB_UPSERT_ERROR", detail: e?.message });
     }
 
-    // Success response
-    return json(200, { status: 200, ok: true, expires_at });
+    // Success response with HTML auto-close
+    const html = `<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Google Drive Conectado</title></head>
+  <body>
+    <script>
+      try {
+        // Notifica a janela principal (opcional)
+        if (window.opener) {
+          window.opener.postMessage({ type: "drive_connected" }, "*");
+        }
+        // Fecha o popup
+        window.close();
+      } catch (e) { /* noop */ }
+      // Fallback se não fechar
+      setTimeout(function(){
+        window.location.replace("/user");
+      }, 300);
+    </script>
+    <div style="text-align: center; font-family: Arial, sans-serif; padding: 2rem;">
+      <h1>✅ Google Drive conectado com sucesso!</h1>
+      <p>Você pode fechar esta janela.</p>
+    </div>
+  </body>
+</html>`;
+
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+      }
+    });
 
   } catch (e: any) {
     console.error("OAUTH_CB_INTERNAL", { msg: e?.message, name: e?.name });
-    return json(500, { status: 500, reason: "INTERNAL_ERROR" });
+    
+    // Error response with HTML auto-close
+    const errorHtml = `<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Erro na Conexão</title></head>
+  <body>
+    <script>
+      try {
+        // Notifica erro à janela principal
+        if (window.opener) {
+          window.opener.postMessage({ type: "drive_error", error: "INTERNAL_ERROR" }, "*");
+        }
+        // Fecha o popup
+        window.close();
+      } catch (e) { /* noop */ }
+      // Fallback se não fechar
+      setTimeout(function(){
+        window.location.replace("/user");
+      }, 300);
+    </script>
+    <div style="text-align: center; font-family: Arial, sans-serif; padding: 2rem;">
+      <h1>❌ Erro na conexão</h1>
+      <p>Ocorreu um erro interno. Você pode fechar esta janela e tentar novamente.</p>
+    </div>
+  </body>
+</html>`;
+
+    return new Response(errorHtml, {
+      status: 500,
+      headers: {
+        "Content-Type": "text/html",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+      }
+    });
   }
 });

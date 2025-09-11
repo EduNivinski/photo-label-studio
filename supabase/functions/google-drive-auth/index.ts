@@ -1,9 +1,12 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
-// CORS configuration
+// CORS configuration - usando mesmo padrão dos diags
 const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",
-  "http://localhost:3000"
+  "https://photo-label-studio.lovable.app",        // PROD
+  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev", // Sandbox
+  "https://lovable.dev",                            // Builder
+  "http://localhost:3000",
+  "http://localhost:5173",
 ]);
 
 const cors = (origin: string | null) => ({
@@ -234,7 +237,8 @@ async function handleCallback(req: Request, url: URL) {
   const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
   const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
   const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
+  // ✅ Use a função DEDICADA de callback (verify_jwt = false)
+  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
   
   try {
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -343,7 +347,8 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
     nonce: crypto.randomUUID()
   }));
   
-  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
+  // ✅ Use a função DEDICADA de callback (verify_jwt = false)
+  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
   
   const params = new URLSearchParams({
     client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
