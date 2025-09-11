@@ -34,9 +34,9 @@ serve(async (req) => {
     try {
       accessToken = await ensureAccessToken(userId);
       console.log("Token obtained, length:", accessToken.length);
-    } catch (error) {
-      console.error("Token error:", error);
-      return jsonCors(req, 400, { reason: "NO_ACCESS_TOKEN", message: error.message });
+    } catch (e: any) {
+      const msg = (e?.message || "").toUpperCase();
+      return jsonCors(req, 200, { ok: true, connected: false, reason: msg || "NO_TOKENS" });
     }
 
     // Build query for root folders
