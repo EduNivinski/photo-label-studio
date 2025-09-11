@@ -28,18 +28,18 @@ serve(async (req) => {
     if (!user_id) return json(400, { status: 400, reason: "MISSING_USER_ID_IN_STATE" });
 
     // Exchange code for tokens with Google (server-side using secrets)
-    const projectUrl = Deno.env.get('SUPABASE_URL')!.replace(/\/$/, "");
+    const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
     const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
     
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        grant_type: 'authorization_code',
+        grant_type: "authorization_code",
         code,
-        redirect_uri: REDIRECT_URI,
-        client_id: Deno.env.get('GOOGLE_DRIVE_CLIENT_ID')!,
-        client_secret: Deno.env.get('GOOGLE_DRIVE_CLIENT_SECRET')!,
+        redirect_uri: REDIRECT_URI,              // ✅ EXATAMENTE o mesmo
+        client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
+        client_secret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
       }).toString(),
     });
 
