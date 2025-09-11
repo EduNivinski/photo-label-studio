@@ -1,36 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// --- CORS (configurável por ENV) ---
-const DEFAULT_ALLOWED = [
-  "https://photo-label-studio.lovable.app",
-  "http://localhost:3000",
-  "http://localhost:5173",
-  // adicione aqui seu sandbox atual, EXEMPLO:
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
-];
-
-function allowedOrigins(): Set<string> {
-  const csv = Deno.env.get("CORS_ALLOWED_ORIGINS");
-  if (!csv) return new Set(DEFAULT_ALLOWED);
-  return new Set(csv.split(",").map(s => s.trim()).filter(Boolean));
-}
-
-const ALLOW_ORIGINS = allowedOrigins();
-
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin)
-    ? origin
-    : "https://photo-label-studio.lovable.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Max-Age": "86400",
-    "Vary": "Origin"
-  };
-}
+import { preflight, jsonCors } from "../_shared/cors.ts";
 
 // ✅ Helper de validação do JWT via supabase-js admin
 async function getUserIdFromJwt(req: Request): Promise<string | null> {
@@ -50,14 +21,7 @@ async function getUserIdFromJwt(req: Request): Promise<string | null> {
   }
 }
 
-const json = (req: Request, status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { 
-    status, 
-    headers: { 
-      "Content-Type": "application/json", 
-      ...cors(req.headers.get("origin")) 
-    }
-  });
+// Removed - using jsonCors from shared helper
 
 // Simple JWT parser
 function parseJwt(token: string): { sub?: string } {
@@ -216,11 +180,11 @@ async function handleStatus(req: Request, userId: string) {
   try {
     const token = await ensureAccessToken(userId); // string
     if (!token) throw new Error("NO_ACCESS_TOKEN");
-    return json(req, 200, { ok: true, connected: true });
+    return jsonCors(req, 200, { ok: true, connected: true });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
     // Normalize: TOKEN_INVALID / NO_ACCESS_TOKEN / EXPIRED / REFRESH_FAILED, etc.
-    return json(req, 200, { ok: true, connected: false, reason: reason || "EXPIRED_OR_INVALID" });
+    return jsonCors(req, 200, { ok: true, connected: false, reason: reason || "EXPIRED_OR_INVALID" });
   }
 }
 
@@ -251,7 +215,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   
   const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   
-  return json(req, 200, { 
+  return jsonCors(req, 200, { 
     ok: true, 
     authorizeUrl, 
     redirect_uri: REDIRECT_URI 
@@ -261,13 +225,13 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 async function handleDisconnect(req: Request, userId: string) {
   try {
     await deleteTokens(userId);
-    return json(req, 200, { 
+    return jsonCors(req, 200, { 
       ok: true, 
       message: "Disconnected successfully" 
     });
   } catch (error) {
     console.error("Error disconnecting:", error);
-    return json(req, 500, { 
+    return jsonCors(req, 500, { 
       ok: false, 
       reason: "DISCONNECT_ERROR" 
     });
@@ -276,12 +240,9 @@ async function handleDisconnect(req: Request, userId: string) {
 
 // Main handler
 serve(async (req: Request) => {
-  const origin = req.headers.get("origin");
-
   // 1) Preflight SEMPRE liberado (CORS)
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors(origin) });
-  }
+  const pf = preflight(req);
+  if (pf) return pf;
 
   // 2) Log básico de diagnóstico
   console.log("[google-drive-auth]", { method: req.method, origin, url: req.url });
@@ -292,23 +253,23 @@ serve(async (req: Request) => {
 
     // 3) Callback não é processado aqui (há function dedicada)
     if (action === "callback") {
-      return json(req, 400, { ok: false, reason: "CALLBACK_IS_EXTERNAL" });
+      return jsonCors(req, 400, { ok: false, reason: "CALLBACK_IS_EXTERNAL" });
     }
 
     // 4) Validar JWT manualmente para ações protegidas
     const userId = await getUserIdFromJwt(req);
     if (!userId) {
-      return json(req, 401, { ok: false, reason: "INVALID_JWT" });
+      return jsonCors(req, 401, { ok: false, reason: "INVALID_JWT" });
     }
 
     if (action === "status") return await handleStatus(req, userId);
     if (action === "authorize") return await handleAuthorize(req, userId, url);
     if (action === "disconnect") return await handleDisconnect(req, userId);
 
-    return json(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
+    return jsonCors(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
 
   } catch (e: any) {
     console.error("google-drive-auth error:", e?.message || e);
-    return json(req, 500, { ok: false, reason: "INTERNAL_ERROR" });
+    return jsonCors(req, 500, { ok: false, reason: "INTERNAL_ERROR" });
   }
 });

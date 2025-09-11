@@ -1,23 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-
-// Updated CORS helper
-const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
-  "http://localhost:3000",
-  "http://localhost:5173",
-]);
-
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
-  };
-}
+import { preflight, jsonCors } from "../_shared/cors.ts";
 
 function getUserIdFromAuth(auth: string | null) {
   if (!auth?.startsWith("Bearer ")) return null;
@@ -33,22 +16,15 @@ function getUserIdFromAuth(auth: string | null) {
 serve(async (req) => {
   console.log("diag-list-shared-drive called");
 
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
-  }
-
-  const json = (status: number, body: unknown) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json", ...cors(req.headers.get("origin")) },
-    });
+  const pf = preflight(req);
+  if (pf) return pf;
 
   try {
     const auth = req.headers.get("authorization");
     const userId = getUserIdFromAuth(auth);
     
     if (!userId) {
-      return json(401, { reason: "NO_JWT" });
+      return jsonCors(req, 401, { reason: "NO_JWT" });
     }
 
     console.log("User authenticated:", userId);
@@ -58,7 +34,7 @@ serve(async (req) => {
     const driveId = url.searchParams.get("driveId");
     
     if (!driveId) {
-      return json(400, { error: "MISSING_DRIVE_ID" });
+      return jsonCors(req, 400, { error: "MISSING_DRIVE_ID" });
     }
 
     console.log("Listing shared drive:", driveId);
@@ -70,7 +46,7 @@ serve(async (req) => {
       console.log("Token obtained, length:", accessToken.length);
     } catch (error) {
       console.error("Token error:", error);
-      return json(400, { reason: "NO_ACCESS_TOKEN", message: error.message });
+      return jsonCors(req, 400, { reason: "NO_ACCESS_TOKEN", message: error.message });
     }
 
     // Build query for shared drive contents
@@ -102,14 +78,14 @@ serve(async (req) => {
         });
         
         if (!retryResp.ok) {
-          return json(retryResp.status, { 
+          return jsonCors(req, retryResp.status, { 
             status: retryResp.status, 
             reason: "UNAUTHORIZED_AFTER_REFRESH" 
           });
         }
         
         const retryData = await retryResp.json();
-        return json(200, {
+        return jsonCors(req, 200, {
           status: "OK",
           driveId: driveId,
           items: retryData.files || [],
@@ -117,18 +93,18 @@ serve(async (req) => {
           retried: true
         });
       } catch (refreshError) {
-        return json(401, { error: "REFRESH_FAILED", message: refreshError.message });
+        return jsonCors(req, 401, { error: "REFRESH_FAILED", message: refreshError.message });
       }
     }
 
     if (!resp.ok) {
       const errorText = await resp.text();
       console.error("API error:", errorText);
-      return json(resp.status, { status: resp.status, reason: errorText });
+      return jsonCors(req, resp.status, { status: resp.status, reason: errorText });
     }
 
     const data = await resp.json();
-    return json(200, {
+    return jsonCors(req, 200, {
       status: "OK",
       driveId: driveId,
       items: data.files || [],
@@ -137,6 +113,6 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error("Error in diag-list-shared-drive:", error);
-    return json(500, { error: "INTERNAL_ERROR", message: error.message });
+    return jsonCors(req, 500, { error: "INTERNAL_ERROR", message: error.message });
   }
 });

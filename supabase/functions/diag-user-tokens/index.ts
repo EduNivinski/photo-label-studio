@@ -1,38 +1,10 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const DEFAULT_ALLOWED = [
-  "https://photo-label-studio.lovable.app",
-  "http://localhost:3000",
-  "http://localhost:5173",
-  // adicione seu sandbox atual, ex.:
-  // "https://<SEU-SANDBOX>.sandbox.lovable.dev",
-];
-
-function getAllowedOrigins() {
-  const csv = Deno.env.get("CORS_ALLOWED_ORIGINS");
-  return new Set(
-    (csv ? csv.split(",") : DEFAULT_ALLOWED).map(s => s.trim()).filter(Boolean)
-  );
-}
-const ALLOW_ORIGINS = getAllowedOrigins();
-
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin)
-    ? origin
-    : "https://photo-label-studio.lovable.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
-  };
-}
+import { preflight, jsonCors } from "../_shared/cors.ts";
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
-  }
+  const pf = preflight(req);
+  if (pf) return pf;
 
   try {
     console.log("🔍 Starting user token diagnostics...");
@@ -40,10 +12,7 @@ serve(async (req) => {
     // Get user from JWT
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'NO_AUTH' }), {
-        status: 401,
-        headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
-      });
+      return jsonCors(req, 401, { error: 'NO_AUTH' });
     }
 
     const supabase = createClient(
@@ -56,12 +25,9 @@ serve(async (req) => {
     );
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ 
+      return jsonCors(req, 401, { 
         error: 'AUTH_FAILED', 
         details: authError?.message 
-      }), {
-        status: 401,
-        headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
       });
     }
 
@@ -147,19 +113,14 @@ serve(async (req) => {
         'All tokens present - Google Drive integration ready'
     };
 
-    return new Response(JSON.stringify(result, null, 2), {
-      headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
-    });
+    return jsonCors(req, 200, result);
 
   } catch (error: any) {
     console.error('User token diagnostic error:', error);
-    return new Response(JSON.stringify({ 
+    return jsonCors(req, 500, { 
       error: "DIAGNOSTIC_FAILED", 
       message: error.message,
       stack: error.stack
-    }), {
-      status: 500,
-      headers: { ...cors(req.headers.get("origin")), 'Content-Type': 'application/json' }
     });
   }
 });

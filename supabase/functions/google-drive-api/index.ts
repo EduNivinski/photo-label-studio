@@ -1,31 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-
-// Updated CORS helper
-const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
-  "http://localhost:3000",
-  "http://localhost:5173",
-]);
-
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
-  };
-}
-
-// Safe JSON response helper
-const safeJson = (status: number, body: unknown, origin?: string | null) =>
-  new Response(JSON.stringify(body), { 
-    status, 
-    headers: { "Content-Type": "application/json", ...cors(origin) } 
-  });
+import { preflight, jsonCors } from "../_shared/cors.ts";
 
 //Functions que estão dando erro 
 let supabase: any;
@@ -34,10 +10,8 @@ serve(async (req) => {
   console.log('🚀 GOOGLE DRIVE API CALLED - REAL VERSION');
   
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    console.log('✅ OPTIONS request');
-    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
-  }
+  const pf = preflight(req);
+  if (pf) return pf;
 
   try {
     // Initialize Supabase client
@@ -50,7 +24,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       console.log('❌ No authorization header');
-      return safeJson(401, { error: 'Unauthorized' });
+      return jsonCors(req, 401, { error: 'Unauthorized' });
     }
 
     // Verify user token and get user
@@ -59,7 +33,7 @@ serve(async (req) => {
     
     if (userError || !user) {
       console.log('❌ Invalid token:', userError);
-      return safeJson(401, { error: 'Invalid token' });
+      return jsonCors(req, 401, { error: 'Invalid token' });
     }
 
     console.log('✅ User authenticated:', user.id);
@@ -84,7 +58,7 @@ serve(async (req) => {
         console.log("drive-call token len:", typeof accessToken, String(accessToken).length);
       } catch (error) {
         console.log('❌ Token error:', error);
-        return safeJson(401, { 
+        return jsonCors(req, 401, { 
           error: 'No Google Drive connection',
           requires_reconnect: true
         });
@@ -145,7 +119,7 @@ serve(async (req) => {
             
             if (!retryResponse.ok) {
               console.log('❌ Still failed after refresh:', retryResponse.status);
-              return safeJson(retryResponse.status, { 
+              return jsonCors(req, retryResponse.status, { 
                 status: retryResponse.status, 
                 reason: "UNAUTHORIZED_AFTER_REFRESH",
                 requires_reconnect: true
@@ -159,7 +133,7 @@ serve(async (req) => {
             continue;
           } catch (refreshError) {
             console.log('❌ Refresh failed:', refreshError);
-            return safeJson(401, {
+            return jsonCors(req, 401, {
               error: 'Token refresh failed',
               requires_reconnect: true
             });
@@ -173,7 +147,7 @@ serve(async (req) => {
           
           // Check if it's a scope/permission issue
           if (driveResponse.status === 403) {
-            return safeJson(403, {
+            return jsonCors(req, 403, {
               error: 'Insufficient permissions',
               status: driveResponse.status,
               message: 'Precisamos de permissão para ler metadados do Drive. Clique em "Reconectar com permissões".',
@@ -185,14 +159,11 @@ serve(async (req) => {
             });
           }
           
-          return new Response(JSON.stringify({ 
+          return jsonCors(req, driveResponse.status, { 
             error: 'Google Drive API error',
             status: driveResponse.status,
             message: driveResponse.statusText,
             user_message: 'É necessário autorizar acesso completo ao Google Drive. Verifique as permissões na sua conta.'
-          }), {
-            status: driveResponse.status,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
 
@@ -229,11 +200,9 @@ serve(async (req) => {
         }
       }
       
-      return new Response(JSON.stringify({ 
+      return jsonCors(req, 200, { 
         folders: allFolders,
         sharedDrives: sharedDrives
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -253,18 +222,17 @@ serve(async (req) => {
       return await handleTokenInfo(user.id);
     }
 
-    // Diagnostic endpoints
     if (path === 'diag' && url.searchParams.get('type') === 'scopes') {
-      return await handleDiagScopes(user.id);
+      return await handleDiagScopes(user.id, req);
     }
     
     if (path === 'list-root') {
-      return await handleDiagListRoot(user.id);
+      return await handleDiagListRoot(user.id, req);
     }
     
     if (path === 'list-folder') {
       const body = await req.json();
-      return await handleDiagListFolder(user.id, body.folderId);
+      return await handleDiagListFolder(user.id, body.folderId, req);
     }
     
     if (path === 'list-shared-drive') {
@@ -272,21 +240,15 @@ serve(async (req) => {
     }
 
     console.log('❌ Unknown path:', path);
-    return new Response(JSON.stringify({ error: 'Not found' }), { 
-      status: 404, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return jsonCors(req, 404, { error: 'Not found' });
 
   } catch (error) {
     console.error('❌ Unexpected error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return jsonCors(req, 500, { error: 'Internal server error' });
   }
 });
 
-async function handleDiagScopes(userId: string) {
+async function handleDiagScopes(userId: string, req: Request) {
   console.log('🔍 DIAG: Checking token scopes for user:', userId);
   
   try {
@@ -297,7 +259,7 @@ async function handleDiagScopes(userId: string) {
       console.log("Token obtained, length:", accessToken.length);
     } catch (error) {
       console.log('❌ DIAG: No tokens found for user:', userId);
-      return safeJson(400, {
+      return jsonCors(req, 400, {
         status: 400,
         error: 'NO_TOKENS',
         details: error.message || 'No Google Drive connection found'
@@ -317,7 +279,7 @@ async function handleDiagScopes(userId: string) {
         
         if (!retryResponse.ok) {
           console.log('❌ DIAG: TokenInfo retry failed with status:', retryResponse.status);
-          return safeJson(retryResponse.status, {
+          return jsonCors(req, retryResponse.status, {
             status: retryResponse.status,
             error: 'TOKENINFO_FAILED_AFTER_REFRESH',
             details: `Google tokeninfo returned ${retryResponse.status}`
@@ -330,7 +292,7 @@ async function handleDiagScopes(userId: string) {
         
         console.log('✅ DIAG: TokenInfo success after retry - scopes found:', scopes.length);
         
-        return safeJson(200, {
+    return jsonCors(req, 200, {
           status: 200,
           scopes: tokenInfo.scope || '',
           expires_in: expiresIn,
@@ -342,13 +304,13 @@ async function handleDiagScopes(userId: string) {
           retried: true
         });
       } catch (refreshError) {
-        return safeJson(401, { error: "REFRESH_FAILED", message: refreshError.message });
+        return jsonCors(req, 401, { error: "REFRESH_FAILED", message: refreshError.message });
       }
     }
     
     if (!tokenInfoResponse.ok) {
       console.log('❌ DIAG: TokenInfo failed with status:', tokenInfoResponse.status);
-      return safeJson(tokenInfoResponse.status, {
+      return jsonCors(req, tokenInfoResponse.status, {
         status: tokenInfoResponse.status,
         error: 'TOKENINFO_FAILED',
         details: `Google tokeninfo returned ${tokenInfoResponse.status}`
@@ -360,8 +322,8 @@ async function handleDiagScopes(userId: string) {
     const expiresIn = tokenInfo.exp ? parseInt(tokenInfo.exp) - Math.floor(Date.now() / 1000) : null;
     
     console.log('✅ DIAG: TokenInfo success - scopes found:', scopes.length);
-    
-    return safeJson(200, {
+         
+        return jsonCors(req, 200, {
       status: 200,
       scopes: tokenInfo.scope || '',
       expires_in: expiresIn,
@@ -374,7 +336,7 @@ async function handleDiagScopes(userId: string) {
     
   } catch (e: any) {
     console.error('❌ DIAG: Scopes error:', { msg: e?.message, code: e?.code, name: e?.name });
-    return safeJson(500, { 
+    return jsonCors(req, 500, { 
       status: 500,
       error: 'INTERNAL_ERROR', 
       note: 'check function logs' 
@@ -382,7 +344,7 @@ async function handleDiagScopes(userId: string) {
   }
 }
 
-async function handleDiagListRoot(userId: string) {
+async function handleDiagListRoot(userId: string, req: Request) {
   console.log('📋 DIAG: Testing root folder listing for user:', userId);
   
   try {
@@ -392,7 +354,7 @@ async function handleDiagListRoot(userId: string) {
       accessToken = await ensureAccessToken(userId);
       console.log("Token obtained, length:", accessToken.length);
     } catch (error) {
-      return safeJson(400, { status: 400, error: 'NO_TOKENS' });
+      return jsonCors(req, 400, { status: 400, error: 'NO_TOKENS' });
     }
     
     // Build exact query as specified
@@ -417,7 +379,7 @@ async function handleDiagListRoot(userId: string) {
       console.log('❌ DIAG: Root listing failed with status:', driveResponse.status);
       
       if (driveResponse.status === 401) {
-        return safeJson(401, {
+        return jsonCors(req, 401, {
           status: 401,
           error: 'NEEDS_REFRESH',
           action: 'Token needs refresh'
@@ -425,7 +387,7 @@ async function handleDiagListRoot(userId: string) {
       }
       
       if (driveResponse.status === 403) {
-        return safeJson(403, {
+        return jsonCors(req, 403, {
           status: 403,
           error: 'insufficientPermissions',
           action: 'reconnect_with_consent',
@@ -438,7 +400,7 @@ async function handleDiagListRoot(userId: string) {
         });
       }
       
-      return safeJson(driveResponse.status, {
+      return jsonCors(req, driveResponse.status, {
         status: driveResponse.status,
         error: 'DRIVE_API_ERROR'
       });
@@ -449,7 +411,7 @@ async function handleDiagListRoot(userId: string) {
     
     console.log('✅ DIAG: Root listing successful - folders found:', files.length);
     
-    return safeJson(200, {
+    return jsonCors(req, 200, {
       status: 200,
       filesCount: files.length,
       firstItems: files.slice(0, 5),
@@ -464,7 +426,7 @@ async function handleDiagListRoot(userId: string) {
     
   } catch (e: any) {
     console.error('❌ DIAG: Root listing error:', { msg: e?.message, code: e?.code });
-    return safeJson(500, { 
+    return jsonCors(req, 500, { 
       status: 500,
       error: 'INTERNAL_ERROR', 
       note: 'check function logs' 
@@ -472,11 +434,11 @@ async function handleDiagListRoot(userId: string) {
   }
 }
 
-async function handleDiagListFolder(userId: string, folderId: string) {
+async function handleDiagListFolder(userId: string, folderId: string, req: Request) {
   console.log('📁 DIAG: Testing folder listing for user:', userId, 'folder:', folderId);
   
   if (!folderId) {
-    return safeJson(400, { status: 400, error: 'FOLDER_ID_REQUIRED' });
+    return jsonCors(req, 400, { status: 400, error: 'FOLDER_ID_REQUIRED' });
   }
   
   try {
@@ -484,7 +446,7 @@ async function handleDiagListFolder(userId: string, folderId: string) {
       .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
       
     if (tokensError || !tokens || tokens.length === 0) {
-      return safeJson(400, { status: 400, error: 'NO_TOKENS' });
+      return jsonCors(req, 400, { status: 400, error: 'NO_TOKENS' });
     }
 
     const tokenData = tokens[0];
@@ -511,7 +473,7 @@ async function handleDiagListFolder(userId: string, folderId: string) {
       console.log('❌ DIAG: Folder listing failed with status:', driveResponse.status);
       
       if (driveResponse.status === 404) {
-        return safeJson(404, {
+        return jsonCors(req, 404, {
           status: 404,
           error: 'FOLDER_NOT_FOUND',
           folderId: folderId,
@@ -519,7 +481,7 @@ async function handleDiagListFolder(userId: string, folderId: string) {
         });
       }
       
-      return safeJson(driveResponse.status, {
+      return jsonCors(req, driveResponse.status, {
         status: driveResponse.status,
         error: 'DRIVE_API_ERROR',
         folderId: folderId
@@ -531,7 +493,7 @@ async function handleDiagListFolder(userId: string, folderId: string) {
     
     console.log('✅ DIAG: Folder listing successful - items found:', files.length);
     
-    return safeJson(200, {
+    return jsonCors(req, 200, {
       status: 200,
       filesCount: files.length,
       firstItems: files.slice(0, 5),
@@ -540,7 +502,7 @@ async function handleDiagListFolder(userId: string, folderId: string) {
     
   } catch (e: any) {
     console.error('❌ DIAG: Folder listing error:', { msg: e?.message, code: e?.code });
-    return safeJson(500, { 
+    return jsonCors(req, 500, { 
       status: 500,
       error: 'INTERNAL_ERROR',
       folderId: folderId, 
@@ -557,7 +519,7 @@ async function handleDiagListSharedDrive(userId: string) {
       .rpc('get_google_drive_tokens_secure', { p_user_id: userId });
       
     if (tokensError || !tokens || tokens.length === 0) {
-      return safeJson(400, { status: 400, error: 'NO_TOKENS' });
+      return jsonCors(req, 400, { status: 400, error: 'NO_TOKENS' });
     }
 
     const tokenData = tokens[0];
@@ -572,7 +534,7 @@ async function handleDiagListSharedDrive(userId: string) {
     
     if (!drivesResponse.ok) {
       console.log('❌ DIAG: Drives listing failed with status:', drivesResponse.status);
-      return safeJson(drivesResponse.status, {
+      return jsonCors(req, drivesResponse.status, {
         status: drivesResponse.status,
         error: 'DRIVES_API_ERROR'
       });
@@ -582,7 +544,7 @@ async function handleDiagListSharedDrive(userId: string) {
     const drives = drivesData.drives || [];
     
     if (drives.length === 0) {
-      return safeJson(200, {
+      return jsonCors(req, 200, {
         status: 200,
         message: 'No shared drives available',
         drivesCount: 0
@@ -610,7 +572,7 @@ async function handleDiagListSharedDrive(userId: string) {
     
     if (!filesResponse.ok) {
       console.log('❌ DIAG: Shared drive files failed with status:', filesResponse.status);
-      return safeJson(filesResponse.status, {
+      return jsonCors(req, filesResponse.status, {
         status: filesResponse.status,
         error: 'SHARED_DRIVE_FILES_ERROR',
         drive: firstDrive
@@ -622,7 +584,7 @@ async function handleDiagListSharedDrive(userId: string) {
     
     console.log('✅ DIAG: Shared drive listing successful - files found:', files.length);
     
-    return safeJson(200, {
+    return jsonCors(req, 200, {
       status: 200,
       drive: { id: firstDrive.id, name: firstDrive.name },
       filesCount: files.length,
@@ -635,7 +597,7 @@ async function handleDiagListSharedDrive(userId: string) {
     
   } catch (e: any) {
     console.error('❌ DIAG: Shared drives error:', { msg: e?.message, code: e?.code });
-    return safeJson(500, { 
+    return jsonCors(req, 500, { 
       status: 500,
       error: 'INTERNAL_ERROR', 
       note: 'check function logs' 
@@ -652,7 +614,7 @@ async function handleTokenInfo(userId: string) {
       
     if (tokensError || !tokens || tokens.length === 0) {
       console.log('❌ No tokens found for user:', userId);
-      return safeJson(400, {
+      return jsonCors(req, 400, {
         ok: false,
         error: 'NO_TOKENS',
         details: tokensError?.message || 'No Google Drive connection found'
@@ -665,7 +627,7 @@ async function handleTokenInfo(userId: string) {
     const isExpired = new Date(tokenData.expires_at) < new Date();
     if (isExpired) {
       console.log('❌ Token expired for user:', userId);
-      return safeJson(401, {
+      return jsonCors(req, 401, {
         ok: false,
         error: 'TOKEN_EXPIRED',
         details: 'Token has expired, please reconnect'
@@ -701,11 +663,11 @@ async function handleTokenInfo(userId: string) {
       console.log('❌ TokenInfo failed with status:', tokenInfoResponse.status);
     }
     
-    return safeJson(200, result);
+    return jsonCors(req, 200, result);
     
   } catch (e: any) {
     console.error('❌ TokenInfo error:', { msg: e?.message, code: e?.code, name: e?.name });
-    return safeJson(500, { 
+    return jsonCors(req, 500, { 
       ok: false, 
       error: 'INTERNAL_ERROR', 
       note: 'check function logs' 

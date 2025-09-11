@@ -1,22 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-
-// Updated CORS helper
-const ALLOW_ORIGINS = new Set([
-  "https://photo-label-studio.lovable.app",
-  "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
-  "http://localhost:3000",
-  "http://localhost:5173",
-]);
-
-function cors(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin) ? origin : "https://photo-label-studio.lovable.app";
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin",
-  };
-}
+import { preflight, jsonCors } from "../_shared/cors.ts";
 
 function decodeJwtClaims(authHeader: string | null) {
   try {
@@ -34,22 +17,15 @@ function decodeJwtClaims(authHeader: string | null) {
 serve(async (req) => {
   console.log("diag-scopes called");
 
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
-  }
-
-  const json = (status: number, body: unknown) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json", ...cors(req.headers.get("origin")) },
-    });
+  const pf = preflight(req);
+  if (pf) return pf;
 
   const auth = req.headers.get("authorization");
   const claims = decodeJwtClaims(auth);
 
   try {
     const body = await req.json().catch(() => ({}));
-    return json(200, {
+    return jsonCors(req, 200, {
       ok: true,
       receivedAuth: !!auth,
       hasBearer: !!auth && auth.startsWith("Bearer "),
@@ -58,6 +34,6 @@ serve(async (req) => {
       note: "verify_jwt temporarily disabled in config for diagnostics",
     });
   } catch (e) {
-    return json(500, { ok: false, error: "INTERNAL", message: e?.message });
+    return jsonCors(req, 500, { ok: false, error: "INTERNAL", message: e?.message });
   }
 });
