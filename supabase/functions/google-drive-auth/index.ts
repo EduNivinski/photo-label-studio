@@ -178,13 +178,20 @@ async function getUserFolderId(userId: string): Promise<string | null> {
 
 async function handleStatus(req: Request, userId: string) {
   try {
-    const token = await ensureAccessToken(userId); // string
+    const token = await ensureAccessToken(userId);
     if (!token) throw new Error("NO_ACCESS_TOKEN");
     return jsonCors(req, 200, { ok: true, connected: true });
   } catch (e: any) {
-    const reason = (e?.message || "").toUpperCase();
-    // Normalize: TOKEN_INVALID / NO_ACCESS_TOKEN / EXPIRED / REFRESH_FAILED, etc.
-    return jsonCors(req, 200, { ok: true, connected: false, reason: reason || "EXPIRED_OR_INVALID" });
+    const msg = (e?.message || "").toUpperCase();
+
+    // Normaliza mensagens comuns:
+    let reason = "EXPIRED_OR_INVALID";
+    if (msg.includes("NO_TOKENS")) reason = "NO_TOKENS";
+    else if (msg.includes("NO_REFRESH_TOKEN")) reason = "NO_REFRESH_TOKEN";
+    else if (msg.includes("OAUTH_REFRESH_FAILED")) reason = msg; // traz OAUTH_REFRESH_FAILED:XXXX
+    else if (msg.includes("NO_ACCESS_TOKEN_AFTER_REFRESH")) reason = "NO_ACCESS_TOKEN_AFTER_REFRESH";
+
+    return jsonCors(req, 200, { ok: true, connected: false, reason });
   }
 }
 

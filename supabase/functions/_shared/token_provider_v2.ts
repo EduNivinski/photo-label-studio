@@ -194,30 +194,67 @@ export async function refreshAccessToken(userId: string): Promise<string> {
 }
 
 export async function ensureAccessToken(userId: string): Promise<string> {
-  console.log(`🔍 Ensuring valid access token for user: ${userId}`);
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
-  try {
-    const tokens = await getTokens(userId);
-    if (!tokens) {
-      throw new Error("NO_ACCESS_TOKEN");
-    }
+  // 1) Buscar tokens atuais
+  const { data, error } = await admin
+    .from("user_drive_tokens")
+    .select("access_token_enc, refresh_token_enc, scope, expires_at")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-    // Check if token expires within 60 seconds
-    const expirationBuffer = 60 * 1000; // 60 seconds in milliseconds
-    const expiresAt = new Date(tokens.expires_at).getTime();
-    const needsRefresh = expiresAt - Date.now() < expirationBuffer;
+  if (error || !data) throw new Error("NO_TOKENS");
 
-    if (needsRefresh) {
-      console.log("🔄 Token near expiration, refreshing...");
-      return await refreshAccessToken(userId);
-    }
+  const accessToken = data.access_token_enc ? await decryptPacked(data.access_token_enc) : null;
+  const refreshToken = data.refresh_token_enc ? await decryptPacked(data.refresh_token_enc) : null;
+  const scope = data.scope || "";
+  const exp = data.expires_at ? new Date(data.expires_at).getTime() : 0;
 
-    console.log("✅ Current access token is still valid");
-    return tokens.access_token;
-  } catch (error) {
-    console.error("❌ Error ensuring access token:", error);
-    throw error;
+  // 2) Se access token ainda válido (skew 60s), use-o
+  const SKEW_MS = 60_000;
+  if (accessToken && exp - SKEW_MS > Date.now()) {
+    return accessToken;
   }
+
+  // 3) Sem refresh token → reconectar
+  if (!refreshToken) throw new Error("NO_REFRESH_TOKEN");
+
+  // 4) Refresh token: NÃO mande redirect_uri; mande form-urlencoded correto
+  const body = new URLSearchParams({
+    client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
+    client_secret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
+    refresh_token: refreshToken,
+    grant_type: "refresh_token",
+  }).toString();
+
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+
+  const json = await resp.json().catch(() => ({}));
+
+  if (!resp.ok) {
+    console.error("REFRESH_ERROR", { status: resp.status, json });
+    // padroniza motivo
+    const code = (json?.error || resp.status || "UNKNOWN").toString().toUpperCase();
+    throw new Error(`OAUTH_REFRESH_FAILED:${code}`);
+  }
+
+  const newAccess = json.access_token as string | undefined;
+  const expires_in = Number(json.expires_in ?? 3600);
+  const newExpiresAt = new Date(Date.now() + Math.max(0, (expires_in - 60)) * 1000).toISOString();
+
+  if (!newAccess) throw new Error("NO_ACCESS_TOKEN_AFTER_REFRESH");
+
+  // 5) Salvar novo access token (preserva refresh antigo)
+  await upsertTokens(userId, newAccess, null, scope, newExpiresAt);
+
+  return newAccess;
 }
 
 export async function deleteTokens(userId: string): Promise<void> {
