@@ -240,11 +240,12 @@ async function handleDisconnect(req: Request, userId: string) {
 
 // Main handler
 serve(async (req: Request) => {
-  // 1) Preflight SEMPRE liberado (CORS)
+  // 1) CORS preflight SEMPRE primeiro
   const pf = preflight(req);
   if (pf) return pf;
 
   // 2) Log básico de diagnóstico
+  const origin = req.headers.get("origin");
   console.log("[google-drive-auth]", { method: req.method, origin, url: req.url });
 
   try {
