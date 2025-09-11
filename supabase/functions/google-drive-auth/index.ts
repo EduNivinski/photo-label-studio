@@ -146,32 +146,19 @@ async function decrypt(encryptedData: string): Promise<string> {
   return new TextDecoder().decode(decrypted);
 }
 
-// Database functions
+// Use shared token provider functions (already uses Service Role internally)
+import { getTokens, upsertTokens, deleteTokens } from "../_shared/token_provider_v2.ts";
+
 async function getEncryptedTokens(userId: string) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  
-  const response = await fetch(`${supabaseUrl}/rest/v1/user_drive_tokens?user_id=eq.${userId}`, {
-    headers: {
-      "Authorization": `Bearer ${supabaseServiceKey}`,
-      "apikey": supabaseServiceKey
-    }
-  });
-  
-  if (!response.ok) return null;
-  
-  const data = await response.json();
-  return data.length > 0 ? data[0] : null;
+  try {
+    return await getTokens(userId);
+  } catch (error) {
+    console.error("Error fetching tokens:", error);
+    return null;
+  }
 }
 
-async function decryptRow(row: any) {
-  return {
-    accessToken: await decrypt(row.access_token_enc),
-    refreshToken: await decrypt(row.refresh_token_enc),
-    expiresAt: row.expires_at,
-    scopes: row.scope
-  };
-}
+// No longer need decryptRow since getTokens() already returns decrypted values
 
 async function refreshGoogle(accessToken: string, refreshToken: string) {
   const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
@@ -203,34 +190,19 @@ async function refreshGoogle(accessToken: string, refreshToken: string) {
 }
 
 async function saveTokensUpsert(userId: string, tokens: any) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  
-  const encryptedAccess = await encrypt(tokens.access_token);
-  const encryptedRefresh = await encrypt(tokens.refresh_token);
-  
-  const payload = {
-    user_id: userId,
-    access_token_enc: encryptedAccess,
-    refresh_token_enc: encryptedRefresh,
-    expires_at: tokens.expiry_date,
-    scope: tokens.scope,
-    updated_at: new Date().toISOString()
-  };
-  
-  // Use UPSERT to avoid duplicate key errors
-  const response = await fetch(`${supabaseUrl}/rest/v1/user_drive_tokens`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${supabaseServiceKey}`,
-      "apikey": supabaseServiceKey,
-      "Content-Type": "application/json",
-      "Prefer": "resolution=merge-duplicates"
-    },
-    body: JSON.stringify(payload)
-  });
-  
-  return response.ok;
+  try {
+    await upsertTokens(
+      userId,
+      tokens.access_token,
+      tokens.refresh_token,
+      tokens.scope || "",
+      tokens.expiry_date
+    );
+    return true;
+  } catch (error) {
+    console.error("Error saving tokens:", error);
+    return false;
+  }
 }
 
 async function getUserFolderId(userId: string): Promise<string | null> {
@@ -238,93 +210,15 @@ async function getUserFolderId(userId: string): Promise<string | null> {
   return null;
 }
 
-// Action handlers
-async function handleCallback(req: Request, url: URL) {
-  const code = url.searchParams.get("code");
-  const stateRaw = url.searchParams.get("state");
-  const error = url.searchParams.get("error");
-  
-  const origin = req.headers.get("origin");
-  
-  if (error) {
-    return new Response(`<h1>Google error</h1><p>${error}</p>`, { 
-      status: 400, 
-      headers: { "Content-Type": "text/html", ...cors(origin) } 
-    });
-  }
-  
-  if (!code || !stateRaw) {
-    return json(req, 400, { ok: false, reason: "MISSING_CODE_OR_STATE" });
-  }
-  
-  let state: any;
-  try {
-    state = JSON.parse(atob(stateRaw));
-  } catch {
-    return json(req, 400, { ok: false, reason: "INVALID_STATE" });
-  }
-  
-  if (!state?.userId) {
-    return json(req, 400, { ok: false, reason: "MISSING_USER_ID" });
-  }
-  
-  const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
-  const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
-  const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  // ✅ Use a função DEDICADA de callback (verify_jwt = false)
-  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
-  
-  try {
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        redirect_uri: REDIRECT_URI,
-        grant_type: "authorization_code"
-      })
-    });
-    
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error("Token exchange failed:", errorText);
-      return json(req, 500, { ok: false, reason: "TOKEN_EXCHANGE_FAILED" });
-    }
-    
-    const tokens = await tokenResponse.json();
-    const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString();
-    
-    await saveTokensUpsert(state.userId, {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expiry_date: expiresAt,
-      scope: tokens.scope || ""
-    });
-    
-    const redirectUrl = state.redirect || "https://photo-label-studio.lovable.app/user";
-    return new Response(null, {
-      status: 303,
-      headers: {
-        Location: redirectUrl,
-        ...cors(origin)
-      }
-    });
-    
-  } catch (error) {
-    console.error("Callback error:", error);
-    return json(req, 500, { ok: false, reason: "INTERNAL_ERROR" });
-  }
-}
+// Action handlers (callback removed - handled by dedicated function)
 
 async function handleStatus(req: Request, userId: string) {
-  const row = await getEncryptedTokens(userId);
-  if (!row) {
+  const tokens = await getEncryptedTokens(userId);
+  if (!tokens) {
     return json(req, 200, { connected: false, reason: "NO_TOKENS" });
   }
   
-  let { accessToken, refreshToken, expiresAt, scopes } = await decryptRow(row);
+  let { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt, scope: scopes } = tokens;
   
   // Check if token is expiring soon (30 seconds buffer)
   if (Date.now() > new Date(expiresAt).getTime() - 30_000) {
@@ -405,21 +299,19 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 }
 
 async function handleDisconnect(req: Request, userId: string) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  
-  const response = await fetch(`${supabaseUrl}/rest/v1/user_drive_tokens?user_id=eq.${userId}`, {
-    method: "DELETE",
-    headers: {
-      "Authorization": `Bearer ${supabaseServiceKey}`,
-      "apikey": supabaseServiceKey
-    }
-  });
-  
-  return json(req, 200, { 
-    ok: true, 
-    message: "Disconnected successfully" 
-  });
+  try {
+    await deleteTokens(userId);
+    return json(req, 200, { 
+      ok: true, 
+      message: "Disconnected successfully" 
+    });
+  } catch (error) {
+    console.error("Error disconnecting:", error);
+    return json(req, 500, { 
+      ok: false, 
+      reason: "DISCONNECT_ERROR" 
+    });
+  }
 }
 
 // Main handler
