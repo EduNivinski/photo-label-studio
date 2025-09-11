@@ -1,4 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // --- CORS (configurável por ENV) ---
 const DEFAULT_ALLOWED = [
@@ -9,29 +11,43 @@ const DEFAULT_ALLOWED = [
   "https://a4888df3-b048-425b-8000-021ee0970cd7.sandbox.lovable.dev",
 ];
 
-function getAllowedOrigins(): Set<string> {
-  const fromEnv = Deno.env.get("CORS_ALLOWED_ORIGINS"); // CSV
-  if (!fromEnv) return new Set(DEFAULT_ALLOWED);
-  return new Set(
-    fromEnv
-      .split(",")
-      .map(s => s.trim())
-      .filter(Boolean)
-  );
+function allowedOrigins(): Set<string> {
+  const csv = Deno.env.get("CORS_ALLOWED_ORIGINS");
+  if (!csv) return new Set(DEFAULT_ALLOWED);
+  return new Set(csv.split(",").map(s => s.trim()).filter(Boolean));
 }
 
-const ALLOW_ORIGINS = getAllowedOrigins();
+const ALLOW_ORIGINS = allowedOrigins();
 
 function cors(origin: string | null) {
   const allowed = origin && ALLOW_ORIGINS.has(origin)
     ? origin
-    : "https://photo-label-studio.lovable.app"; // fallback seguro
+    : "https://photo-label-studio.lovable.app";
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Max-Age": "86400",
     "Vary": "Origin"
   };
+}
+
+// ✅ Helper de validação do JWT via supabase-js admin
+async function getUserIdFromJwt(req: Request): Promise<string | null> {
+  try {
+    const auth = req.headers.get("authorization");
+    if (!auth || !auth.startsWith("Bearer ")) return null;
+    const token = auth.replace("Bearer ", "");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return null;
+    return user.id;
+  } catch {
+    return null;
+  }
 }
 
 const json = (req: Request, status: number, body: unknown) =>
@@ -407,48 +423,40 @@ async function handleDisconnect(req: Request, userId: string) {
 }
 
 // Main handler
-export default async (req: Request) => {
+serve(async (req: Request) => {
   const origin = req.headers.get("origin");
+
+  // 1) Preflight SEMPRE liberado (CORS)
   if (req.method === "OPTIONS") {
-    // Preflight
     return new Response(null, { status: 204, headers: cors(origin) });
   }
 
-  // (opcional) logs para depuração
-  console.log("[google-drive-auth]", {
-    method: req.method,
-    origin,
-    url: req.url
-  });
-  
-  const url = new URL(req.url);
-  const action = (await captureAction(req, url)) as "authorize"|"callback"|"status"|"disconnect";
-  
+  // 2) Log básico de diagnóstico
+  console.log("[google-drive-auth]", { method: req.method, origin, url: req.url });
+
   try {
+    const url = new URL(req.url);
+    const action = (await captureAction(req, url)) as "authorize" | "callback" | "status" | "disconnect";
+
+    // 3) Callback não é processado aqui (há function dedicada)
     if (action === "callback") {
-      // Callback doesn't require JWT
-      return await handleCallback(req, url);
+      return json(req, 400, { ok: false, reason: "CALLBACK_IS_EXTERNAL" });
     }
-    
-    // All other actions require JWT
-    const jwt = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-    if (!jwt) {
-      return json(req, 401, { ok: false, reason: "MISSING_AUTH" });
-    }
-    
-    const { sub: userId } = parseJwt(jwt);
+
+    // 4) Validar JWT manualmente para ações protegidas
+    const userId = await getUserIdFromJwt(req);
     if (!userId) {
       return json(req, 401, { ok: false, reason: "INVALID_JWT" });
     }
-    
+
     if (action === "status") return await handleStatus(req, userId);
     if (action === "authorize") return await handleAuthorize(req, userId, url);
     if (action === "disconnect") return await handleDisconnect(req, userId);
-    
+
     return json(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
-    
+
   } catch (e: any) {
     console.error("google-drive-auth error:", e?.message || e);
     return json(req, 500, { ok: false, reason: "INTERNAL_ERROR" });
   }
-};
+});
