@@ -3,13 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 import { preflight, jsonCors } from "../_shared/cors.ts";
 
-//Functions que estão dando erro 
 let supabase: any;
 
 serve(async (req) => {
   console.log('🚀 GOOGLE DRIVE API CALLED - REAL VERSION');
   
-  // Handle CORS preflight requests
   const pf = preflight(req);
   if (pf) return pf;
 
@@ -185,7 +183,7 @@ serve(async (req) => {
         try {
           const sharedDrivesResponse = await fetch('https://www.googleapis.com/drive/v3/drives?pageSize=100', {
             headers: {
-              'Authorization': `Bearer ${tokenData.access_token}`,
+              'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
           });

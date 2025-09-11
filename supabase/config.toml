@@ -66,7 +66,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.google-drive-api]
-verify_jwt = false
+verify_jwt = true
 
 [functions."diag-ping"]
 verify_jwt = false
@@ -105,4 +105,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions."google-drive-disconnect"]
+verify_jwt = true
+
+[functions.diag-user-tokens]
 verify_jwt = true

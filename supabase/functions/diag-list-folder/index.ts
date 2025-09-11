@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-import { corsHeaders, preflight, jsonResponse } from "../_shared/cors.ts";
+import { preflight, jsonCors } from "../_shared/cors.ts";
 
 function getUserIdFromAuth(auth: string | null) {
   if (!auth?.startsWith("Bearer ")) return null;
@@ -25,7 +25,7 @@ serve(async (req) => {
     const userId = getUserIdFromAuth(auth);
     
     if (!userId) {
-      return jsonResponse({ reason: "NO_JWT" }, 401, req);
+      return jsonCors(req, 401, { reason: "NO_JWT" });
     }
 
     console.log("User authenticated:", userId);
@@ -42,7 +42,7 @@ serve(async (req) => {
       console.log("Token obtained, length:", accessToken.length);
     } catch (error) {
       console.error("Token error:", error);
-      return jsonResponse({ reason: "NO_ACCESS_TOKEN", message: error.message }, 400, req);
+      return jsonCors(req, 400, { reason: "NO_ACCESS_TOKEN", message: error.message });
     }
 
     // Build query for folder contents
@@ -77,41 +77,41 @@ serve(async (req) => {
         });
         
         if (!retryResp.ok) {
-          return jsonResponse({ 
+          return jsonCors(req, retryResp.status, { 
             status: retryResp.status, 
             reason: "UNAUTHORIZED_AFTER_REFRESH" 
-          }, retryResp.status, req);
+          });
         }
         
         const retryData = await retryResp.json();
-        return jsonResponse({
+        return jsonCors(req, 200, {
           status: "OK",
           folderId: folderId,
           items: retryData.files || [],
           echo: { corpora: "user" },
           retried: true
-        }, 200, req);
+        });
       } catch (refreshError) {
-        return jsonResponse({ error: "REFRESH_FAILED", message: refreshError.message }, 401, req);
+        return jsonCors(req, 401, { error: "REFRESH_FAILED", message: refreshError.message });
       }
     }
 
     if (!resp.ok) {
       const errorText = await resp.text();
       console.error("API error:", errorText);
-      return jsonResponse({ status: resp.status, reason: errorText }, resp.status, req);
+      return jsonCors(req, resp.status, { status: resp.status, reason: errorText });
     }
 
     const data = await resp.json();
-    return jsonResponse({
+    return jsonCors(req, 200, {
       status: "OK",
       folderId: folderId,
       items: data.files || [],
       echo: { corpora: "user" }
-    }, 200, req);
+    });
 
   } catch (error: any) {
     console.error("Error in diag-list-folder:", error);
-    return jsonResponse({ error: "INTERNAL_ERROR", message: error.message }, 500, req);
+    return jsonCors(req, 500, { error: "INTERNAL_ERROR", message: error.message });
   }
 });
