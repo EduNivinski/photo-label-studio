@@ -214,40 +214,13 @@ async function getUserFolderId(userId: string): Promise<string | null> {
 
 async function handleStatus(req: Request, userId: string) {
   try {
-    const accessToken = await ensureAccessToken(userId);
-    
-    // Validate token with Google Drive API
-    const driveResponse = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    
-    if (driveResponse.status === 401 || driveResponse.status === 403) {
-      return json(req, 200, { connected: false, reason: "TOKEN_INVALID" });
-    }
-    
-    const { user } = await driveResponse.json();
-    const tokens = await getTokens(userId);
-    const expiresInSec = tokens ? Math.max(0, Math.floor((new Date(tokens.expires_at).getTime() - Date.now()) / 1000)) : 0;
-    const scopesList = tokens ? (tokens.scope || "").split(/\s+/).filter(Boolean) : [];
-    const folderId = await getUserFolderId(userId);
-    
-    return json(req, 200, {
-      connected: true,
-      reason: "OK",
-      email: user?.emailAddress || null,
-      scopes: scopesList,
-      expiresInSec,
-      folderId: folderId || null
-    });
-  } catch (error) {
-    console.error("Status check failed:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    if (errorMessage === "NO_ACCESS_TOKEN") {
-      return json(req, 200, { connected: false, reason: "NO_TOKENS" });
-    }
-    
-    return json(req, 200, { connected: false, reason: "EXPIRED_OR_INVALID" });
+    const token = await ensureAccessToken(userId); // string
+    if (!token) throw new Error("NO_ACCESS_TOKEN");
+    return json(req, 200, { ok: true, connected: true });
+  } catch (e: any) {
+    const reason = (e?.message || "").toUpperCase();
+    // Normalize: TOKEN_INVALID / NO_ACCESS_TOKEN / EXPIRED / REFRESH_FAILED, etc.
+    return json(req, 200, { ok: true, connected: false, reason: reason || "EXPIRED_OR_INVALID" });
   }
 }
 
@@ -270,8 +243,8 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
     redirect_uri: REDIRECT_URI,
     response_type: "code",
     access_type: "offline",
-    include_granted_scopes: "false",
-    prompt: "consent select_account",
+    include_granted_scopes: "true",
+    prompt: "select_account",
     scope: "openid email profile https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file",
     state
   });

@@ -46,62 +46,53 @@ export async function upsertTokens(
   scope: string,
   expiresAt: string
 ): Promise<void> {
-  console.log(`🔒 Storing encrypted tokens for user: ${userId}`);
-  
-  try {
-    // If refreshToken is missing, try to preserve the existing one
-    let finalRefreshToken = refreshToken;
-    if (!finalRefreshToken) {
-      console.log("🔄 Missing refresh token, attempting to preserve existing one");
-      const { data: existing, error: selectError } = await admin
-        .from('user_drive_tokens')
-        .select('refresh_token_enc')
-        .eq('user_id', userId)
-        .maybeSingle();
+  // 1) Ler refresh antigo, se necessário
+  let finalRefresh = refreshToken ?? null;
 
-      if (!selectError && existing?.refresh_token_enc) {
-        try {
-          finalRefreshToken = await decryptPacked(existing.refresh_token_enc);
-          console.log("✅ Preserved existing refresh token");
-        } catch (decryptError) {
-          console.warn("⚠️ Could not decrypt existing refresh token:", decryptError);
-        }
+  if (!finalRefresh) {
+    const { data: existing, error: selErr } = await admin
+      .from("user_drive_tokens")
+      .select("refresh_token_enc")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!selErr && existing?.refresh_token_enc) {
+      try {
+        // decryptPacked: decifra para string pura
+        const oldRefresh = await decryptPacked(existing.refresh_token_enc);
+        if (oldRefresh) finalRefresh = oldRefresh;
+      } catch {
+        // ignora falha de decrypt — segue sem refresh
       }
     }
+  }
 
-    if (!finalRefreshToken) {
-      console.warn("⚠️ No refresh token available - user may need to reconnect");
-      throw new Error("Missing refresh token - reconnection required");
-    }
+  // 2) Montar payload sem sobrescrever refresh se não houver
+  const payload: Record<string, any> = {
+    user_id: userId,
+    access_token_enc: await encryptPacked(accessToken),
+    scope,
+    expires_at: expiresAt,
+    updated_at: new Date().toISOString(),
+  };
 
-    const access_token_enc = await encryptPacked(accessToken);
-    const refresh_token_enc = await encryptPacked(finalRefreshToken);
+  if (finalRefresh) {
+    payload.refresh_token_enc = await encryptPacked(finalRefresh);
+  }
 
-    const { error } = await admin
-      .from('user_drive_tokens')
-      .upsert({
-        user_id: userId,
-        access_token_enc,
-        refresh_token_enc,
-        scope,
-        expires_at: expiresAt,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id',
-        ignoreDuplicates: false
-      });
+  // 3) Upsert (não inclua refresh_token_enc para não apagá-lo)
+  const { error } = await admin
+    .from("user_drive_tokens")
+    .upsert(payload, { onConflict: "user_id", ignoreDuplicates: false });
 
-    if (error) {
-      console.error("❌ Database error storing tokens:", error);
-      throw new Error(`Database error: ${error.message || JSON.stringify(error)}`);
-    }
+  if (error) {
+    throw new Error(`DB upsert error: ${error.message}`);
+  }
 
-    console.log("✅ Tokens stored successfully (refresh token preserved)");
-  } catch (error) {
-    console.error("❌ Error in upsertTokens:", error);
-    // Re-throw with a proper error message
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Token storage failed: ${errorMessage}`);
+  // 4) Se não existe refresh novo nem antigo (primeira conexão falhou):
+  //    sinalize para forçar reconexão/consent.
+  if (!finalRefresh) {
+    console.warn("⚠️ upsertTokens: missing refresh_token (kept empty). User may need to reconnect with consent.");
   }
 }
 
