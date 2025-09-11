@@ -177,60 +177,55 @@ async function getUserFolderId(userId: string): Promise<string | null> {
 // Action handlers (callback removed - handled by dedicated function)
 
 async function handleStatus(req: Request, userId: string) {
-  try {
-    const token = await ensureAccessToken(userId);
-    if (!token) throw new Error("NO_ACCESS_TOKEN");
+  const result = await ensureAccessToken(userId);
+  if (result.ok) {
     return jsonCors(req, 200, { ok: true, connected: true });
-  } catch (e: any) {
-    const msg = (e?.message || "").toUpperCase();
-
-    // Normaliza mensagens comuns:
-    let reason = "EXPIRED_OR_INVALID";
-    if (msg.includes("NO_TOKENS")) reason = "NO_TOKENS";
-    else if (msg.includes("NO_REFRESH_TOKEN")) reason = "NO_REFRESH_TOKEN";
-    else if (msg.includes("OAUTH_REFRESH_FAILED")) reason = msg; // traz OAUTH_REFRESH_FAILED:XXXX
-    else if (msg.includes("NO_ACCESS_TOKEN_AFTER_REFRESH")) reason = "NO_ACCESS_TOKEN_AFTER_REFRESH";
-
-    return jsonCors(req, 200, { ok: true, connected: false, reason });
+  } else {
+    return jsonCors(req, 200, { ok: true, connected: false, reason: result.reason });
   }
 }
 
 async function handleAuthorize(req: Request, userId: string, url: URL) {
-  const origin = req.headers.get("origin");
+  // Dentro da action "authorize"
   const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  const redirectUrl = origin ? `${origin}/user` : `${projectUrl}/user`;
+  const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
   
   // Lê forceConsent do body
-  const { forceConsent } = await req.json().catch(() => ({})) || {};
+  const body = await req.json().catch(() => ({}));
   
-  // gerar state simples e confiável
-  const stateObj = {
-    userId,
-    ts: Date.now(),
-    nonce: crypto.getRandomValues(new Uint32Array(1))[0].toString(36),
-  };
-  const state = btoa(JSON.stringify(stateObj)); // Base64
-  
-  // ✅ Use a função DEDICADA de callback (verify_jwt = false)
-  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
-  
-  const params = new URLSearchParams({
-    client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
-    redirect_uri: REDIRECT_URI,
-    response_type: "code",
-    access_type: "offline",
-    include_granted_scopes: "true",
-    prompt: forceConsent ? "consent select_account" : "select_account",
-    scope: "openid email profile https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file",
-    state
-  });
-  
-  const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  
-  return jsonCors(req, 200, { 
-    ok: true, 
-    authorizeUrl, 
-    redirect_uri: REDIRECT_URI 
+  const state = btoa(
+    JSON.stringify({ userId, ts: Date.now(), nonce: crypto.randomUUID() })
+  );
+
+  const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  authorizeUrl.searchParams.set("client_id", clientId);
+  authorizeUrl.searchParams.set(
+    "redirect_uri",
+    `${projectUrl}/functions/v1/google-drive-oauth-callback`
+  );
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set(
+    "scope",
+    [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.file",
+    ].join(" ")
+  );
+  authorizeUrl.searchParams.set("access_type", "offline");
+  authorizeUrl.searchParams.set(
+    "prompt",
+    (body?.forceConsent ? "consent " : "") + "select_account"
+  );
+  authorizeUrl.searchParams.set("include_granted_scopes", "true");
+  authorizeUrl.searchParams.set("state", state);
+
+  return jsonCors(req, 200, {
+    ok: true,
+    authorizeUrl: authorizeUrl.toString(),
+    redirect_uri: authorizeUrl.searchParams.get("redirect_uri"),
   });
 }
 

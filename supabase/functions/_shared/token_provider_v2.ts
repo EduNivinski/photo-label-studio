@@ -46,54 +46,28 @@ export async function upsertTokens(
   scope: string,
   expiresAt: string
 ): Promise<void> {
-  // 1) Ler refresh antigo, se necessário
-  let finalRefresh = refreshToken ?? null;
+  const { data: existing } = await admin
+    .from("user_drive_tokens")
+    .select("refresh_token_enc")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (!finalRefresh) {
-    const { data: existing, error: selErr } = await admin
-      .from("user_drive_tokens")
-      .select("refresh_token_enc")
-      .eq("user_id", userId)
-      .maybeSingle();
+  const finalRefresh =
+    refreshToken ?? (existing?.refresh_token_enc
+      ? await decryptPacked(existing.refresh_token_enc).catch(() => null)
+      : null);
 
-    if (!selErr && existing?.refresh_token_enc) {
-      try {
-        // decryptPacked: decifra para string pura
-        const oldRefresh = await decryptPacked(existing.refresh_token_enc);
-        if (oldRefresh) finalRefresh = oldRefresh;
-      } catch {
-        // ignora falha de decrypt — segue sem refresh
-      }
-    }
-  }
+  const access_token_enc = await encryptPacked(accessToken);
+  const refresh_token_enc = finalRefresh ? await encryptPacked(finalRefresh) : "";
 
-  // 2) Montar payload sem sobrescrever refresh se não houver
-  const payload: Record<string, any> = {
+  await admin.from("user_drive_tokens").upsert({
     user_id: userId,
-    access_token_enc: await encryptPacked(accessToken),
+    access_token_enc,
+    refresh_token_enc,
     scope,
     expires_at: expiresAt,
     updated_at: new Date().toISOString(),
-  };
-
-  if (finalRefresh) {
-    payload.refresh_token_enc = await encryptPacked(finalRefresh);
-  }
-
-  // 3) Upsert (não inclua refresh_token_enc para não apagá-lo)
-  const { error } = await admin
-    .from("user_drive_tokens")
-    .upsert(payload, { onConflict: "user_id", ignoreDuplicates: false });
-
-  if (error) {
-    throw new Error(`DB upsert error: ${error.message}`);
-  }
-
-  // 4) Se não existe refresh novo nem antigo (primeira conexão falhou):
-  //    sinalize para forçar reconexão/consent.
-  if (!finalRefresh) {
-    console.warn("⚠️ upsertTokens: missing refresh_token (kept empty). User may need to reconnect with consent.");
-  }
+  }, { onConflict: "user_id" });
 }
 
 export async function getTokens(userId: string): Promise<{
@@ -193,68 +167,68 @@ export async function refreshAccessToken(userId: string): Promise<string> {
   }
 }
 
-export async function ensureAccessToken(userId: string): Promise<string> {
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
-
-  // 1) Buscar tokens atuais
-  const { data, error } = await admin
+export async function ensureAccessToken(userId: string): Promise<
+  | { ok: true; accessToken: string }
+  | { ok: false; reason: string }
+> {
+  const { data: row } = await admin
     .from("user_drive_tokens")
-    .select("access_token_enc, refresh_token_enc, scope, expires_at")
+    .select("access_token_enc, refresh_token_enc, expires_at")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !data) throw new Error("NO_TOKENS");
+  if (!row) return { ok: false, reason: "NO_TOKENS" };
 
-  const accessToken = data.access_token_enc ? await decryptPacked(data.access_token_enc) : null;
-  const refreshToken = data.refresh_token_enc ? await decryptPacked(data.refresh_token_enc) : null;
-  const scope = data.scope || "";
-  const exp = data.expires_at ? new Date(data.expires_at).getTime() : 0;
-
-  // 2) Se access token ainda válido (skew 60s), use-o
-  const SKEW_MS = 60_000;
-  if (accessToken && exp - SKEW_MS > Date.now()) {
-    return accessToken;
+  const now = Date.now();
+  const exp = new Date(row.expires_at).getTime();
+  const skewMs = 30_000;
+  if (exp - now > skewMs && row.access_token_enc) {
+    return { ok: true, accessToken: await decryptPacked(row.access_token_enc) };
   }
 
-  // 3) Sem refresh token → reconectar
-  if (!refreshToken) throw new Error("NO_REFRESH_TOKEN");
+  const refresh = row.refresh_token_enc
+    ? await decryptPacked(row.refresh_token_enc).catch(() => "")
+    : "";
+  if (!refresh) return { ok: false, reason: "NO_REFRESH_TOKEN" };
 
-  // 4) Refresh token: NÃO mande redirect_uri; mande form-urlencoded correto
-  const body = new URLSearchParams({
-    client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
-    client_secret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
-    refresh_token: refreshToken,
-    grant_type: "refresh_token",
-  }).toString();
+  const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
 
   const resp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refresh,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
   });
 
   const json = await resp.json().catch(() => ({}));
-
-  if (!resp.ok) {
-    console.error("REFRESH_ERROR", { status: resp.status, json });
-    // padroniza motivo
-    const code = (json?.error || resp.status || "UNKNOWN").toString().toUpperCase();
-    throw new Error(`OAUTH_REFRESH_FAILED:${code}`);
+  if (!resp.ok || !json.access_token) {
+    return { ok: false, reason: `OAUTH_REFRESH_FAILED:${json.error || resp.status}` };
   }
 
-  const newAccess = json.access_token as string | undefined;
-  const expires_in = Number(json.expires_in ?? 3600);
-  const newExpiresAt = new Date(Date.now() + Math.max(0, (expires_in - 60)) * 1000).toISOString();
+  const newAccess = json.access_token as string;
+  const newRefresh = (json.refresh_token as string | undefined) ?? refresh;
+  const expiresIn = (json.expires_in as number | undefined) ?? 3600;
+  const newExp = new Date(Date.now() + (Math.max(expiresIn - 60, 60)) * 1000).toISOString();
+  const scopeStr = (json.scope as string | undefined) ?? "";
 
-  if (!newAccess) throw new Error("NO_ACCESS_TOKEN_AFTER_REFRESH");
+  await upsertTokens(userId, newAccess, newRefresh, scopeStr, newExp);
+  return { ok: true, accessToken: newAccess };
+}
 
-  // 5) Salvar novo access token (preserva refresh antigo)
-  await upsertTokens(userId, newAccess, null, scope, newExpiresAt);
-
-  return newAccess;
+export async function getExistingTokenRow(userId: string): Promise<{
+  refresh_token_enc: string;
+} | null> {
+  const { data } = await admin
+    .from("user_drive_tokens")
+    .select("refresh_token_enc")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data;
 }
 
 export async function deleteTokens(userId: string): Promise<void> {
