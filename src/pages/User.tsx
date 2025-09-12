@@ -185,9 +185,8 @@ export default function User() {
 
   // Listen for postMessage from Google Drive OAuth callback
   useEffect(() => {
-    function onMsg(e: MessageEvent) {
+    const onMsg = (e: MessageEvent) => {
       if (e?.data?.source === "gdrive-oauth") {
-        // opcional: checar e.data.ok
         supabase.functions.invoke("google-drive-auth", { body: { action: "status" } })
           .then(r => {
             // Force a status refresh in GoogleDriveIntegration component
@@ -198,7 +197,7 @@ export default function User() {
             console.warn("Failed to check status after OAuth callback");
           });
       }
-    }
+    };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);

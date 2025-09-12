@@ -322,25 +322,45 @@ export const GoogleDriveTestControls = () => {
         )}
       </div>
 
-      {/* Lista de Arquivos */}
+      {/* File List Display */}
       {folderFiles.length > 0 && (
         <div className="mt-6">
-          <h4 className="font-medium mb-3">Arquivos na Pasta Dedicada ({folderFiles.length}):</h4>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <Folder className="h-4 w-4" />
+            Conteúdo da Pasta Dedicada ({folderFiles.length})
+          </h4>
+          <div className="space-y-2 max-h-48 overflow-y-auto bg-muted/50 rounded-lg p-3">
             {folderFiles.map((file: any, index: number) => (
               <div 
                 key={file.id || index} 
-                className="flex items-center gap-2 p-2 bg-muted rounded text-sm"
+                className="flex items-center gap-3 p-2 bg-background rounded-lg border text-sm shadow-sm"
               >
                 {file.mimeType === 'application/vnd.google-apps.folder' ? (
-                  <Folder className="h-4 w-4 text-blue-500" />
+                  <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
                 ) : (
-                  <FileText className="h-4 w-4 text-gray-500" />
+                  <FileText className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 )}
-                <span className="flex-1 truncate">{file.name}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {file.mimeType?.replace('application/vnd.google-apps.', '') || 'file'}
-                </Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate font-medium">{file.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {file.modifiedTime && new Date(file.modifiedTime).toLocaleString('pt-BR')}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Badge variant="secondary" className="text-xs">
+                    {file.mimeType?.replace('application/vnd.google-apps.', '') || 'file'}
+                  </Badge>
+                  {file.webViewLink && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => window.open(file.webViewLink, '_blank')}
+                    >
+                      <LinkIcon className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

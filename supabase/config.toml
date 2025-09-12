@@ -84,34 +84,28 @@ verify_jwt = true
 verify_jwt = true
 
 [functions."diag-test"]
-verify_jwt = false
+verify_jwt = true
 
 [functions."test-ping"]
 verify_jwt = false
 
 [functions."diag-folder-list"]
-verify_jwt = false
+verify_jwt = true
 
 [functions."simple-drive-test"]
-verify_jwt = false
+verify_jwt = true
 
 [functions."force-drive-reconnect"]
-verify_jwt = false
+verify_jwt = true
 
 [functions."diag-drive-audit"]
 verify_jwt = true
-
-[functions."google-drive-oauth-callback"]
-verify_jwt = false
 
 [functions."security-log"]
 verify_jwt = true
 
 [functions."google-drive-disconnect"]
 verify_jwt = true
-
-[functions."gdrive-cb"]
-verify_jwt = false
 
 [functions.diag-user-tokens]
 verify_jwt = true
