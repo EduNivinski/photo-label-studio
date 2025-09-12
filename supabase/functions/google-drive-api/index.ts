@@ -73,20 +73,54 @@ serve(async (req) => {
     }
 
     if (action === "listFolder") {
-      const { folderId } = body;
-      const fId = folderId || "root";
-      const q = `'${fId}' in parents and trashed=false`;
-      const r = await fetch("https://www.googleapis.com/drive/v3/files?"+new URLSearchParams({
-        q, corpora: "user",
-        includeItemsFromAllDrives: "true",
-        supportsAllDrives: "true",
-        fields: "files(id,name,mimeType,modifiedTime,parents,driveId,trashed)"
-      }).toString(), {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      const data = await r.json();
-    return jsonCors(req, 200, { ok: true, files: data.files ?? [] });
-  }
+      try {
+        const userId = await getUserIdFromJwt(req);
+        if (!userId) return jsonCors(req, 401, { ok:false, reason:"INVALID_JWT" });
+
+        // token
+        let accessToken: string;
+        try {
+          const r = await ensureAccessToken(userId);
+          accessToken = typeof r === "string" ? r : (r as any)?.accessToken;
+          if (!accessToken) throw new Error("NO_ACCESS_TOKEN");
+        } catch (e:any) {
+          const msg = (e?.message||"").toUpperCase();
+          return jsonCors(req, 200, { ok:false, step:"TOKEN", reason: msg || "NO_TOKENS" });
+        }
+
+        const folderId = body?.folderId || "root";
+        const onlyFolders = !!body?.onlyFolders;
+
+        // monta a query: por padrão, lista TUDO; se onlyFolders=true, filtra por mimeType de pasta
+        let q = `'${folderId}' in parents and trashed=false`;
+        if (onlyFolders) q = `mimeType='application/vnd.google-apps.folder' and ${q}`;
+
+        const params = new URLSearchParams({
+          q,
+          corpora: "user",
+          includeItemsFromAllDrives: "true",
+          supportsAllDrives: "true",
+          pageSize: "1000",
+          fields: "files(id,name,mimeType,modifiedTime,iconLink,webViewLink,parents),nextPageToken"
+        });
+
+        const res = await fetch("https://www.googleapis.com/drive/v3/files?"+params.toString(), {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const json = await res.json().catch(()=> ({}));
+        if (!res.ok) {
+          return jsonCors(req, 200, {
+            ok:false, step:"LIST",
+            reason:"LIST_FAILED",
+            details:{ status: res.status, body: json }
+          });
+        }
+
+        return jsonCors(req, 200, { ok:true, files: Array.isArray(json.files) ? json.files : [] });
+      } catch (e:any) {
+        return jsonCors(req, 500, { ok:false, reason:"INTERNAL_ERROR", error:String(e) });
+      }
+    }
 
   if (action === "ensureDedicatedFolder") {
     try {
