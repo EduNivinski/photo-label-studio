@@ -6,24 +6,15 @@ const projectUrl = Deno.env.get("SUPABASE_URL")!;
 const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
 const clientSecret = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
 
+// 👇 logo depois dos imports
 function adminClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
-
 async function audit(phase: string, userId: string | null, payload: Record<string, unknown> = {}) {
-  try {
-    const admin = adminClient();
-    await admin.from("drive_oauth_audit").insert({
-      user_id: userId ?? "00000000-0000-0000-0000-000000000000",
-      phase,
-      has_access_token: !!payload.has_access_token,
-      has_refresh_token: !!payload.has_refresh_token,
-      details: payload.details ?? null,
-    });
-  } catch (_) {/* não quebra o fluxo */}
+  try { await adminClient().from("drive_oauth_audit").insert({
+    user_id: userId ?? "00000000-0000-0000-0000-000000000000",
+    phase, has_access_token: !!payload.has_access_token, has_refresh_token: !!payload.has_refresh_token, details: payload.details ?? null
+  }); } catch {}
 }
 
 function htmlClose(payload: Record<string, unknown>) {
@@ -40,6 +31,15 @@ function htmlClose(payload: Record<string, unknown>) {
 }
 
 serve(async (req) => {
+  // 👇 PRIMEIRA linha dentro do handler serve(...):
+  await audit("cb_boot", null, {
+    details: {
+      has_service_role: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+      has_client_id: !!Deno.env.get("GOOGLE_DRIVE_CLIENT_ID"),
+      has_client_secret: !!Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")
+    }
+  });
+
   const userId = (() => {
     try {
       const url = new URL(req.url);
