@@ -188,6 +188,7 @@ async function handleStatus(req: Request, userId: string) {
 async function handleAuthorize(req: Request, userId: string, url: URL) {
   // Dentro da action "authorize"
   const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
+  const REDIRECT_URI = `${projectUrl}/functions/v1/gdrive-cb`;
   const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
   
   // Lê forceConsent do body
@@ -199,10 +200,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 
   const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizeUrl.searchParams.set("client_id", clientId);
-  authorizeUrl.searchParams.set(
-    "redirect_uri",
-    `${projectUrl}/functions/v1/google-drive-oauth-callback`
-  );
+  authorizeUrl.searchParams.set("redirect_uri", REDIRECT_URI);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set(
     "scope",
@@ -225,7 +223,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   return jsonCors(req, 200, {
     ok: true,
     authorizeUrl: authorizeUrl.toString(),
-    redirect_uri: authorizeUrl.searchParams.get("redirect_uri"),
+    redirect_uri: REDIRECT_URI,
   });
 }
 

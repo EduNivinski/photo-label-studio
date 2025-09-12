@@ -110,5 +110,8 @@ verify_jwt = true
 [functions."google-drive-disconnect"]
 verify_jwt = true
 
+[functions."gdrive-cb"]
+verify_jwt = false
+
 [functions.diag-user-tokens]
 verify_jwt = true
