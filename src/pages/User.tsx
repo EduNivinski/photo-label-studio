@@ -12,6 +12,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON } from '@/integrations/supabase/c
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
 import { GoogleDriveProductionTests } from '@/components/GoogleDriveProductionTests';
+import { GoogleDriveTestControls } from '@/components/GoogleDriveTestControls';
 import { useNavigate } from 'react-router-dom';
 
 export default function User() {
@@ -686,6 +687,8 @@ export default function User() {
                 Google Drive
               </h2>
               <GoogleDriveIntegration />
+              <Separator className="my-4" />
+              <GoogleDriveTestControls />
               <Separator className="my-4" />
               <GoogleDriveProductionTests />
             </Card>

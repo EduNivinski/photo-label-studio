@@ -185,6 +185,65 @@ serve(async (req) => {
     }
   }
 
+  if (action === "createSampleFile") {
+    try {
+      const userId = await getUserIdFromJwt(req);
+      if (!userId) return jsonCors(req, 401, { ok:false, reason:"INVALID_JWT" });
+
+      // token
+      let accessToken: string;
+      try {
+        const r = await ensureAccessToken(userId);
+        accessToken = typeof r === "string" ? r : (r as any)?.accessToken;
+        if (!accessToken) throw new Error("NO_ACCESS_TOKEN");
+      } catch (e:any) {
+        const msg = (e?.message||"").toUpperCase();
+        return jsonCors(req, 200, { ok:false, step:"TOKEN", reason: msg || "NO_TOKENS" });
+      }
+
+      const { parentId } = await req.json().catch(() => ({}));
+      if (!parentId) return jsonCors(req, 200, { ok:false, step:"INPUT", reason:"MISSING_parentId" });
+
+      // cria um arquivo texto simples dentro da pasta dedicada
+      const metadata = {
+        name: "hello-from-photo-label.txt",
+        mimeType: "text/plain",
+        parents: [parentId],
+      };
+
+      const boundary = "-------plabel-boundary-" + crypto.randomUUID();
+      const body = [
+        `--${boundary}`,
+        'Content-Type: application/json; charset=UTF-8',
+        '',
+        JSON.stringify(metadata),
+        `--${boundary}`,
+        'Content-Type: text/plain; charset=UTF-8',
+        '',
+        `created at ${new Date().toISOString()} 🎉`,
+        `--${boundary}--`,
+        ''
+      ].join('\r\n');
+
+      const upRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`
+        },
+        body
+      });
+      const upJson = await upRes.json().catch(()=> ({}));
+      if (!upRes.ok || !upJson.id) {
+        return jsonCors(req, 200, { ok:false, step:"UPLOAD", reason:"UPLOAD_FAILED", details:{ status: upRes.status, body: upJson }});
+      }
+
+      return jsonCors(req, 200, { ok:true, fileId: upJson.id, name: upJson.name });
+    } catch (e:any) {
+      return jsonCors(req, 500, { ok:false, reason:"INTERNAL_ERROR", error:String(e) });
+    }
+  }
+
   return jsonCors(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
   } catch (e: any) {
     console.error("google-drive-api error:", e?.message || e);
