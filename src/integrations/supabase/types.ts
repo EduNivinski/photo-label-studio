@@ -242,6 +242,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_drive_meta: {
+        Row: {
+          dedicated_folder_id: string
+          dedicated_folder_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          dedicated_folder_id: string
+          dedicated_folder_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          dedicated_folder_id?: string
+          dedicated_folder_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_drive_tokens: {
         Row: {
           access_token_enc: string

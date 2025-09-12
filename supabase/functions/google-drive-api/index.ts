@@ -68,10 +68,64 @@ serve(async (req) => {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
       const data = await r.json();
-      return jsonCors(req, 200, { ok: true, files: data.files ?? [] });
+    return jsonCors(req, 200, { ok: true, files: data.files ?? [] });
+  }
+
+  if (action === "ensureDedicatedFolder") {
+    const FOLDER_NAME = "Photo Label Studio (App)";
+    // 1) procurar pasta na raiz
+    const searchParams = new URLSearchParams({
+      q: `mimeType='application/vnd.google-apps.folder' and name='${FOLDER_NAME.replace(/'/g,"\\'")}' and 'root' in parents and trashed=false`,
+      corpora: "user",
+      includeItemsFromAllDrives: "true",
+      supportsAllDrives: "true",
+      fields: "files(id,name)"
+    });
+    const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const listJson = await listRes.json().catch(()=>({}));
+    let folder = Array.isArray(listJson.files) ? listJson.files[0] : null;
+
+    // 2) se não existe, criar
+    if (!folder) {
+      const createRes = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: FOLDER_NAME,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: ["root"]
+        })
+      });
+      const createJson = await createRes.json().catch(()=> ({}));
+      if (!createRes.ok || !createJson.id) {
+        return jsonCors(req, 500, { ok:false, reason:"CREATE_FOLDER_FAILED", details: createJson });
+      }
+      folder = { id: createJson.id, name: createJson.name || FOLDER_NAME };
     }
 
-    return jsonCors(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
+    // 3) persistir meta (service_role)
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { error } = await adminClient.from("user_drive_meta").upsert({
+      user_id: userId,
+      dedicated_folder_id: folder.id,
+      dedicated_folder_name: folder.name,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+    if (error) return jsonCors(req, 500, { ok:false, reason:"META_UPSERT_FAILED" });
+
+    return jsonCors(req, 200, {
+      ok: true,
+      dedicatedFolderId: folder.id,
+      dedicatedFolderName: folder.name
+    });
+  }
+
+  return jsonCors(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
   } catch (e: any) {
     console.error("google-drive-api error:", e?.message || e);
     return jsonCors(req, 500, { ok: false, reason: "INTERNAL_ERROR" });

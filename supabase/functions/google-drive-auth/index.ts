@@ -86,7 +86,21 @@ async function handleStatus(req: Request, userId: string) {
     }
     const accessToken = (typeof r === "string") ? r : (r as any)?.accessToken;
     if (!accessToken) throw new Error("NO_ACCESS_TOKEN");
-    return jsonCors(req, 200, { ok: true, connected: true });
+    
+    // incluir pasta no status
+    const a = admin();
+    const { data: meta } = await a
+      .from("user_drive_meta")
+      .select("dedicated_folder_id, dedicated_folder_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    return jsonCors(req, 200, {
+      ok: true,
+      connected: true,
+      dedicatedFolderId: meta?.dedicated_folder_id || null,
+      dedicatedFolderName: meta?.dedicated_folder_name || null
+    });
   } catch (e: any) {
     return jsonCors(req, 200, { ok: true, connected: false, reason: (e?.message || "UNKNOWN").toUpperCase() });
   }
