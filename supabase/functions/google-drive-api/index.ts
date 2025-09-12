@@ -24,8 +24,19 @@ serve(async (req) => {
   const pf = preflight(req);
   if (pf) return pf;
 
+  const url = new URL(req.url);
+
+  // Parse único do corpo (POST/PUT/PATCH)
+  let body: any = {};
+  if (["POST","PUT","PATCH"].includes(req.method)) {
+    try { body = await req.json(); } catch { body = {}; }
+  }
+
+  // Ação: do body OU da querystring (fallback)
+  const action = (body?.action || url.searchParams.get("action") || "").toString();
+
   try {
-    const { action, folderId } = await req.json().catch(() => ({}));
+    const { folderId } = body;
 
     // ping não exige login Drive
     if (action === "ping") {
@@ -62,6 +73,7 @@ serve(async (req) => {
     }
 
     if (action === "listFolder") {
+      const { folderId } = body;
       const fId = folderId || "root";
       const q = `'${fId}' in parents and trashed=false`;
       const r = await fetch("https://www.googleapis.com/drive/v3/files?"+new URLSearchParams({
@@ -201,29 +213,37 @@ serve(async (req) => {
         return jsonCors(req, 200, { ok:false, step:"TOKEN", reason: msg || "NO_TOKENS" });
       }
 
-      const { parentId } = await req.json().catch(() => ({}));
+      // parentId do body ou fallback da meta
+      let parentId: string | null = body?.parentId ?? null;
+      if (!parentId) {
+        const { data: meta } = await admin()
+          .from("user_drive_meta")
+          .select("dedicated_folder_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        parentId = meta?.dedicated_folder_id ?? null;
+      }
       if (!parentId) return jsonCors(req, 200, { ok:false, step:"INPUT", reason:"MISSING_parentId" });
 
-      // cria um arquivo texto simples dentro da pasta dedicada
+      // multipart upload (texto simples)
       const metadata = {
         name: "hello-from-photo-label.txt",
         mimeType: "text/plain",
         parents: [parentId],
       };
-
       const boundary = "-------plabel-boundary-" + crypto.randomUUID();
-      const body = [
+      const bodyStr = [
         `--${boundary}`,
-        'Content-Type: application/json; charset=UTF-8',
-        '',
+        "Content-Type: application/json; charset=UTF-8",
+        "",
         JSON.stringify(metadata),
         `--${boundary}`,
-        'Content-Type: text/plain; charset=UTF-8',
-        '',
+        "Content-Type: text/plain; charset=UTF-8",
+        "",
         `created at ${new Date().toISOString()} 🎉`,
         `--${boundary}--`,
-        ''
-      ].join('\r\n');
+        ""
+      ].join("\r\n");
 
       const upRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
         method: "POST",
@@ -231,7 +251,7 @@ serve(async (req) => {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": `multipart/related; boundary=${boundary}`
         },
-        body
+        body: bodyStr
       });
       const upJson = await upRes.json().catch(()=> ({}));
       if (!upRes.ok || !upJson.id) {
