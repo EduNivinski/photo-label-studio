@@ -2,6 +2,44 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { preflight, jsonCors } from "../_shared/cors.ts";
+import { upsertTokens } from "../_shared/token_provider_v2.ts";
+
+function admin() {
+  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+}
+
+async function audit(phase: string, userId: string | null, payload: Record<string, unknown> = {}) {
+  try {
+    await admin().from("drive_oauth_audit").insert({
+      user_id: userId ?? "00000000-0000-0000-0000-000000000000",
+      phase,
+      has_access_token: !!payload.has_access_token,
+      has_refresh_token: !!payload.has_refresh_token,
+      details: payload.details ?? null,
+    });
+  } catch { /* no-op */ }
+}
+
+const okHtml = `<!doctype html><meta charset="utf-8"><body>
+<script>
+  try { window.opener && window.opener.postMessage({ source:"gdrive-oauth", ok:true }, "*"); } catch(e){}
+  try { window.close(); } catch(e){}
+  setTimeout(()=>location.replace("/user"), 400);
+</script>
+<p>Google Drive conectado. Pode fechar esta janela.</p>
+</body>`;
+
+const errHtml = (msg: string) => {
+  const safe = msg.replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]!));
+  return `<!doctype html><meta charset="utf-8"><body>
+<script>
+  try { window.opener && window.opener.postMessage({ source:"gdrive-oauth", ok:false, error:${JSON.stringify(safe)} }, "*"); } catch(e){}
+  try { window.close(); } catch(e){}
+  setTimeout(()=>location.replace("/user"), 800);
+</script>
+<pre style="white-space:pre-wrap">${safe}</pre>
+</body>`;
+};
 
 // ✅ Helper de validação do JWT via supabase-js admin
 async function getUserIdFromJwt(req: Request): Promise<string | null> {
@@ -188,7 +226,7 @@ async function handleStatus(req: Request, userId: string) {
 async function handleAuthorize(req: Request, userId: string, url: URL) {
   // Dentro da action "authorize"
   const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  const REDIRECT_URI = `${projectUrl}/functions/v1/gdrive-cb`;
+  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
   const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
   
   // Lê forceConsent do body
@@ -198,31 +236,21 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
     JSON.stringify({ userId, ts: Date.now(), nonce: crypto.randomUUID() })
   );
 
-  const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  authorizeUrl.searchParams.set("client_id", clientId);
-  authorizeUrl.searchParams.set("redirect_uri", REDIRECT_URI);
-  authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set(
-    "scope",
-    [
-      "openid",
-      "email",
-      "profile",
-      "https://www.googleapis.com/auth/drive.metadata.readonly",
-      "https://www.googleapis.com/auth/drive.file",
-    ].join(" ")
-  );
-  authorizeUrl.searchParams.set("access_type", "offline");
-  authorizeUrl.searchParams.set(
-    "prompt",
-    (body?.forceConsent ? "consent " : "") + "select_account"
-  );
-  authorizeUrl.searchParams.set("include_granted_scopes", "true");
-  authorizeUrl.searchParams.set("state", state);
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: REDIRECT_URI,
+    response_type: "code",
+    access_type: "offline",
+    include_granted_scopes: "true",
+    prompt: body?.forceConsent ? "consent select_account" : "select_account",
+    scope: "openid email profile https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file",
+    state,
+  });
+  const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
   return jsonCors(req, 200, {
     ok: true,
-    authorizeUrl: authorizeUrl.toString(),
+    authorizeUrl,
     redirect_uri: REDIRECT_URI,
   });
 }
@@ -247,19 +275,99 @@ async function handleDisconnect(req: Request, userId: string) {
 
 // Main handler
 serve(async (req: Request) => {
-  // 1) CORS preflight SEMPRE primeiro
+  // 0) preflight CORS
   const pf = preflight(req);
   if (pf) return pf;
 
-  // 2) Log básico de diagnóstico
+  const url = new URL(req.url);
+
+  // 1) 👇 Callback inline: GET em /functions/v1/google-drive-auth/callback
+  if (req.method === "GET" && url.pathname.endsWith("/google-drive-auth/callback")) {
+    try {
+      await audit("cb_boot", null, { details: { path: url.pathname }});
+
+      const code = url.searchParams.get("code");
+      const stateRaw = url.searchParams.get("state");
+      const err = url.searchParams.get("error");
+      if (err) { await audit("exchange_fail", null, { details: { error: err } }); 
+        return new Response(errHtml(`Google error: ${err}`), { status: 400, headers: { "Content-Type": "text/html" }});
+      }
+      if (!code || !stateRaw) { await audit("exchange_fail", null, { details: { reason:"MISSING_CODE_OR_STATE" }});
+        return new Response(errHtml("MISSING_CODE_OR_STATE"), { status: 400, headers: { "Content-Type": "text/html" }});
+      }
+
+      let state: any = {};
+      try { state = JSON.parse(atob(stateRaw)); } catch { /* ignore */ }
+      const userId = state?.userId || null;
+      if (!userId) { await audit("exchange_fail", null, { details: { reason:"MISSING_USER_ID" }}); 
+        return new Response(errHtml("MISSING_USER_ID"), { status: 400, headers: { "Content-Type": "text/html" }});
+      }
+
+      const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
+      const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-auth/callback`;
+
+      await audit("exchange_start", userId, { details: { redirect_uri: REDIRECT_URI }});
+
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
+          client_secret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
+          redirect_uri: REDIRECT_URI,
+          grant_type: "authorization_code",
+        }).toString(),
+      });
+
+      const tokenJson = await tokenResp.json().catch(()=> ({}));
+      if (!tokenResp.ok) {
+        await audit("exchange_fail", userId, { details: tokenJson });
+        return new Response(errHtml(`CODE_EXCHANGE_FAILED: ${JSON.stringify(tokenJson)}`), {
+          status: 400, headers: { "Content-Type": "text/html" }
+        });
+      }
+
+      const access_token  = tokenJson.access_token as string | undefined;
+      const refresh_token = tokenJson.refresh_token as string | undefined | null;
+      const scopeStr      = (tokenJson.scope as string | undefined) ?? "";
+      const expires_in    = Number(tokenJson.expires_in ?? 3600);
+      const expires_at    = new Date(Date.now() + Math.max(60, expires_in - 60) * 1000).toISOString();
+
+      await audit("exchange_ok", userId, {
+        has_access_token: !!access_token,
+        has_refresh_token: !!refresh_token,
+        details: { scope: scopeStr, expires_in }
+      });
+
+      if (!access_token) {
+        await audit("upsert_fail", userId, { details: { reason:"MISSING_ACCESS_TOKEN" }});
+        return new Response(errHtml("MISSING_ACCESS_TOKEN"), { status: 400, headers: { "Content-Type": "text/html" }});
+      }
+
+      try {
+        await upsertTokens(userId, access_token, refresh_token ?? null, scopeStr, expires_at);
+        await audit("upsert_ok", userId, { has_access_token:true, has_refresh_token: !!refresh_token });
+      } catch (e) {
+        await audit("upsert_fail", userId, { details: { error: String(e) }});
+        return new Response(errHtml("UPSERT_FAILED"), { status: 500, headers: { "Content-Type": "text/html" }});
+      }
+
+      return new Response(okHtml, { status: 200, headers: { "Content-Type": "text/html" }});
+    } catch (e:any) {
+      await audit("cb_error", null, { details: { error: String(e) }});
+      return new Response(errHtml("UNKNOWN_ERROR"), { status: 500, headers: { "Content-Type": "text/html" }});
+    }
+  }
+
+  // 2) 🔒 Daqui pra baixo segue o fluxo NORMAL (authorize/status/disconnect)
   const origin = req.headers.get("origin");
   console.log("[google-drive-auth]", { method: req.method, origin, url: req.url });
 
   try {
-    const url = new URL(req.url);
     const action = (await captureAction(req, url)) as "authorize" | "callback" | "status" | "disconnect";
 
-    // 3) Callback não é processado aqui (há function dedicada)
+    // 3) Callback não é processado aqui (agora é inline)
     if (action === "callback") {
       return jsonCors(req, 400, { ok: false, reason: "CALLBACK_IS_EXTERNAL" });
     }
