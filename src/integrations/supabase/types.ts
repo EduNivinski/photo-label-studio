@@ -77,6 +77,36 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_oauth_audit: {
+        Row: {
+          created_at: string
+          details: Json | null
+          has_access_token: boolean | null
+          has_refresh_token: boolean | null
+          id: number
+          phase: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          has_access_token?: boolean | null
+          has_refresh_token?: boolean | null
+          id?: number
+          phase: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          has_access_token?: boolean | null
+          has_refresh_token?: boolean | null
+          id?: number
+          phase?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_drive_token_audit: {
         Row: {
           action: string

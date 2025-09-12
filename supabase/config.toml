@@ -83,9 +83,6 @@ verify_jwt = true
 [functions.diag-list-shared-drive]
 verify_jwt = true
 
-[functions."google-drive-oauth-callback"]
-verify_jwt = false
-
 [functions."diag-test"]
 verify_jwt = false
 
@@ -99,6 +96,12 @@ verify_jwt = false
 verify_jwt = false
 
 [functions."force-drive-reconnect"]
+verify_jwt = false
+
+[functions."diag-drive-audit"]
+verify_jwt = true
+
+[functions."google-drive-oauth-callback"]
 verify_jwt = false
 
 [functions."security-log"]

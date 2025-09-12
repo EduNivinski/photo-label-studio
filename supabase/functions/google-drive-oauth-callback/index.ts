@@ -1,9 +1,30 @@
 import { serve } from "https://deno.land/std/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { upsertTokens, decryptPacked, getExistingTokenRow } from "../_shared/token_provider_v2.ts";
 
 const projectUrl = Deno.env.get("SUPABASE_URL")!;
 const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
 const clientSecret = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
+
+function adminClient() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+}
+
+async function audit(phase: string, userId: string | null, payload: Record<string, unknown> = {}) {
+  try {
+    const admin = adminClient();
+    await admin.from("drive_oauth_audit").insert({
+      user_id: userId ?? "00000000-0000-0000-0000-000000000000",
+      phase,
+      has_access_token: !!payload.has_access_token,
+      has_refresh_token: !!payload.has_refresh_token,
+      details: payload.details ?? null,
+    });
+  } catch (_) {/* não quebra o fluxo */}
+}
 
 function htmlClose(payload: Record<string, unknown>) {
   const safe = JSON.stringify(payload);
@@ -19,6 +40,18 @@ function htmlClose(payload: Record<string, unknown>) {
 }
 
 serve(async (req) => {
+  const userId = (() => {
+    try {
+      const url = new URL(req.url);
+      const stateRaw = url.searchParams.get("state");
+      if (!stateRaw) return null;
+      const state = JSON.parse(atob(stateRaw));
+      return state.userId || null;
+    } catch {
+      return null;
+    }
+  })();
+
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
@@ -31,6 +64,11 @@ serve(async (req) => {
     try { state = JSON.parse(atob(stateRaw)); } catch {}
 
     const redirect_uri = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
+
+    // Audit: exchange start
+    await audit("exchange_start", userId, {
+      details: { redirect_uri, client_id_present: !!clientId }
+    });
 
     const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -47,6 +85,8 @@ serve(async (req) => {
 
     const tokenJson = await tokenResp.json().catch(() => ({}));
     if (!tokenResp.ok) {
+      // Audit: exchange fail
+      await audit("exchange_fail", userId, { details: tokenJson });
       return htmlClose({
         source: "gdrive-oauth",
         ok: false,
@@ -65,6 +105,13 @@ serve(async (req) => {
       return htmlClose({ source: "gdrive-oauth", ok: false, reason: "MISSING_USER_OR_TOKEN" });
     }
 
+    // Audit: exchange success
+    await audit("exchange_ok", state.userId, {
+      has_access_token: !!accessToken,
+      has_refresh_token: !!refreshToken,
+      details: { scope: scopeStr, expires_in: expiresIn }
+    });
+
     // Fallback de refresh_token (Google pode não enviar em reconsent)
     if (!refreshToken) {
       const existing = await getExistingTokenRow(state.userId);
@@ -73,15 +120,29 @@ serve(async (req) => {
       }
     }
 
-    await upsertTokens(
-      state.userId,
-      accessToken,
-      refreshToken ?? null,
-      scopeStr,
-      expiresAt
-    );
+    try {
+      await upsertTokens(
+        state.userId,
+        accessToken,
+        refreshToken ?? null,
+        scopeStr,
+        expiresAt
+      );
 
-    return htmlClose({ source: "gdrive-oauth", ok: true });
+      // Audit: upsert success
+      await audit("upsert_ok", state.userId, { 
+        has_access_token: true, 
+        has_refresh_token: !!(refreshToken) 
+      });
+
+      return htmlClose({ source: "gdrive-oauth", ok: true });
+    } catch (upsertErr) {
+      // Audit: upsert fail
+      await audit("upsert_fail", state.userId, { 
+        details: { error: String(upsertErr) } 
+      });
+      throw upsertErr;
+    }
   } catch (err) {
     return htmlClose({ source: "gdrive-oauth", ok: false, reason: "UNEXPECTED", error: String(err) });
   }
