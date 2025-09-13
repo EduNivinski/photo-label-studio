@@ -199,6 +199,34 @@ serve(async (req) => {
       return await handleCallback(req, url);
     }
 
+    // Set folder action (manual JWT validation)
+    if (action === "setFolder") {
+      const token = getBearer(req);
+      if (!token) return json(req, 401, { ok: false, reason: "MISSING_AUTH" });
+      
+      const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: { user }, error: eUser } = await supa.auth.getUser(token);
+      if (eUser || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
+
+      const { folderId, folderName } = body || {};
+      if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+
+      const userId = user.id;
+
+      const { error: eUpd } = await supa
+        .from("user_drive_tokens")
+        .update({
+          dedicated_folder_id: folderId,
+          dedicated_folder_name: folderName ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
+
+      return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
+    }
+
     // Authorize flow (manual JWT validation because verify_jwt=false)
     if (action === "authorize") {
       const token = getBearer(req);
