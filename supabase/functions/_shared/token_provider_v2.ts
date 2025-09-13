@@ -29,7 +29,7 @@ async function encryptPacked(plain: string): Promise<string> {
   return u8toB64(out);
 }
 
-async function decryptPacked(encB64: string): Promise<string> {
+export async function decryptPacked(encB64: string): Promise<string> {
   const key = await getKey();
   const buf = b64toU8(encB64);
   const iv = buf.slice(0, 12);
