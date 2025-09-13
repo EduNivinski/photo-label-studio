@@ -60,26 +60,20 @@ enable_email_confirmations = true
 enable_signup = true
 enable_password_signup = true
 
-[functions.google-drive-auth]
+[functions."diag-db-write"]
 verify_jwt = false
 
-[functions."google-drive-oauth-callback"]
-verify_jwt = false
-
-[functions."google-drive-api"]
+[functions."diag-drive-audit"]
 verify_jwt = true
 
 [functions."diag-scopes"]
 verify_jwt = true
 
-[functions."diag-user-tokens"]
-verify_jwt = true
+[functions."google-drive-auth"]
+verify_jwt = false
 
 [functions."diag-list-root"]
 verify_jwt = false
 
 [functions."diag-list-folder"]
 verify_jwt = false
-
-[functions."diag-drive-audit"]
-verify_jwt = true
