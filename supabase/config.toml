@@ -60,8 +60,6 @@ enable_email_confirmations = true
 enable_signup = true
 enable_password_signup = true
 
-[functions.suggest-labels]
-verify_jwt = false
 
 [functions.google-drive-auth]
 verify_jwt = false
