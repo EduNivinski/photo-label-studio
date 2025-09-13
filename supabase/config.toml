@@ -68,45 +68,8 @@ verify_jwt = false
 [functions.google-drive-api]
 verify_jwt = true
 
-[functions."diag-ping"]
-verify_jwt = false
-
-
 [functions."diag-list-root"]
 verify_jwt = false
 
 [functions."diag-list-folder"]
-verify_jwt = false
-
-[functions."diag-test"]
-verify_jwt = true
-
-[functions."test-ping"]
-verify_jwt = false
-
-[functions."diag-folder-list"]
-verify_jwt = true
-
-[functions."simple-drive-test"]
-verify_jwt = true
-
-
-[functions."diag-drive-audit"]
-verify_jwt = true
-
-[functions."security-log"]
-verify_jwt = true
-
-[functions.diag-user-tokens]
-verify_jwt = true
-
-
-[functions."validate-file"]
-verify_jwt = true
-
-[functions."gdrive-cb"]
-verify_jwt = false
-
-
-[functions."google-drive-oauth-callback"]
 verify_jwt = false
