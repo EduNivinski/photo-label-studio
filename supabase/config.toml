@@ -66,6 +66,9 @@ verify_jwt = false
 [functions."diag-scopes"]
 verify_jwt = true
 
+[functions."diag-user-tokens"]
+verify_jwt = true
+
 [functions."diag-list-root"]
 verify_jwt = false
 
