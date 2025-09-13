@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions."diag-list-folder"]
 verify_jwt = false
+
+[functions."diag-drive-audit"]
+verify_jwt = true
