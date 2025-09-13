@@ -2,19 +2,20 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // CORS helper
+const DEFAULT_ALLOWED = [
+  "https://photo-label-studio.lovable.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+const ALLOW = new Set(
+  (Deno.env.get("CORS_ALLOWED_ORIGINS")?.split(",") ?? DEFAULT_ALLOWED)
+    .map(s => s.trim()).filter(Boolean)
+);
 function corsHeaders(req: Request) {
-  const origin = req.headers.get("origin") || "";
-  let allowOrigin = "";
-  try {
-    const u = new URL(origin);
-    const isLovableRoot = u.origin === "https://lovable.dev";
-    const isLovableSandbox = u.hostname.endsWith(".sandbox.lovable.dev");
-    const isLocal3000 = u.origin === "http://localhost:3000";
-    const isLocal5173 = u.origin === "http://localhost:5173";
-    if (isLovableRoot || isLovableSandbox || isLocal3000 || isLocal5173) allowOrigin = origin;
-  } catch { /* ignore */ }
+  const origin = req.headers.get("origin");
+  const allowed = origin && ALLOW.has(origin) ? origin : "https://photo-label-studio.lovable.app";
   return {
-    "Access-Control-Allow-Origin": allowOrigin || "https://lovable.dev",
+    "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Vary": "Origin",
