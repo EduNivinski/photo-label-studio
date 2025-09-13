@@ -1,4 +1,5 @@
 project_id = "tcupxcxyylxfgsbhfdhw"
+# Clean config - removed all phantom functions
 
 [api]
 enabled = true
