@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { upsertTokens, getUserTokensRow, decryptPacked } from "../_shared/token_provider_v2.ts";
 
 // CORS helper
 const DEFAULT_ALLOWED = [
@@ -31,6 +32,129 @@ function getBearer(req: Request): string | null {
   const a = req.headers.get("authorization");
   if (a && /^Bearer\s+/i.test(a)) return a.replace(/^Bearer\s+/i, "");
   return null;
+}
+
+async function handleCallback(req: Request, url: URL) {
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+
+  if (error) {
+    return new Response(`
+      <!DOCTYPE html>
+      <html><head><title>Authorization Error</title></head>
+      <body>
+        <h1>Authorization Error</h1>
+        <p>Error: ${error}</p>
+        <p><a href="/">Return to app</a></p>
+      </body></html>
+    `, { headers: { "Content-Type": "text/html" } });
+  }
+
+  if (!code || !state) {
+    return new Response(`
+      <!DOCTYPE html>
+      <html><head><title>Missing Parameters</title></head>
+      <body>
+        <h1>Missing Parameters</h1>
+        <p>Missing code or state parameter</p>
+        <p><a href="/">Return to app</a></p>
+      </body></html>
+    `, { headers: { "Content-Type": "text/html" } });
+  }
+
+  try {
+    const { userId, r: redirect } = JSON.parse(atob(state));
+    
+    // Exchange code for tokens
+    const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID");
+    const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET");
+    const REDIRECT_URI = Deno.env.get("GOOGLE_REDIRECT_URI");
+
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID!,
+        client_secret: CLIENT_SECRET!,
+        code,
+        grant_type: "authorization_code",
+        redirect_uri: REDIRECT_URI!,
+      }),
+    });
+
+    const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok) {
+      throw new Error(`Token exchange failed: ${tokenData.error_description || tokenData.error}`);
+    }
+
+    const { access_token, refresh_token, expires_in, scope } = tokenData;
+
+    // Get existing tokens to preserve refresh_token if not provided
+    const existing = await getUserTokensRow(userId);
+    let oldRefresh: string | null = null;
+    if (existing?.refresh_token_enc) {
+      try { 
+        oldRefresh = await decryptPacked(existing.refresh_token_enc); 
+      } catch { 
+        oldRefresh = null; 
+      }
+    }
+
+    // Decide final refresh token
+    const finalRefresh = (refresh_token && refresh_token.trim().length > 0) ? refresh_token : oldRefresh;
+
+    if (!finalRefresh) {
+      return new Response(`
+        <!DOCTYPE html>
+        <html><head><title>Reconnection Required</title></head>
+        <body>
+          <h1>Reconnection Required</h1>
+          <p>Please reconnect with permissions to complete the setup.</p>
+          <p><a href="${redirect || '/'}">Return to app</a></p>
+        </body></html>
+      `, { headers: { "Content-Type": "text/html" } });
+    }
+
+    // Calculate expires_at with 60s buffer
+    const expiresAtIso = new Date(Date.now() + Math.max(0, (expires_in ?? 3600) - 60) * 1000).toISOString();
+
+    // Save tokens (preserving old refresh if new one not provided)
+    await upsertTokens(
+      userId,
+      access_token,
+      finalRefresh,
+      Array.isArray(scope) ? scope.join(" ") : String(scope || ""),
+      expiresAtIso
+    );
+
+    return new Response(`
+      <!DOCTYPE html>
+      <html><head><title>Authorization Complete</title></head>
+      <body>
+        <h1>Authorization Complete</h1>
+        <p>Google Drive has been connected successfully!</p>
+        <script>
+          setTimeout(() => {
+            window.location.href = "${redirect || '/'}";
+          }, 2000);
+        </script>
+        <p><a href="${redirect || '/'}">Continue to app</a></p>
+      </body></html>
+    `, { headers: { "Content-Type": "text/html" } });
+
+  } catch (e: any) {
+    console.error("Callback error:", e);
+    return new Response(`
+      <!DOCTYPE html>
+      <html><head><title>Authorization Error</title></head>
+      <body>
+        <h1>Authorization Error</h1>
+        <p>Error: ${e.message}</p>
+        <p><a href="/">Return to app</a></p>
+      </body></html>
+    `, { headers: { "Content-Type": "text/html" } });
+  }
 }
 
 async function handleAuthorize(req: Request, userId: string, url: URL) {
@@ -69,6 +193,11 @@ serve(async (req) => {
     const url = new URL(req.url);
     const body = await req.json().catch(() => ({}));
     const action = body.action || url.searchParams.get("action");
+
+    // Handle OAuth callback
+    if (url.pathname.includes("/callback") || url.searchParams.has("code")) {
+      return await handleCallback(req, url);
+    }
 
     // Authorize flow (manual JWT validation because verify_jwt=false)
     if (action === "authorize") {

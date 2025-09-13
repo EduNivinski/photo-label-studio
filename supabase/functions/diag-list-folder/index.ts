@@ -50,8 +50,10 @@ serve(async (req) => {
       accessToken = await ensureAccessToken(userId);
     } catch (e: any) {
       const m = (e?.message || "").toUpperCase();
-      if (m.includes("NEEDS_RECONSENT")) return json(req, 401, { ok: false, reason: "NEEDS_RECONSENT" });
-      return json(req, 500, { ok: false, reason: "INTERNAL", detail: e?.message });
+      if (m.includes("NEEDS_RECONSENT")) {
+        return json(req, 401, { status: 401, reason: "NEEDS_RECONSENT" });
+      }
+      return json(req, 500, { status: 500, reason: "INTERNAL", detail: e?.message });
     }
 
     const { folderId, pageToken } = await req.json().catch(() => ({}));
