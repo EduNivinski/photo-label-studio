@@ -80,7 +80,6 @@ verify_jwt = false
 [functions."diag-list-folder"]
 verify_jwt = false
 
-
 [functions."diag-test"]
 verify_jwt = true
 
@@ -102,6 +101,20 @@ verify_jwt = true
 [functions."security-log"]
 verify_jwt = true
 
-
 [functions.diag-user-tokens]
 verify_jwt = true
+
+[functions."diag-db-write"]
+verify_jwt = true
+
+[functions."validate-file"]
+verify_jwt = true
+
+[functions."gdrive-cb"]
+verify_jwt = false
+
+[functions."google-drive-reset"]
+verify_jwt = true
+
+[functions."google-drive-oauth-callback"]
+verify_jwt = false

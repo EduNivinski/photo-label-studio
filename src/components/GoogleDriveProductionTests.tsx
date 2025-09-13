@@ -262,8 +262,8 @@ export const GoogleDriveProductionTests = () => {
       if (!session) throw new Error('Not authenticated - please login first');
 
       // Call disconnect/reset endpoint
-      const { data, error } = await supabase.functions.invoke('google-drive-disconnect', {
-        body: {}
+      const { data, error } = await supabase.functions.invoke('google-drive-auth', {
+        body: { action: "disconnect" }
       });
 
       if (error) throw error;

@@ -486,30 +486,13 @@ export function useGoogleDrive() {
 
   const diagListSharedDrive = useCallback(async () => {
     try {
-      const headers = await getAuthHeaders();
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('🤝 DIAG: Shared drives disabled for now (function removed)...');
       
-      console.log('🤝 DIAG: Testing shared drives via separate edge function...');
-      
-      const response = await supabase.functions.invoke('diag-list-shared-drive', {
-        body: { user_id: session?.user?.id },
-      });
-
-      console.log('🤝 DIAG: Shared drives result:', response);
-
-      if (response.error) {
-        console.error('❌ DIAG: Shared drives error:', response.error);
-        return {
-          success: false,
-          error: response.error.message || 'Failed to list shared drives'
-        };
-      }
-
+      // Temporarily disabled until function is re-implemented
       return {
-        success: true,
-        data: response.data
+        success: false,
+        error: "diag-list-shared-drive function temporarily disabled"
       };
-
     } catch (error) {
       console.error('💥 DIAG: Shared drives error:', error);
       return {
@@ -517,7 +500,7 @@ export function useGoogleDrive() {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
-  }, [getAuthHeaders]);
+  }, []);
 
   const diagPing = useCallback(async () => {
     try {

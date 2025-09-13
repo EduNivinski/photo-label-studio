@@ -36,15 +36,13 @@ export function GoogleDriveDiagnostics() {
   const [connectivityResults, setConnectivityResults] = useState<ConnectivityResult[]>([
     { name: 'diag-scopes', url: `https://${PROJECT_REF}.functions.supabase.co/diag-scopes`, status: 'pending', accessible: false },
     { name: 'diag-list-root', url: `https://${PROJECT_REF}.functions.supabase.co/diag-list-root`, status: 'pending', accessible: false },
-    { name: 'diag-list-folder', url: `https://${PROJECT_REF}.functions.supabase.co/diag-list-folder`, status: 'pending', accessible: false },
-    { name: 'diag-list-shared-drive', url: `https://${PROJECT_REF}.functions.supabase.co/diag-list-shared-drive`, status: 'pending', accessible: false }
+    { name: 'diag-list-folder', url: `https://${PROJECT_REF}.functions.supabase.co/diag-list-folder`, status: 'pending', accessible: false }
   ]);
 
   const [results, setResults] = useState<DiagnosticResult[]>([
     { name: 'diag-scopes', status: 'pending' },
     { name: 'diag-list-root', status: 'pending' },
-    { name: 'diag-list-folder', status: 'pending' },
-    { name: 'diag-list-shared-drive', status: 'pending' }
+    { name: 'diag-list-folder', status: 'pending' }
   ]);
 
   const testConnectivity = async () => {
@@ -185,8 +183,7 @@ export function GoogleDriveDiagnostics() {
       const diagnostics = [
         { name: 'diag-scopes', body: { user_id: USER_ID } },
         { name: 'diag-list-root', body: { user_id: USER_ID } },
-        { name: 'diag-list-folder', body: { user_id: USER_ID, folderId: "root", folder_id: "root" } },
-        { name: 'diag-list-shared-drive', body: { user_id: USER_ID } }
+        { name: 'diag-list-folder', body: { user_id: USER_ID, folderId: "root", folder_id: "root" } }
       ];
 
       // Run diagnostics sequentially
@@ -438,7 +435,6 @@ export function GoogleDriveDiagnostics() {
           <li>• <strong>diag-scopes:</strong> Status 200 com escopos "drive.metadata.readonly" e "drive.file"</li>
           <li>• <strong>diag-list-root:</strong> Status 200 com filesCount e echo.corpora="user"</li>
           <li>• <strong>diag-list-folder:</strong> Status 200 com folderId ecoado (404 se pasta inválida)</li>
-          <li>• <strong>diag-list-shared-drive:</strong> Status 200 com echo.corpora="drive" e driveId</li>
         </ul>
         <div className="mt-3 text-xs text-muted-foreground">
           <strong>Problemas comuns:</strong> FunctionsFetchError → verificar conectividade, PROJECT_REF, ANON_KEY
