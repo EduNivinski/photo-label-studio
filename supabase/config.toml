@@ -80,8 +80,6 @@ verify_jwt = false
 [functions."diag-list-folder"]
 verify_jwt = false
 
-[functions.diag-list-shared-drive]
-verify_jwt = true
 
 [functions."diag-test"]
 verify_jwt = true
