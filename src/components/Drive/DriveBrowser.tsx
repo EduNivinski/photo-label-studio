@@ -19,19 +19,31 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
   }, [current]);
 
   const handleSelectFolder = async () => {
-    const name = prompt("Nome para exibir (opcional):") || undefined;
+    const currentFolderName = current === "root" ? "Meu Drive" : 
+                             items.find(item => item.id === current)?.name || "Pasta atual";
+    
     try {
-      await selectHere(current, name);
-      const folderName = name || (current === "root" ? "Meu Drive" : current);
-      onFolderSelected?.({ id: current, name: folderName });
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+        body: { action: "set_folder", folderId: current, folderName: currentFolderName }
+      });
+      
+      if (error || !data?.ok) {
+        throw new Error(data?.reason || error?.message || "SET_FOLDER_FAILED");
+      }
+      
+      // Show success message
       toast({
         title: "Pasta selecionada",
-        description: `Pasta "${folderName}" foi definida como pasta de backup`,
+        description: `Pasta "${data.dedicatedFolderName}" foi definida como pasta de backup`,
       });
+      
+      // Update parent component
+      onFolderSelected?.({ id: current, name: data.dedicatedFolderName });
+      
     } catch (e: any) {
       toast({
         title: "Erro",
-        description: `Erro ao selecionar pasta: ${e.message}`,
+        description: `Não foi possível selecionar a pasta: ${e?.message || e}`,
         variant: "destructive",
       });
     }

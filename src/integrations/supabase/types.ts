@@ -263,6 +263,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_drive_settings: {
+        Row: {
+          drive_folder_id: string
+          drive_folder_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          drive_folder_id: string
+          drive_folder_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          drive_folder_id?: string
+          drive_folder_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_drive_tokens: {
         Row: {
           access_token_enc: string

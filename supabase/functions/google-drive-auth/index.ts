@@ -34,6 +34,38 @@ function getBearer(req: Request): string | null {
   return null;
 }
 
+// Helper functions for user_drive_settings
+async function upsertUserDriveSettings(userId: string, folderId: string, folderName: string) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { error } = await admin
+    .from("user_drive_settings")
+    .upsert({
+      user_id: userId,
+      drive_folder_id: folderId,
+      drive_folder_name: folderName,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+
+  if (error) throw new Error(`DB_UPSERT_SETTINGS: ${error.message}`);
+}
+
+async function getUserDriveSettings(userId: string) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { data, error } = await admin
+    .from("user_drive_settings")
+    .select("drive_folder_id, drive_folder_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`DB_GET_SETTINGS: ${error.message}`);
+  return data || null;
+}
+
 // Helper para extrair action do query ou body
 async function getAction(req: Request, url: URL): Promise<string> {
   // 1) tenta query string
@@ -56,23 +88,18 @@ async function getAction(req: Request, url: URL): Promise<string> {
 async function handleStatus(req: Request, userId: string) {
   try {
     const token = await ensureAccessToken(userId);
-    if (!token) throw new Error("NO_ACCESS_TOKEN");
-
+    const settings = await getUserDriveSettings(userId);
     return json(req, 200, {
       ok: true,
       connected: true,
       hasConnection: true,
-      isExpired: false
+      isExpired: false,
+      dedicatedFolderId: settings?.drive_folder_id ?? null,
+      dedicatedFolderName: settings?.drive_folder_name ?? null,
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
-    return json(req, 200, {
-      ok: true,
-      connected: false,
-      hasConnection: false,
-      isExpired: true,
-      reason: reason || "EXPIRED_OR_INVALID"
-    });
+    return json(req, 200, { ok: true, connected: false, hasConnection: false, isExpired: true, reason: reason || "EXPIRED_OR_INVALID" });
   }
 }
 
@@ -229,6 +256,37 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   return json(req, 200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
 }
 
+async function handleSetFolder(req: Request, userId: string) {
+  const body = await req.json().catch(() => ({}));
+  const folderId = body?.folderId?.toString?.() || "";
+  const folderName = body?.folderName?.toString?.() || "";
+  if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+
+  // ✅ valida se a pasta existe e o usuário tem acesso
+  try {
+    const accessToken = await ensureAccessToken(userId);
+    const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const meta = await metaRes.json();
+    if (!metaRes.ok) {
+      return json(req, 400, { ok: false, reason: "FOLDER_LOOKUP_FAILED", details: meta });
+    }
+    if (meta.trashed) {
+      return json(req, 400, { ok: false, reason: "FOLDER_TRASHED" });
+    }
+    if (meta.mimeType !== "application/vnd.google-apps.folder") {
+      return json(req, 400, { ok: false, reason: "NOT_A_FOLDER" });
+    }
+    // usa o nome do Drive se não vier um folderName custom
+    const finalName = folderName || meta.name || "Pasta sem nome";
+    await upsertUserDriveSettings(userId, folderId, finalName);
+    return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: finalName });
+  } catch (e: any) {
+    return json(req, 500, { ok: false, reason: "SET_FOLDER_ERROR", message: e?.message || String(e) });
+  }
+}
+
 async function getUserIdFromJwt(req: Request): Promise<string | null> {
   const jwt = getBearer(req);
   if (!jwt) return null;
@@ -269,6 +327,7 @@ serve(async (req: Request) => {
 
     if (action === "status") return await handleStatus(req, userId!);
     if (action === "authorize") return await handleAuthorize(req, userId!, url);
+    if (action === "set_folder") return await handleSetFolder(req, userId!);
     if (action === "setFolder") {
       const body = await req.json().catch(() => ({}));
       const { folderId, folderName } = body || {};
