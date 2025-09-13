@@ -87,20 +87,13 @@ export function GoogleDriveIntegration() {
                     Verificar Status
                   </Button>
                 </div>
-                
-                {/* Status Display - aparece após verificar status */}
-                <div className="mt-6 flex justify-center">
-                  {status.isConnected ? (
-                    <div className="flex items-center gap-2 text-green-600">
-                      <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-medium">Conectado</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                      <span className="text-sm font-medium">Desconectado</span>
-                    </div>
-                  )}
+              </div>
+              
+              {/* Status Display - na mesma posição do badge conectado */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
+                  <span className="text-sm font-medium">Desconectado</span>
                 </div>
               </div>
             </div>
@@ -163,7 +156,7 @@ export function GoogleDriveIntegration() {
 
           {status.isConnected && !status.isExpired && (
             <div className="space-y-6">
-              {/* Status Badge */}
+              {/* Status Badge - conectado (verde) */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
