@@ -71,6 +71,9 @@ verify_jwt = false
 [functions."diag-list-folder"]
 verify_jwt = false
 
+[functions."diag-list-shared-drive"]
+verify_jwt = false
+
 [functions."diag-scopes"]
 verify_jwt = true
 
