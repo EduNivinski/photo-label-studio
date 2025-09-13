@@ -39,14 +39,22 @@ export default function DriveSettingsPage() {
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase.functions.invoke("google-drive-auth", { body: { action: "status" } });
-      setStatus(data as DriveStatus);
-      
-      if (data?.ok && data?.connected) {
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", { body: { action: "status" } });
+      if (error || !data || typeof data !== 'object') {
+        setStatus({ ok: false, reason: error?.message ? String(error.message) : "INVALID_RESPONSE" });
         toast({
-          title: "Status verificado",
-          description: "Google Drive conectado com sucesso",
+          title: "Aviso",
+          description: "Não foi possível obter o status atual",
+          variant: "destructive",
         });
+      } else {
+        setStatus(data as DriveStatus);
+        if ((data as any).ok && (data as any).connected) {
+          toast({
+            title: "Status verificado",
+            description: "Google Drive conectado com sucesso",
+          });
+        }
       }
     } catch (e) {
       setStatus({ ok: false, reason: "NETWORK_ERROR" });
