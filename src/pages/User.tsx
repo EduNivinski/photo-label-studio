@@ -544,6 +544,15 @@ export default function User() {
               </div>
             </Card>
 
+            {/* Google Drive Integration */}
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Archive className="h-5 w-5" />
+                Google Drive
+              </h2>
+              <GoogleDriveTestControls />
+            </Card>
+
             {/* Atividade Recente */}
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">Atividade Recente</h2>
