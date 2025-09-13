@@ -75,6 +75,9 @@ verify_jwt = false
 [functions."diag-drive-audit"]
 verify_jwt = true
 
+[functions."diag-token-debug"]
+verify_jwt = false
+
 [functions."security-log"]
 verify_jwt = false
 
