@@ -69,6 +69,9 @@ verify_jwt = false
 [functions.google-drive-api]
 verify_jwt = true
 
+[functions."google-drive-oauth-callback"]
+verify_jwt = false
+
 [functions."diag-list-root"]
 verify_jwt = false
 
