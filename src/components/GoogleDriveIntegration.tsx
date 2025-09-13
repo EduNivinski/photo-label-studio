@@ -44,20 +44,6 @@ export function GoogleDriveIntegration() {
           <CardTitle className="flex items-center gap-2">
             <Cloud className="h-6 w-6" />
             Integração Google Drive
-            {/* Status indicator icon */}
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            ) : status.isConnected ? (
-              <div className="flex items-center gap-1">
-                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs text-green-600 font-medium">Conectado</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
-                <span className="text-xs text-muted-foreground font-medium">Desconectado</span>
-              </div>
-            )}
           </CardTitle>
           <CardDescription>
             Conecte e sincronize suas fotos com o Google Drive
@@ -100,6 +86,21 @@ export function GoogleDriveIntegration() {
                     )}
                     Verificar Status
                   </Button>
+                </div>
+                
+                {/* Status Display - aparece após verificar status */}
+                <div className="mt-6 flex justify-center">
+                  {status.isConnected ? (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium">Conectado</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
+                      <span className="text-sm font-medium">Desconectado</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
