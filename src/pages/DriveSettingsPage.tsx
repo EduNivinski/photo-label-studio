@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Cloud, Folder, Unplug, RefreshCw, Settings, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import FolderPickerModal from "@/components/Drive/FolderPickerModal";
+import FolderBrowserCard from "@/components/Drive/FolderBrowserCard";
 
 type DriveStatus =
   | { ok: true; connected: true }
@@ -20,6 +21,8 @@ export default function DriveSettingsPage() {
   const [picking, setPicking] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<{ id: string; name: string } | null>(null);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
   const [currentFolder, setCurrentFolder] = useState<{ id: string; name: string }>({ id: "root", name: "Meu Drive" });
   const [items, setItems] = useState<FileItem[]>([]);
   const busyRef = useRef(false);
@@ -248,13 +251,13 @@ export default function DriveSettingsPage() {
             </Button>
             
             <Button
-              onClick={openFolderPicker}
+              onClick={() => setBrowserOpen((v) => !v)}
               variant="outline"
               disabled={!status.ok || !(status as any).connected}
               className="flex items-center gap-2"
             >
               <Folder className="h-4 w-4" />
-              Escolher Pasta
+              {browserOpen ? "Ocultar pastas" : "Escolher Pasta"}
             </Button>
             
             <Button
@@ -270,30 +273,34 @@ export default function DriveSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Pasta Selecionada */}
-      {selectedFolder && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Folder className="h-5 w-5" />
-              Pasta Selecionada
-            </CardTitle>
-            <CardDescription>
-              Pasta configurada para integração
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div className="flex items-center gap-2">
-                <Folder className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-medium">{selectedFolder.name}</span>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                ID: {selectedFolder.id}
-              </Badge>
+      {/* Navegador de Pastas Inline */}
+      {(status.ok && (status as any).connected) && (
+        <div className="rounded-xl border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">Navegador de Pastas</h3>
+            <Button
+              onClick={() => setBrowserOpen((v) => !v)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Folder className="h-4 w-4" />
+              {browserOpen ? "Ocultar pastas" : "Escolher Pasta"}
+            </Button>
+          </div>
+
+          {chosen && (
+            <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
+              Pasta selecionada: <span className="font-medium">{chosen.name}</span> ({chosen.id})
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          <FolderBrowserCard
+            open={browserOpen}
+            onClose={() => setBrowserOpen(false)}
+            onPicked={(f) => { setChosen(f); setBrowserOpen(false); toast({ title: "Pasta selecionada", description: `"${f.name}" foi selecionada` }); }}
+          />
+        </div>
       )}
 
       {/* Modal do Folder Picker */}
