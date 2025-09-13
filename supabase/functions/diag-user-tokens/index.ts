@@ -1,6 +1,41 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { preflight, jsonCors } from "../_shared/cors.ts";
+
+// Local CORS helpers (no shared imports allowed in Edge Functions)
+const DEFAULT_ALLOWED = [
+  "https://photo-label-studio.lovable.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+const ALLOW = new Set(
+  (Deno.env.get("CORS_ALLOWED_ORIGINS")?.split(",") ?? DEFAULT_ALLOWED)
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
+function corsHeaders(origin: string | null) {
+  const allowed = origin && ALLOW.has(origin)
+    ? origin
+    : "https://photo-label-studio.lovable.app";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+}
+function preflight(req: Request) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(req.headers.get("origin")) });
+  }
+  return null;
+}
+function jsonCors(req: Request, status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders(req.headers.get("origin")) },
+  });
+}
 
 serve(async (req) => {
   const pf = preflight(req);
@@ -25,9 +60,9 @@ serve(async (req) => {
     );
 
     if (authError || !user) {
-      return jsonCors(req, 401, { 
-        error: 'AUTH_FAILED', 
-        details: authError?.message 
+      return jsonCors(req, 401, {
+        error: 'AUTH_FAILED',
+        details: authError?.message
       });
     }
 
@@ -45,7 +80,7 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    const result = {
+    const result: any = {
       user_id: user.id,
       timestamp: new Date().toISOString(),
       google_drive_tokens_table: {
@@ -104,7 +139,7 @@ serve(async (req) => {
       has_token_record: hasTokenRecord,
       has_secret_ids: hasValidSecretIds,
       has_vault_secrets: hasVaultSecrets,
-      recommendation: !hasTokenRecord ? 
+      recommendation: !hasTokenRecord ?
         'User needs to connect Google Drive - no token record found' :
         !hasValidSecretIds ?
         'Token record exists but secret IDs are missing - re-authentication needed' :
@@ -117,8 +152,8 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('User token diagnostic error:', error);
-    return jsonCors(req, 500, { 
-      error: "DIAGNOSTIC_FAILED", 
+    return jsonCors(req, 500, {
+      error: "DIAGNOSTIC_FAILED",
       message: error.message,
       stack: error.stack
     });
