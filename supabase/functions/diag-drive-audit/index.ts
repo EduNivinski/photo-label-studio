@@ -1,6 +1,39 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { preflight, jsonCors } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// CORS headers
+function corsHeaders(origin: string | null) {
+  const allowed = origin && ["https://photo-label-studio.lovable.app", "http://localhost:3000", "http://localhost:5173"].includes(origin)
+    ? origin
+    : "https://photo-label-studio.lovable.app";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+}
+
+function preflight(req: Request) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(req.headers.get("origin")),
+    });
+  }
+  return null;
+}
+
+function jsonCors(req: Request, status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders(req.headers.get("origin")),
+    },
+  });
+}
 
 function admin() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
