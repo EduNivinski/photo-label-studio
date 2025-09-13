@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { upsertTokens, getUserTokensRow, decryptPacked } from "../_shared/token_provider_v2.ts";
+import { upsertTokens, getUserTokensRow, decryptPacked, ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 // CORS helper
 const DEFAULT_ALLOWED = [
@@ -188,59 +188,112 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 }
 
 serve(async (req) => {
+  // CORS
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(req) });
+
+  const url = new URL(req.url);
+  const pathname = url.pathname || "";
+
+  // 1) CALLBACK do Google (sem JWT)
+  if (pathname.endsWith("/callback")) {
+    return await handleCallback(req, url);
+  }
+
+  // 2) Demais rotas: exigem POST; GET pode responder um ping
+  if (req.method !== "POST") {
+    return json(req, 200, { ok: true, message: "google-drive-auth ready" });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const action = body?.action;
+
+  // Helper pra extrair JWT e user_id
+  const auth = req.headers.get("authorization") || "";
+  const jwt = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // 3) ACTIONS
   try {
-    const url = new URL(req.url);
-    const body = await req.json().catch(() => ({}));
-    const action = body.action || url.searchParams.get("action");
+    switch (action) {
+      case "authorize": {
+        if (!jwt) return json(req, 401, { ok: false, error: "Missing authorization token" });
+        const { data: { user }, error } = await admin.auth.getUser(jwt);
+        if (error || !user) return json(req, 401, { ok: false, error: "Invalid token" });
+        return await handleAuthorize(req, user.id, url);
+      }
 
-    // Handle OAuth callback
-    if (url.pathname.includes("/callback") || url.searchParams.has("code")) {
-      return await handleCallback(req, url);
+      case "status": {
+        // 3.a) validar usuário
+        if (!jwt) return json(req, 200, { ok: true, connected: false });
+        const { data: gu, error: eUser } = await admin.auth.getUser(jwt);
+        const userId = gu?.user?.id;
+        if (eUser || !userId) return json(req, 200, { ok: true, connected: false });
+
+        // 3.b) ler registro do usuário (tabela onde tokens são salvos)
+        const svc = admin; // usa service role
+        const { data: row, error: eRow } = await svc
+          .from("user_drive_tokens")            // use o MESMO nome que vocês já usam
+          .select("dedicated_folder_id, dedicated_folder_name")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (eRow) return json(req, 200, { ok: true, connected: false });
+
+        // 3.c) se não há registro -> desconectado
+        if (!row) return json(req, 200, { ok: true, connected: false });
+
+        // 3.d) validar/renovar access token do Google
+        try {
+          // sua ensureAccessToken EXISTENTE (retorna string ou lança erro)
+          await ensureAccessToken(userId);
+        } catch (e: any) {
+          const msg = (e?.message || "").toUpperCase();
+          // padronizar o motivo (sem 401 aqui; status deve ser 200 com connected:false)
+          const reason =
+            msg.includes("NEEDS_RECONSENT") ? "NEEDS_RECONSENT" :
+            msg.includes("NO_ACCESS_TOKEN") ? "TOKEN_INVALID" :
+            "EXPIRED_OR_INVALID";
+          return json(req, 200, { ok: true, connected: false, reason });
+        }
+
+        // 3.e) conectado
+        return json(req, 200, {
+          ok: true,
+          connected: true,
+          dedicatedFolderId: row.dedicated_folder_id ?? null,
+          dedicatedFolderName: row.dedicated_folder_name ?? null,
+        });
+      }
+
+      case "setFolder": {
+        if (!jwt) return json(req, 401, { ok: false, reason: "MISSING_AUTH" });
+        const { data: { user }, error: eUser } = await admin.auth.getUser(jwt);
+        if (eUser || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
+
+        const { folderId, folderName } = body || {};
+        if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+
+        const userId = user.id;
+
+        const { error: eUpd } = await admin
+          .from("user_drive_tokens")
+          .update({
+            dedicated_folder_id: folderId,
+            dedicated_folder_name: folderName ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId);
+
+        if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
+
+        return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
+      }
+
+      default:
+        return json(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
     }
-
-    // Set folder action (manual JWT validation)
-    if (action === "setFolder") {
-      const token = getBearer(req);
-      if (!token) return json(req, 401, { ok: false, reason: "MISSING_AUTH" });
-      
-      const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { data: { user }, error: eUser } = await supa.auth.getUser(token);
-      if (eUser || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
-
-      const { folderId, folderName } = body || {};
-      if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
-
-      const userId = user.id;
-
-      const { error: eUpd } = await supa
-        .from("user_drive_tokens")
-        .update({
-          dedicated_folder_id: folderId,
-          dedicated_folder_name: folderName ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-
-      if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
-
-      return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
-    }
-
-    // Authorize flow (manual JWT validation because verify_jwt=false)
-    if (action === "authorize") {
-      const token = getBearer(req);
-      if (!token) return json(req, 401, { ok:false, error: "Missing authorization token" });
-      const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { data: { user }, error } = await supa.auth.getUser(token);
-      if (error || !user) return json(req, 401, { ok:false, error: "Invalid token" });
-      return await handleAuthorize(req, user.id, url);
-    }
-
-    // Fallback: return basic info for health check
-    return json(req, 200, { ok:true, message: "google-drive-auth ready" });
   } catch (e: any) {
     console.error("google-drive-auth error:", e?.message);
-    return json(req, 500, { ok:false, error: e?.message || "Internal error" });
+    return json(req, 500, { ok: false, error: e?.message || "Internal error" });
   }
 });
