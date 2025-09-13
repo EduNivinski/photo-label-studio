@@ -102,8 +102,6 @@ verify_jwt = true
 [functions."security-log"]
 verify_jwt = true
 
-[functions."google-drive-disconnect"]
-verify_jwt = true
 
 [functions.diag-user-tokens]
 verify_jwt = true
