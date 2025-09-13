@@ -77,8 +77,5 @@ verify_jwt = true
 [functions."diag-user-tokens"]
 verify_jwt = true
 
-[functions."diag-token-debug"]
-verify_jwt = false
-
 [functions."simple-drive-test"]
 verify_jwt = false
