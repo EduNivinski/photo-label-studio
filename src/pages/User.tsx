@@ -400,18 +400,6 @@ export default function User() {
             <p className="text-muted-foreground mt-1">
               Gerencie suas informações pessoais e veja estatísticas da sua biblioteca
             </p>
-            {/* Authentication Status Badge */}
-            <div className="flex items-center gap-2 mt-2">
-              {sessionStatus.isAuthenticated ? (
-                <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-                  ✅ Logged in • Project: {sessionStatus.projectRef}
-                </Badge>
-              ) : (
-                <Badge variant="destructive">
-                  ❌ Not authenticated
-                </Badge>
-              )}
-            </div>
           </div>
           <Button 
             onClick={() => isEditing ? handleSave() : setIsEditing(true)}
