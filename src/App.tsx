@@ -17,6 +17,7 @@ import Labels from "./pages/Labels";
 import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
 import UserPage from "./pages/User";
+import DriveSettingsPage from "./pages/DriveSettingsPage";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Login from "./pages/Login";
@@ -145,6 +146,16 @@ function AppContent() {
           <Route path="/user" element={
             <RequireAuth>
               <UserPage />
+            </RequireAuth>
+          } />
+          <Route path="/settings/drive" element={
+            <RequireAuth>
+              <DriveSettingsPage />
+            </RequireAuth>
+          } />
+          <Route path="/drive" element={
+            <RequireAuth>
+              <DriveSettingsPage />
             </RequireAuth>
           } />
           <Route path="*" element={<NotFound />} />

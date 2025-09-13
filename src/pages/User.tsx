@@ -534,10 +534,21 @@ export default function User() {
 
             {/* Google Drive Integration */}
             <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Archive className="h-5 w-5" />
-                Google Drive
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Archive className="h-5 w-5" />
+                  Google Drive
+                </h2>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = '/settings/drive'}
+                  className="flex items-center gap-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  Configurar
+                </Button>
+              </div>
               <GoogleDriveIntegration />
             </Card>
 
