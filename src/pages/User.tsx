@@ -550,7 +550,7 @@ export default function User() {
                 <Archive className="h-5 w-5" />
                 Google Drive
               </h2>
-              <GoogleDriveTestControls />
+              <GoogleDriveIntegration />
             </Card>
 
             {/* Atividade Recente */}
