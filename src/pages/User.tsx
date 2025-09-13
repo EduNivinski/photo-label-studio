@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, SUPABASE_URL, SUPABASE_ANON } from '@/integrations/supabase/client';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
+
 import { GoogleDriveProductionTests } from '@/components/GoogleDriveProductionTests';
 import { GoogleDriveTestControls } from '@/components/GoogleDriveTestControls';
 import { useNavigate } from 'react-router-dom';
@@ -189,8 +189,8 @@ export default function User() {
       if (e?.data?.source === "gdrive-oauth") {
         supabase.functions.invoke("google-drive-auth", { body: { action: "status" } })
           .then(r => {
-            // Force a status refresh in GoogleDriveIntegration component
-            // This will trigger the useGoogleDriveSimple hook to update
+            // Force a status refresh - no longer needed since component removed
+            // This will trigger any status updates elsewhere in the app
             window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
           })
           .catch(() => {
@@ -532,25 +532,6 @@ export default function User() {
               </div>
             </Card>
 
-            {/* Google Drive Integration */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
-                  <Archive className="h-5 w-5" />
-                  Google Drive
-                </h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.location.href = '/settings/drive'}
-                  className="flex items-center gap-2"
-                >
-                  <Settings className="h-4 w-4" />
-                  Configurar
-                </Button>
-              </div>
-              <GoogleDriveIntegration />
-            </Card>
 
             {/* Atividade Recente */}
             <Card className="p-6">

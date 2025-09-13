@@ -30,7 +30,7 @@ const navigation = [
   { title: 'Gestão de Labels', url: '/labels', icon: Tag },
   { title: 'Minhas Coleções', url: '/collections', icon: FolderOpen },
   { title: 'Perfil do Usuário', url: '/user', icon: User },
-  { title: 'Google Drive', url: '/settings/drive', icon: Settings },
+  { title: 'Integrações', url: '/settings/drive', icon: Settings },
 ];
 
 interface AppSidebarProps {
