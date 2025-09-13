@@ -2,11 +2,17 @@ import React, { useEffect } from "react";
 import { useDriveBrowser } from "@/hooks/useDriveBrowser";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Folder, ArrowLeft, MoreHorizontal } from "lucide-react";
+import { Folder, ArrowLeft, MoreHorizontal, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-export default function DriveBrowser() {
+interface DriveBrowserProps {
+  onFolderSelected?: (folder: { id: string; name: string }) => void;
+}
+
+export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
   const { current, items, next, loading, err, list, enter, back, selectHere } = useDriveBrowser();
+  const { toast } = useToast();
 
   useEffect(() => { 
     list(true); 
@@ -16,9 +22,18 @@ export default function DriveBrowser() {
     const name = prompt("Nome para exibir (opcional):") || undefined;
     try {
       await selectHere(current, name);
-      alert("Pasta definida com sucesso!");
+      const folderName = name || (current === "root" ? "Meu Drive" : current);
+      onFolderSelected?.({ id: current, name: folderName });
+      toast({
+        title: "Pasta selecionada",
+        description: `Pasta "${folderName}" foi definida como pasta de backup`,
+      });
     } catch (e: any) {
-      alert(`Erro: ${e.message}`);
+      toast({
+        title: "Erro",
+        description: `Erro ao selecionar pasta: ${e.message}`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -35,7 +50,11 @@ export default function DriveBrowser() {
         window.open(result.data.authorizeUrl, "_blank", "width=520,height=720");
       }
     } catch (e: any) {
-      alert(`Erro ao reconectar: ${e.message}`);
+      toast({
+        title: "Erro",
+        description: `Erro ao reconectar: ${e.message}`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -49,7 +68,7 @@ export default function DriveBrowser() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Navigation Bar */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
           <Button 
             onClick={back} 
             disabled={current === "root"} 
@@ -60,7 +79,7 @@ export default function DriveBrowser() {
             Voltar
           </Button>
           <div className="text-sm text-muted-foreground flex-1">
-            Pasta atual: {current === "root" ? "Meu Drive" : current}
+            📁 {current === "root" ? "Meu Drive" : current}
           </div>
           <Button
             onClick={handleSelectFolder}
@@ -73,16 +92,24 @@ export default function DriveBrowser() {
 
         {/* Error States */}
         {err === "NEEDS_RECONSENT" && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-            <p className="text-sm text-amber-800">
-              Permissões do Drive expiradas.{" "}
-              <button
-                className="underline hover:no-underline"
-                onClick={handleReconnect}
-              >
-                Reconectar
-              </button>
-            </p>
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Permissões do Drive expiradas</p>
+                <p className="text-sm text-amber-700 mb-3">
+                  É necessário reconectar com as permissões necessárias para acessar suas pastas.
+                </p>
+                <Button
+                  onClick={handleReconnect}
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                >
+                  Reconectar
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -95,7 +122,7 @@ export default function DriveBrowser() {
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-8">
-            <div className="text-sm text-muted-foreground">Carregando...</div>
+            <div className="text-sm text-muted-foreground">Carregando pastas...</div>
           </div>
         )}
 
@@ -104,6 +131,7 @@ export default function DriveBrowser() {
           <div className="border rounded-md">
             {items.length === 0 ? (
               <div className="p-6 text-center">
+                <Folder className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
                   Nenhuma pasta encontrada neste local.
                 </p>
@@ -113,9 +141,9 @@ export default function DriveBrowser() {
                 {items.map((folder) => (
                   <div 
                     key={folder.id} 
-                    className="flex items-center justify-between p-3 hover:bg-muted/50"
+                    className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
                   >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <span className="text-sm truncate">{folder.name}</span>
                     </div>

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Cloud, Folder, Unplug, RefreshCw, Settings, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import FolderPickerModal from "@/components/Drive/FolderPickerModal";
-import FolderBrowserCard from "@/components/Drive/FolderBrowserCard";
+import DriveBrowser from "@/components/Drive/DriveBrowser";
 
 type DriveStatus =
   | { ok: true; connected: true }
@@ -55,6 +55,13 @@ export default function DriveSettingsPage() {
         });
       } else {
         setStatus(data as DriveStatus);
+        // Update chosen folder from status if available
+        if ((data as any).ok && (data as any).connected && (data as any).dedicatedFolderId) {
+          setChosen({
+            id: (data as any).dedicatedFolderId,
+            name: (data as any).dedicatedFolderName || `Pasta ${(data as any).dedicatedFolderId}`
+          });
+        }
         if ((data as any).ok && (data as any).connected) {
           toast({
             title: "Status verificado",
@@ -309,34 +316,30 @@ export default function DriveSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Navegador de Pastas Inline */}
+      {/* Status da Pasta Selecionada */}
       {(status.ok && (status as any).connected) && (
-        <div className="rounded-xl border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">Navegador de Pastas</h3>
-            <Button
-              onClick={() => setBrowserOpen((v) => !v)}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <Folder className="h-4 w-4" />
-              {browserOpen ? "Ocultar pastas" : "Escolher Pasta"}
-            </Button>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Folder className="h-5 w-5" />
+              Pasta Dedicada para Backup
+            </CardTitle>
+            <CardDescription>
+              {chosen ? `Pasta atual: ${chosen.name}` : "Nenhuma pasta foi selecionada ainda"}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
-          {chosen && (
-            <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
-              Pasta selecionada: <span className="font-medium">{chosen.name}</span> ({chosen.id})
-            </div>
-          )}
-
-          <FolderBrowserCard
-            open={browserOpen}
-            onClose={() => setBrowserOpen(false)}
-            onPicked={(f) => { setChosen(f); setBrowserOpen(false); toast({ title: "Pasta selecionada", description: `"${f.name}" foi selecionada` }); }}
-          />
-        </div>
+      {/* Navegador de Pastas */}
+      {(status.ok && (status as any).connected) && (
+        <DriveBrowser onFolderSelected={(folder) => {
+          setChosen(folder);
+          toast({
+            title: "Pasta selecionada",
+            description: `Pasta "${folder.name}" foi definida como pasta de backup`,
+          });
+        }} />
       )}
 
       {/* Modal do Folder Picker */}
