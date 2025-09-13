@@ -1,117 +1,74 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-import { preflight, jsonCors } from "../_shared/cors.ts";
 
-function getUserIdFromAuth(auth: string | null) {
-  if (!auth?.startsWith("Bearer ")) return null;
-  try {
-    const token = auth.split(" ")[1];
-    const [, payload] = token.split(".");
-    return JSON.parse(atob(payload)).sub as string;
-  } catch {
-    return null;
-  }
+const ALLOWED = new Set([
+  "https://photo-label-studio.lovable.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  // "https://<SEU-SANDBOX>.sandbox.lovable.dev",
+]);
+
+function cors(origin: string | null) {
+  const allowed = origin && ALLOWED.has(origin) ? origin : "https://photo-label-studio.lovable.app";
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  };
+}
+const json = (req: Request, status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...cors(req.headers.get("origin")) } });
+
+function getBearer(req: Request): string | null {
+  const h = req.headers;
+  const a = h.get("authorization");
+  if (a && /^Bearer\s+/i.test(a)) return a.replace(/^Bearer\s+/i, "");
+  const b = h.get("x-supabase-authorization"); // fallback de alguns SDKs
+  if (b && /^Bearer\s+/i.test(b)) return b.replace(/^Bearer\s+/i, "");
+  return null;
 }
 
 serve(async (req) => {
-  console.log("diag-list-folder called");
-
-  // CORS preflight
-  const pf = preflight(req);
-  if (pf) return pf;
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(req.headers.get("origin")) });
 
   try {
-    const auth = req.headers.get("authorization");
-    const userId = getUserIdFromAuth(auth);
-    
-    if (!userId) {
-      return jsonCors(req, 401, { reason: "NO_JWT" });
-    }
+    // 1) Validar JWT manualmente
+    const token = getBearer(req);
+    if (!token) return json(req, 401, { ok: false, reason: "MISSING_JWT" });
 
-    console.log("User authenticated:", userId);
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
+    const userId = user.id;
 
-    // Get folder ID from query params or body
-    const url = new URL(req.url);
-    const folderId = url.searchParams.get("folderId") || "root";
-    console.log("Listing folder:", folderId);
+    // 2) Garantir access token do Drive
+    const accessToken = await ensureAccessToken(userId); // lança em erro se inválido
 
-    // Get access token with auto-refresh
-    let accessToken;
-    try {
-      accessToken = await ensureAccessToken(userId);
-      console.log("Token obtained, length:", accessToken.length);
-    } catch (e: any) {
-      const msg = (e?.message || "").toUpperCase();
-      return jsonCors(req, 200, { ok: true, connected: false, reason: msg || "NO_TOKENS" });
-    }
-
-    // Build query for folder contents
-    const query = folderId === "root" 
-      ? "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false"
-      : `'${folderId}' in parents and trashed=false`;
+    // 3) Listagem da pasta
+    const { folderId, pageToken } = await req.json().catch(() => ({}));
+    if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
 
     const params = new URLSearchParams({
-      q: query,
-      fields: "nextPageToken,files(id,name,mimeType,parents,modifiedTime,shortcutDetails)",
+      fields: "files(id,name,mimeType),nextPageToken",
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
       corpora: "user",
+      q: `'${folderId}' in parents and trashed=false`,
       pageSize: "100",
     });
+    if (pageToken) params.set("pageToken", String(pageToken));
 
-    console.log("API URL:", `https://www.googleapis.com/drive/v3/files?${params.toString()}`);
-
-    const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
+    const data = await r.json();
+    if (!r.ok) return json(req, 502, { ok: false, reason: "GOOGLE_LIST_FAILED", details: data });
 
-    console.log("Response status:", resp.status);
-
-    if (resp.status === 401) {
-      // Force refresh and retry once
-      console.log("401 - attempting refresh and retry...");
-      try {
-        const freshToken = await ensureAccessToken(userId);
-        const retryResp = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`, {
-          headers: { Authorization: `Bearer ${freshToken}` }
-        });
-        
-        if (!retryResp.ok) {
-          return jsonCors(req, retryResp.status, { 
-            status: retryResp.status, 
-            reason: "UNAUTHORIZED_AFTER_REFRESH" 
-          });
-        }
-        
-        const retryData = await retryResp.json();
-        return jsonCors(req, 200, {
-          status: "OK",
-          folderId: folderId,
-          items: retryData.files || [],
-          echo: { corpora: "user" },
-          retried: true
-        });
-      } catch (refreshError) {
-        return jsonCors(req, 401, { error: "REFRESH_FAILED", message: refreshError.message });
-      }
-    }
-
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      console.error("API error:", errorText);
-      return jsonCors(req, resp.status, { status: resp.status, reason: errorText });
-    }
-
-    const data = await resp.json();
-    return jsonCors(req, 200, {
-      status: "OK",
-      folderId: folderId,
-      items: data.files || [],
-      echo: { corpora: "user" }
-    });
-
-  } catch (error: any) {
-    console.error("Error in diag-list-folder:", error);
-    return jsonCors(req, 500, { error: "INTERNAL_ERROR", message: error.message });
+    return json(req, 200, { ok: true, files: data.files ?? [], nextPageToken: data.nextPageToken ?? null });
+  } catch (e: any) {
+    return json(req, 500, { ok: false, reason: (e?.message || "INTERNAL_ERROR") });
   }
 });
