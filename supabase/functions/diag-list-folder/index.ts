@@ -69,9 +69,28 @@ serve(async (req) => {
     });
     if (pageToken) params.set("pageToken", String(pageToken));
 
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+    // 1ª tentativa
+    let r = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+
+    if (r.status === 401) {
+      // força refresh e tenta de novo uma vez
+      try {
+        const fresh = await ensureAccessToken(userId);
+        r = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+          headers: { Authorization: `Bearer ${fresh}` },
+        });
+        if (!r.ok) {
+          const data = await r.json().catch(() => ({}));
+          return json(req, 401, { ok: false, reason: "UNAUTHORIZED_AFTER_REFRESH", details: data });
+        }
+      } catch (e: any) {
+        const msg = (e?.message || "").toUpperCase();
+        return json(req, 401, { ok: false, reason: msg || "NEEDS_RECONSENT" });
+      }
+    }
+
     const data = await r.json().catch(() => ({}));
     if (!r.ok) return json(req, 502, { ok: false, reason: "GOOGLE_LIST_FAILED", details: data });
 

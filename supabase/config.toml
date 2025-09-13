@@ -14,10 +14,6 @@ major_version = 15
 
 [db.pooler]
 enabled = false
-port = 54329
-pool_mode = "transaction"
-default_pool_size = 20
-max_client_conn = 100
 
 [realtime]
 enabled = true
@@ -27,38 +23,17 @@ ip_version = "ipv4"
 [studio]
 enabled = true
 port = 54324
-api_url = "http://127.0.0.1:54321"
-openai_api_key = "env(OPENAI_API_KEY)"
-
-[inbucket]
-enabled = true
-port = 54325
-smtp_port = 54326
-pop3_port = 54327
 
 [storage]
 enabled = true
 port = 54328
 file_size_limit = "50MiB"
-image_transformation = {enabled = true}
+image_transformation = { enabled = true }
 
 [auth]
 enabled = true
 port = 54329
-site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["https://127.0.0.1:3000"]
-jwt_expiry = 3600
-enable_refresh_token_rotation = true
-refresh_token_reuse_interval = 10
-enable_manual_linking = false
-password_min_length = 8
-password_required_characters = ["upper", "lower", "numeric"]
-enable_anonymous_sign_ins = false
-enable_email_confirmations = true
-enable_signup = true
-enable_password_signup = true
 
-# Core functions - only include functions that actually exist
 [functions."google-drive-auth"]
 verify_jwt = false
 
