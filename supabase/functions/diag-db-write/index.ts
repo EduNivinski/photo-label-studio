@@ -1,34 +1,28 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { upsertTokens } from "../_shared/token_provider_v2.ts";
 
-// CORS helper — aceitar sandbox do Lovable + localhost
+// CORS helper
 function corsHeaders(req: Request) {
   const origin = req.headers.get("origin") || "";
   let allowOrigin = "";
 
   try {
     const u = new URL(origin);
-    const isLovableRoot     = u.origin === "https://lovable.dev";
-    const isLovableSandbox  = u.hostname.endsWith(".sandbox.lovable.dev");
-    const isLocal3000       = u.origin === "http://localhost:3000";
-    const isLocal5173       = u.origin === "http://localhost:5173";
+    const isLovableRoot = u.origin === "https://lovable.dev";
+    const isLovableSandbox = u.hostname.endsWith(".sandbox.lovable.dev");
+    const isLocal3000 = u.origin === "http://localhost:3000";
+    const isLocal5173 = u.origin === "http://localhost:5173";
 
     if (isLovableRoot || isLovableSandbox || isLocal3000 || isLocal5173) {
-      allowOrigin = origin; // ecoa exatamente o origin da página
+      allowOrigin = origin;
     }
   } catch { /* ignore */ }
 
-  // Ecoa os headers solicitados no preflight (robusto)
-  const reqHeaders = req.headers.get("access-control-request-headers");
-  const allowHeaders = (reqHeaders && reqHeaders.trim().length > 0)
-    ? reqHeaders
-    : "authorization, content-type, apikey, x-client-info";
-
   return {
     "Access-Control-Allow-Origin": allowOrigin || "https://lovable.dev",
-    "Access-Control-Allow-Headers": allowHeaders,
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Vary": "Origin, Access-Control-Request-Headers",
+    "Vary": "Origin",
   };
 }
 
