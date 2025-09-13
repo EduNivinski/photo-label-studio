@@ -22,6 +22,9 @@ function corsHeaders(origin: string | null) {
     "Content-Type": "application/json",
   };
 }
+const json = (req: Request, status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: corsHeaders(req.headers.get("origin")) });
+
 function getBearer(req: Request): string | null {
   const a = req.headers.get("authorization");
   if (a && /^Bearer\s+/i.test(a)) return a.replace(/^Bearer\s+/i, "");
@@ -29,8 +32,6 @@ function getBearer(req: Request): string | null {
   if (b && /^Bearer\s+/i.test(b)) return b.replace(/^Bearer\s+/i, "");
   return null;
 }
-const json = (req: Request, status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: corsHeaders(req.headers.get("origin")) });
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(req.headers.get("origin")) });

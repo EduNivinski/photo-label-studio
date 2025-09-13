@@ -2,13 +2,11 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
-// --- CORS helpers ---
+// --- CORS ---
 const DEFAULT_ALLOWED = [
   "https://photo-label-studio.lovable.app",
   "http://localhost:3000",
   "http://localhost:5173",
-  // adicione seu sandbox se necessário:
-  // "https://<SEU-SANDBOX>.sandbox.lovable.dev",
 ];
 const ALLOW = new Set(
   (Deno.env.get("CORS_ALLOWED_ORIGINS")?.split(",") ?? DEFAULT_ALLOWED)
@@ -25,6 +23,9 @@ function corsHeaders(origin: string | null) {
     "Content-Type": "application/json",
   };
 }
+const json = (req: Request, status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: corsHeaders(req.headers.get("origin")) });
+
 function getBearer(req: Request): string | null {
   const a = req.headers.get("authorization");
   if (a && /^Bearer\s+/i.test(a)) return a.replace(/^Bearer\s+/i, "");
@@ -32,15 +33,12 @@ function getBearer(req: Request): string | null {
   if (b && /^Bearer\s+/i.test(b)) return b.replace(/^Bearer\s+/i, "");
   return null;
 }
-const json = (req: Request, status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: corsHeaders(req.headers.get("origin")) });
 
 serve(async (req) => {
-  // Preflight
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(req.headers.get("origin")) });
 
   try {
-    // 1) JWT manual
+    // 1) JWT manual (gateway está verify_jwt=false)
     const token = getBearer(req);
     if (!token) return json(req, 401, { ok: false, reason: "MISSING_JWT" });
 
@@ -49,10 +47,10 @@ serve(async (req) => {
     if (error || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
     const userId = user.id;
 
-    // 2) Access token do Drive (renova se necessário)
+    // 2) Access token do Drive (renova se precisar)
     const accessToken = await ensureAccessToken(userId);
 
-    // 3) Chamada Drive API (listar pastas na raiz)
+    // 3) Listar pastas na raiz
     const params = new URLSearchParams({
       fields: "files(id,name,mimeType),nextPageToken",
       supportsAllDrives: "true",

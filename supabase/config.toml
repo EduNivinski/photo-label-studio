@@ -60,17 +60,11 @@ enable_email_confirmations = true
 enable_signup = true
 enable_password_signup = true
 
-[functions."diag-db-write"]
+[functions."google-drive-auth"]
 verify_jwt = false
-
-[functions."diag-drive-audit"]
-verify_jwt = true
 
 [functions."diag-scopes"]
 verify_jwt = true
-
-[functions."google-drive-auth"]
-verify_jwt = false
 
 [functions."diag-list-root"]
 verify_jwt = false
@@ -78,5 +72,11 @@ verify_jwt = false
 [functions."diag-list-folder"]
 verify_jwt = false
 
+[functions."diag-drive-audit"]
+verify_jwt = true
+
 [functions."security-log"]
+verify_jwt = false
+
+[functions."diag-db-write"]
 verify_jwt = false
