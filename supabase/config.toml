@@ -109,8 +109,6 @@ verify_jwt = true
 [functions."gdrive-cb"]
 verify_jwt = false
 
-[functions."google-drive-reset"]
-verify_jwt = true
 
 [functions."google-drive-oauth-callback"]
 verify_jwt = false
