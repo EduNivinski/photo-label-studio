@@ -62,16 +62,10 @@ enable_password_signup = true
 [functions."google-drive-auth"]
 verify_jwt = false
 
-[functions."google-drive-oauth-callback"]
-verify_jwt = false
-
 [functions."diag-list-root"]
 verify_jwt = false
 
 [functions."diag-list-folder"]
-verify_jwt = false
-
-[functions."diag-list-shared-drive"]
 verify_jwt = false
 
 [functions."diag-scopes"]
