@@ -49,11 +49,9 @@ serve(async (req) => {
     try {
       accessToken = await ensureAccessToken(userId);
     } catch (e: any) {
-      const msg = (e?.message || "").toUpperCase();
-      if (msg.includes("UNAUTHORIZED_AFTER_REFRESH") || msg.includes("INVALID_GRANT") || msg.includes("MISSING_REFRESH_TOKEN")) {
-        return json(req, 401, { ok: false, reason: "NEEDS_RECONSENT" });
-      }
-      throw e;
+      const m = (e?.message || "").toUpperCase();
+      if (m.includes("NEEDS_RECONSENT")) return json(req, 401, { ok: false, reason: "NEEDS_RECONSENT" });
+      return json(req, 500, { ok: false, reason: "INTERNAL", detail: e?.message });
     }
 
     const { folderId, pageToken } = await req.json().catch(() => ({}));

@@ -39,6 +39,20 @@ async function decryptPacked(encB64: string): Promise<string> {
 }
 
 // Main token management functions
+export async function getUserTokensRow(userId: string): Promise<{
+  access_token_enc: string;
+  refresh_token_enc: string;
+  scope: string;
+  expires_at: string;
+} | null> {
+  const { data } = await admin
+    .from("user_drive_tokens")
+    .select("access_token_enc, refresh_token_enc, scope, expires_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data;
+}
+
 export async function upsertTokens(
   userId: string,
   accessToken: string,
@@ -46,19 +60,18 @@ export async function upsertTokens(
   scope: string,
   expiresAt: string
 ): Promise<void> {
-  const { data: existing } = await admin
-    .from("user_drive_tokens")
-    .select("refresh_token_enc")
-    .eq("user_id", userId)
-    .maybeSingle();
+  // Get existing tokens to preserve refresh_token if not provided
+  const existing = await getUserTokensRow(userId);
+  const oldRefresh = existing ? await decryptPacked(existing.refresh_token_enc).catch(() => null) : null;
+  const finalRefresh = refreshToken && refreshToken.trim() ? refreshToken : oldRefresh;
 
-  const finalRefresh =
-    refreshToken ?? (existing?.refresh_token_enc
-      ? await decryptPacked(existing.refresh_token_enc).catch(() => null)
-      : null);
+  // Never save null refresh_token
+  if (!finalRefresh) {
+    throw new Error("No refresh token available");
+  }
 
   const access_token_enc = await encryptPacked(accessToken);
-  const refresh_token_enc = finalRefresh ? await encryptPacked(finalRefresh) : "";
+  const refresh_token_enc = await encryptPacked(finalRefresh);
 
   await admin.from("user_drive_tokens").upsert({
     user_id: userId,
@@ -167,57 +180,53 @@ export async function refreshAccessToken(userId: string): Promise<string> {
   }
 }
 
-export async function ensureAccessToken(userId: string): Promise<
-  | { ok: true; accessToken: string }
-  | { ok: false; reason: string }
-> {
+export async function ensureAccessToken(userId: string): Promise<string> {
+  // Always SELECT by user_id (unique key), no ordering by updated_at
   const { data: row } = await admin
     .from("user_drive_tokens")
-    .select("access_token_enc, refresh_token_enc, expires_at")
+    .select("access_token_enc, refresh_token_enc, expires_at, scope")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!row) return { ok: false, reason: "NO_TOKENS" };
+  if (!row) throw new Error("NO_TOKENS");
 
-  const now = Date.now();
-  const exp = new Date(row.expires_at).getTime();
-  const skewMs = 30_000;
-  if (exp - now > skewMs && row.access_token_enc) {
-    return { ok: true, accessToken: await decryptPacked(row.access_token_enc) };
+  // Convert expires_at to number and check if still valid
+  const ttl = new Date(row.expires_at).getTime() - Date.now();
+  if (ttl > 60_000 && row.access_token_enc) {
+    return await decryptPacked(row.access_token_enc);
   }
 
-  const refresh = row.refresh_token_enc
+  // Need to refresh
+  const finalRefreshToken = row.refresh_token_enc
     ? await decryptPacked(row.refresh_token_enc).catch(() => "")
     : "";
-  if (!refresh) return { ok: false, reason: "NO_REFRESH_TOKEN" };
+  if (!finalRefreshToken) throw new Error("NO_REFRESH_TOKEN");
 
-  const clientId = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!;
-  const clientSecret = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!;
-
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
+  // Refresh request
+  const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: refresh,
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
+      client_secret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
+      refresh_token: finalRefreshToken,
     }),
   });
 
-  const json = await resp.json().catch(() => ({}));
-  if (!resp.ok || !json.access_token) {
-    return { ok: false, reason: `OAUTH_REFRESH_FAILED:${json.error || resp.status}` };
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = String(j.error || j.error_description || "invalid_grant").toUpperCase();
+    throw new Error(msg.includes("GRANT") || msg.includes("UNAUTHORIZED") ? "NEEDS_RECONSENT" : "REFRESH_FAILED");
   }
 
-  const newAccess = json.access_token as string;
-  const newRefresh = (json.refresh_token as string | undefined) ?? refresh;
-  const expiresIn = (json.expires_in as number | undefined) ?? 3600;
-  const newExp = new Date(Date.now() + (Math.max(expiresIn - 60, 60)) * 1000).toISOString();
-  const scopeStr = (json.scope as string | undefined) ?? "";
-
-  await upsertTokens(userId, newAccess, newRefresh, scopeStr, newExp);
-  return { ok: true, accessToken: newAccess };
+  const newAccess = j.access_token as string;
+  const newExp = Date.now() + Math.max(0, (j.expires_in ?? 3600) - 60) * 1000;
+  const scopeFromRow = row.scope || "";
+  
+  // Update tokens (refresh stays the same unless Google sends a new one)
+  await upsertTokens(userId, newAccess, finalRefreshToken, scopeFromRow, new Date(newExp).toISOString());
+  return newAccess;
 }
 
 export async function getExistingTokenRow(userId: string): Promise<{
