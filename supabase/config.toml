@@ -1,5 +1,5 @@
 project_id = "tcupxcxyylxfgsbhfdhw"
-# Clean config - removed all phantom functions
+# Ultra minimal config - only confirmed core functions
 
 [api]
 enabled = true
@@ -60,14 +60,7 @@ enable_email_confirmations = true
 enable_signup = true
 enable_password_signup = true
 
-
 [functions.google-drive-auth]
-verify_jwt = false
-
-[functions.google-drive-api]
-verify_jwt = true
-
-[functions."google-drive-oauth-callback"]
 verify_jwt = false
 
 [functions."diag-list-root"]
