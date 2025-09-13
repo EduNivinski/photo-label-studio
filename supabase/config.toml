@@ -73,3 +73,6 @@ verify_jwt = true
 
 [functions."diag-user-tokens"]
 verify_jwt = true
+
+[functions."diag-env"]
+verify_jwt = false
