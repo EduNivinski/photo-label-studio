@@ -34,6 +34,48 @@ function getBearer(req: Request): string | null {
   return null;
 }
 
+// Helper para extrair action do query ou body
+async function getAction(req: Request, url: URL): Promise<string> {
+  // 1) tenta query string
+  const q = url.searchParams.get("action");
+  if (q) return q;
+
+  // 2) tenta body JSON (sem quebrar req.json() futuro)
+  if (req.method !== "GET") {
+    try {
+      const ct = req.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        const data = await req.json();
+        return (data && typeof data.action === "string") ? data.action : "";
+      }
+    } catch (_) { /* ignore */ }
+  }
+  return "";
+}
+
+async function handleStatus(req: Request, userId: string) {
+  try {
+    const token = await ensureAccessToken(userId);
+    if (!token) throw new Error("NO_ACCESS_TOKEN");
+
+    return json(req, 200, {
+      ok: true,
+      connected: true,
+      hasConnection: true,
+      isExpired: false
+    });
+  } catch (e: any) {
+    const reason = (e?.message || "").toUpperCase();
+    return json(req, 200, {
+      ok: true,
+      connected: false,
+      hasConnection: false,
+      isExpired: true,
+      reason: reason || "EXPIRED_OR_INVALID"
+    });
+  }
+}
+
 async function handleCallback(req: Request, url: URL) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -187,113 +229,69 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   return json(req, 200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
 }
 
-serve(async (req) => {
-  // CORS
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(req) });
+async function getUserIdFromJwt(req: Request): Promise<string | null> {
+  const jwt = getBearer(req);
+  if (!jwt) return null;
+  
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: { user }, error } = await admin.auth.getUser(jwt);
+  return error || !user ? null : user.id;
+}
+
+serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
+  
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders(req) });
+  }
 
   const url = new URL(req.url);
   const pathname = url.pathname || "";
-
-  // 1) CALLBACK do Google (sem JWT)
+  
+  // callback não é tratado aqui
   if (pathname.endsWith("/callback")) {
     return await handleCallback(req, url);
   }
 
-  // 2) Demais rotas: exigem POST; GET pode responder um ping
-  if (req.method !== "POST") {
-    return json(req, 200, { ok: true, message: "google-drive-auth ready" });
-  }
+  const action = await getAction(req, url);
+  console.log("[google-drive-auth] action:", action);
 
-  const body = await req.json().catch(() => ({}));
-  const action = body?.action;
-
-  // Helper pra extrair JWT e user_id
-  const auth = req.headers.get("authorization") || "";
-  const jwt = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-  // 3) ACTIONS
   try {
-    switch (action) {
-      case "authorize": {
-        if (!jwt) return json(req, 401, { ok: false, error: "Missing authorization token" });
-        const { data: { user }, error } = await admin.auth.getUser(jwt);
-        if (error || !user) return json(req, 401, { ok: false, error: "Invalid token" });
-        return await handleAuthorize(req, user.id, url);
-      }
-
-      case "status": {
-        // 3.a) validar usuário
-        if (!jwt) return json(req, 200, { ok: true, connected: false });
-        const { data: gu, error: eUser } = await admin.auth.getUser(jwt);
-        const userId = gu?.user?.id;
-        if (eUser || !userId) return json(req, 200, { ok: true, connected: false });
-
-        // 3.b) ler registro do usuário (tabela onde tokens são salvos)
-        const svc = admin; // usa service role
-        const { data: row, error: eRow } = await svc
-          .from("user_drive_tokens")            // use o MESMO nome que vocês já usam
-          .select("dedicated_folder_id, dedicated_folder_name")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (eRow) return json(req, 200, { ok: true, connected: false });
-
-        // 3.c) se não há registro -> desconectado
-        if (!row) return json(req, 200, { ok: true, connected: false });
-
-        // 3.d) validar/renovar access token do Google
-        try {
-          // sua ensureAccessToken EXISTENTE (retorna string ou lança erro)
-          await ensureAccessToken(userId);
-        } catch (e: any) {
-          const msg = (e?.message || "").toUpperCase();
-          // padronizar o motivo (sem 401 aqui; status deve ser 200 com connected:false)
-          const reason =
-            msg.includes("NEEDS_RECONSENT") ? "NEEDS_RECONSENT" :
-            msg.includes("NO_ACCESS_TOKEN") ? "TOKEN_INVALID" :
-            "EXPIRED_OR_INVALID";
-          return json(req, 200, { ok: true, connected: false, reason });
-        }
-
-        // 3.e) conectado
-        return json(req, 200, {
-          ok: true,
-          connected: true,
-          dedicatedFolderId: row.dedicated_folder_id ?? null,
-          dedicatedFolderName: row.dedicated_folder_name ?? null,
-        });
-      }
-
-      case "setFolder": {
-        if (!jwt) return json(req, 401, { ok: false, reason: "MISSING_AUTH" });
-        const { data: { user }, error: eUser } = await admin.auth.getUser(jwt);
-        if (eUser || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
-
-        const { folderId, folderName } = body || {};
-        if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
-
-        const userId = user.id;
-
-        const { error: eUpd } = await admin
-          .from("user_drive_tokens")
-          .update({
-            dedicated_folder_id: folderId,
-            dedicated_folder_name: folderName ?? null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("user_id", userId);
-
-        if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
-
-        return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
-      }
-
-      default:
-        return json(req, 400, { ok: false, reason: "UNKNOWN_ACTION" });
+    if (action === "callback") {
+      return json(req, 400, { ok: false, reason: "CALLBACK_IS_EXTERNAL" });
     }
+
+    // valida JWT manualmente (já que verify_jwt=false no config)
+    const userId = await getUserIdFromJwt(req);
+    if (!userId && action !== "") {
+      return json(req, 401, { ok: false, reason: "INVALID_JWT" });
+    }
+
+    if (action === "status") return await handleStatus(req, userId!);
+    if (action === "authorize") return await handleAuthorize(req, userId!, url);
+    if (action === "setFolder") {
+      const body = await req.json().catch(() => ({}));
+      const { folderId, folderName } = body || {};
+      if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+
+      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { error: eUpd } = await admin
+        .from("user_drive_tokens")
+        .update({
+          dedicated_folder_id: folderId,
+          dedicated_folder_name: folderName ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
+      return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
+    }
+
+    // default (quando sem action)
+    return json(req, 200, { ok: true, message: "google-drive-auth ready" });
   } catch (e: any) {
-    console.error("google-drive-auth error:", e?.message);
-    return json(req, 500, { ok: false, error: e?.message || "Internal error" });
+    console.error("google-drive-auth error:", e?.message || e);
+    return json(req, 500, { ok: false, reason: "INTERNAL_ERROR" });
   }
 });
