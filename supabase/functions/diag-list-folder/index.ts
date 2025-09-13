@@ -45,7 +45,16 @@ serve(async (req) => {
     if (error || !user) return json(req, 401, { ok: false, reason: "INVALID_JWT" });
     const userId = user.id;
 
-    const accessToken = await ensureAccessToken(userId);
+    let accessToken;
+    try {
+      accessToken = await ensureAccessToken(userId);
+    } catch (e: any) {
+      const msg = (e?.message || "").toUpperCase();
+      if (msg.includes("UNAUTHORIZED_AFTER_REFRESH") || msg.includes("INVALID_GRANT") || msg.includes("MISSING_REFRESH_TOKEN")) {
+        return json(req, 401, { ok: false, reason: "NEEDS_RECONSENT" });
+      }
+      throw e;
+    }
 
     const { folderId, pageToken } = await req.json().catch(() => ({}));
     if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });

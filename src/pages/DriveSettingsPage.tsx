@@ -100,6 +100,32 @@ export default function DriveSettingsPage() {
     }
   }, [toast]);
 
+  const reconnectHard = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      const { data } = await supabase.functions.invoke("google-drive-auth", {
+        body: { action: "authorize", redirect: window.location.origin + "/settings/drive", forceConsent: true }
+      });
+      const url = data?.authorizeUrl;
+      if (url) {
+        window.open(url, "_blank", "width=520,height=720");
+        toast({
+          title: "Reconectando...",
+          description: "Você será redirecionado para reconectar com novas permissões",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Erro",
+        description: "Falha ao iniciar processo de reconexão",
+        variant: "destructive",
+      });
+    } finally {
+      setTimeout(() => (busyRef.current = false), 500);
+    }
+  }, [toast]);
+
   const disconnect = useCallback(async () => {
     setLoading(true);
     try {
@@ -248,6 +274,16 @@ export default function DriveSettingsPage() {
             >
               {(loading || busyRef.current) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
               {(status as any).connected ? 'Reconectar' : 'Conectar'}
+            </Button>
+            
+            <Button
+              onClick={reconnectHard}
+              variant="outline"
+              disabled={loading || busyRef.current}
+              className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+            >
+              {(loading || busyRef.current) ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Reconectar com permissões
             </Button>
             
             <Button

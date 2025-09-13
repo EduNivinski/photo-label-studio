@@ -48,7 +48,16 @@ serve(async (req) => {
     const userId = user.id;
 
     // 2) Access token do Drive (renova se precisar)
-    const accessToken = await ensureAccessToken(userId);
+    let accessToken;
+    try {
+      accessToken = await ensureAccessToken(userId);
+    } catch (e: any) {
+      const msg = (e?.message || "").toUpperCase();
+      if (msg.includes("UNAUTHORIZED_AFTER_REFRESH") || msg.includes("INVALID_GRANT") || msg.includes("MISSING_REFRESH_TOKEN")) {
+        return json(req, 401, { ok: false, reason: "NEEDS_RECONSENT" });
+      }
+      throw e;
+    }
 
     // 3) Listar pastas na raiz
     const params = new URLSearchParams({
