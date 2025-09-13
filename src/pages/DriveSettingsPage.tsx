@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Cloud, Folder, Unplug, RefreshCw, Settings, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import FolderPickerModal from "@/components/Drive/FolderPickerModal";
 
 type DriveStatus =
   | { ok: true; connected: true }
@@ -17,6 +18,8 @@ export default function DriveSettingsPage() {
   const [status, setStatus] = useState<DriveStatus>({ ok: true, connected: false });
   const [loading, setLoading] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<{ id: string; name: string } | null>(null);
   const [currentFolder, setCurrentFolder] = useState<{ id: string; name: string }>({ id: "root", name: "Meu Drive" });
   const [items, setItems] = useState<FileItem[]>([]);
   const busyRef = useRef(false);
@@ -114,34 +117,17 @@ export default function DriveSettingsPage() {
     }
   }, [fetchStatus, toast]);
 
-  const openPicker = useCallback(async (folderId = currentFolder.id, folderName = currentFolder.name) => {
-    setPicking(true);
-    setCurrentFolder({ id: folderId, name: folderName });
-    try {
-      const { data, error } = await supabase.functions.invoke("diag-list-folder", { body: { folderId } });
-      if (!error && data?.files) {
-        setItems(data.files as FileItem[]);
-        toast({
-          title: "Pasta carregada",
-          description: `Conteúdo de "${folderName}" carregado com sucesso`,
-        });
-      } else {
-        toast({
-          title: "Erro",
-          description: "Falha ao carregar conteúdo da pasta",
-          variant: "destructive",
-        });
-      }
-    } catch (e) {
-      toast({
-        title: "Erro",
-        description: "Falha ao listar arquivos da pasta",
-        variant: "destructive",
-      });
-    } finally {
-      setPicking(false);
-    }
-  }, [currentFolder.id, currentFolder.name, toast]);
+  const openFolderPicker = useCallback(() => {
+    setShowFolderPicker(true);
+  }, []);
+
+  const handleFolderSelected = useCallback((folder: { id: string; name: string }) => {
+    setSelectedFolder(folder);
+    toast({
+      title: "Pasta selecionada",
+      description: `Pasta "${folder.name}" selecionada com sucesso`,
+    });
+  }, [toast]);
 
   useEffect(() => {
     fetchStatus();
@@ -262,12 +248,12 @@ export default function DriveSettingsPage() {
             </Button>
             
             <Button
-              onClick={() => openPicker("root", "Meu Drive")}
+              onClick={openFolderPicker}
               variant="outline"
-              disabled={!status.ok || !(status as any).connected || picking}
+              disabled={!status.ok || !(status as any).connected}
               className="flex items-center gap-2"
             >
-              {picking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Folder className="h-4 w-4" />}
+              <Folder className="h-4 w-4" />
               Escolher Pasta
             </Button>
             
@@ -284,84 +270,38 @@ export default function DriveSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Gerenciamento de Pastas */}
-      {(status.ok && (status as any).connected) && (
+      {/* Pasta Selecionada */}
+      {selectedFolder && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Folder className="h-5 w-5" />
-              Gerenciamento de Pastas
+              Pasta Selecionada
             </CardTitle>
             <CardDescription>
-              Navegue e selecione pastas do seu Google Drive
+              Pasta configurada para integração
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
               <div className="flex items-center gap-2">
-                <Folder className="h-4 w-4" />
-                <span className="text-sm font-medium">Pasta atual:</span>
+                <Folder className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium">{selectedFolder.name}</span>
               </div>
               <Badge variant="outline" className="text-xs">
-                {currentFolder.name}
+                ID: {selectedFolder.id}
               </Badge>
-            </div>
-
-            <div className="space-y-2">
-              <Button
-                onClick={() => openPicker("root", "Meu Drive")}
-                variant="link"
-                className="text-sm p-0 h-auto"
-                disabled={picking}
-              >
-                📁 Ir para raiz (Meu Drive)
-              </Button>
-              
-              {picking ? (
-                <div className="flex items-center gap-2 p-4 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Carregando conteúdo da pasta...</span>
-                </div>
-              ) : (
-                <div className="border rounded-lg">
-                  {items.length === 0 ? (
-                    <div className="p-4 text-center text-muted-foreground text-sm">
-                      Pasta vazia ou erro ao carregar
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {items.map(item => (
-                        <div key={item.id} className="p-3 flex items-center justify-between hover:bg-muted/50">
-                          <div className="flex items-center gap-2">
-                            {item.mimeType === "application/vnd.google-apps.folder" ? (
-                              <Folder className="h-4 w-4 text-blue-500" />
-                            ) : (
-                              <div className="h-4 w-4 bg-gray-300 rounded" />
-                            )}
-                            <span className="text-sm font-medium">{item.name}</span>
-                          </div>
-                          {item.mimeType === "application/vnd.google-apps.folder" ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openPicker(item.id, item.name)}
-                              className="text-xs"
-                            >
-                              Abrir pasta
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">arquivo</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Modal do Folder Picker */}
+      <FolderPickerModal
+        open={showFolderPicker}
+        onClose={() => setShowFolderPicker(false)}
+        onPicked={handleFolderSelected}
+      />
     </div>
   );
 }
