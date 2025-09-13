@@ -445,7 +445,7 @@ export function useSupabaseData() {
     };
   }, []);
 
-  console.log('useSupabaseData: applyLabelsToPhotos function defined:', typeof applyLabelsToPhotos);
+  
   
   return {
     photos,

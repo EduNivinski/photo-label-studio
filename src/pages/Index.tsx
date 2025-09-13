@@ -36,7 +36,7 @@ import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
 
 const Index = () => {
-  console.log('Index component rendered - no currentView references');
+  
   const {
     photos,
     labels,
