@@ -276,8 +276,9 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   const state = btoa(JSON.stringify({ userId, r: redirect }));
 
   const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID");
-  const REDIRECT_URI = Deno.env.get("GOOGLE_REDIRECT_URI");
-  if (!CLIENT_ID || !REDIRECT_URI) return json(req, 500, { ok:false, error: "Missing Google OAuth configuration" });
+  const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
+  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
+  if (!CLIENT_ID) return json(req, 500, { ok:false, error: "Missing Google OAuth client id" });
 
   const SCOPE = [
     "https://www.googleapis.com/auth/drive.file",
