@@ -82,7 +82,7 @@ export default function GoogleDriveIntegration() {
 
   const getStatusState = useCallback(() => {
     if (loading) return "checking";
-    if (!status.isConnected) return "disconnected";
+    if (!status.isConnected) return "disconnected"; 
     if (status.isExpired) return "error";
     return "connected";
   }, [loading, status.isConnected, status.isExpired]);
