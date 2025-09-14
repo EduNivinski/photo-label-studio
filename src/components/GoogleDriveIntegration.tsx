@@ -20,11 +20,55 @@ export default function GoogleDriveIntegration() {
     await disconnect();
   };
 
+  const handleReconnect = async () => {
+    try {
+      const { data } = await supabase.functions.invoke("google-drive-auth", {
+        body: { 
+          action: "authorize", 
+          redirect: window.location.origin + "/settings/drive" 
+        }
+      });
+      const url = data?.authorizeUrl;
+      if (url) {
+        window.open(url, "_blank", "width=520,height=720");
+        toast({
+          title: "Redirecionando...",
+          description: "Você será redirecionado para autorizar o Google Drive",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: `Erro ao reconectar: ${e?.message || e}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleReconnectWithPermissions = async () => {
-    await disconnect();
-    setTimeout(() => {
-      handleConnect();
-    }, 1000);
+    try {
+      const { data } = await supabase.functions.invoke("google-drive-auth", {
+        body: { 
+          action: "authorize", 
+          redirect: window.location.origin + "/settings/drive", 
+          forceConsent: true 
+        }
+      });
+      const url = data?.authorizeUrl;
+      if (url) {
+        window.open(url, "_blank", "width=520,height=720");
+        toast({
+          title: "Reconectando...",
+          description: "Você será redirecionado para reconectar com novas permissões",
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: `Falha ao iniciar processo de reconexão: ${e?.message || e}`,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleFolderSelected = useCallback((folder: { id: string; name: string }) => {
@@ -111,7 +155,7 @@ export default function GoogleDriveIntegration() {
         state={getStatusState()}
         dedicatedFolderPath={buildFolderPath()}
         onCheck={checkStatus}
-        onReconnect={status.isConnected ? handleReconnectWithPermissions : handleConnect}
+        onReconnect={handleReconnect}
         onReconnectWithConsent={handleReconnectWithPermissions}
         onDisconnect={handleDisconnect}
         onChooseFolder={() => setShowFolderBrowser(true)}
