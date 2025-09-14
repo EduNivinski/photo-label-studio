@@ -253,6 +253,9 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   });
 
   const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  return json(req, 200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
+}
+
 async function handleSetFolder(req: Request, userId: string, body: any) {
   try {
     const folderId = body?.folderId?.toString?.() || "";
