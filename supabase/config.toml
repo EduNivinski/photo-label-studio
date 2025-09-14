@@ -37,6 +37,9 @@ port = 54329
 [functions."google-drive-auth"]
 verify_jwt = false
 
+[functions."google-drive-oauth-callback"]
+verify_jwt = false
+
 [functions."diag-list-root"]
 verify_jwt = false
 
