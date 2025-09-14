@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useDriveBrowser } from "@/hooks/useDriveBrowser";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Folder, ArrowLeft, MoreHorizontal, AlertCircle } from "lucide-react";
+import { Folder, ArrowLeft, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,13 +11,9 @@ interface DriveBrowserProps {
 }
 
 export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
-  const { current, items, next, loading, err, list, enter, back } = useDriveBrowser();
+  const { current, items, loading, error, canGoBack, openFolder, goBack } = useDriveBrowser();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => { 
-    list(true); 
-  }, [current]);
 
   const onSelectFolder = async (folder: { id: string; name: string }) => {
     try {
@@ -51,10 +47,7 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
   };
 
   const handleSelectCurrentFolder = async () => {
-    const currentFolderName = current === "root" ? "Meu Drive" : 
-                             items.find(item => item.id === current)?.name || "Pasta atual";
-    
-    await onSelectFolder({ id: current, name: currentFolderName });
+    await onSelectFolder({ id: current.id, name: current.name });
   };
 
   const handleReconnect = async () => {
@@ -90,8 +83,8 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
         {/* Navigation Bar */}
         <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
           <Button 
-            onClick={back} 
-            disabled={current === "root"} 
+            onClick={goBack} 
+            disabled={!canGoBack} 
             variant="outline" 
             size="sm"
           >
@@ -99,7 +92,7 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
             Voltar
           </Button>
           <div className="text-sm text-muted-foreground flex-1">
-            📁 {current === "root" ? "Meu Drive" : current}
+            📁 {current.name}
           </div>
           <Button
             onClick={handleSelectCurrentFolder}
@@ -112,7 +105,7 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
         </div>
 
         {/* Error States */}
-        {err === "NEEDS_RECONSENT" && (
+        {error === "NEEDS_RECONSENT" && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
@@ -134,9 +127,9 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
           </div>
         )}
 
-        {err && err !== "NEEDS_RECONSENT" && (
+        {error && error !== "NEEDS_RECONSENT" && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-800">Erro: {err}</p>
+            <p className="text-sm text-red-800">Erro: {error}</p>
           </div>
         )}
 
@@ -148,7 +141,7 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
         )}
 
         {/* Folder List */}
-        {!loading && !err && (
+        {!loading && !error && (
           <div className="border rounded-md">
             {items.length === 0 ? (
               <div className="p-6 text-center">
@@ -170,7 +163,7 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
-                        onClick={() => enter(folder.id)}
+                        onClick={() => openFolder(folder.id, folder.name)}
                         variant="outline"
                         size="sm"
                       >
@@ -189,19 +182,6 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Load More */}
-        {next && !loading && (
-          <div className="flex justify-center">
-            <Button 
-              onClick={() => list(false)} 
-              variant="outline"
-            >
-              <MoreHorizontal className="h-4 w-4 mr-1" />
-              Carregar mais
-            </Button>
           </div>
         )}
       </CardContent>

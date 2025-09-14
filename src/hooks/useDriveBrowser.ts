@@ -1,77 +1,79 @@
-import { useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export function useDriveBrowser() {
-  const [stack, setStack] = useState<string[]>(["root"]); // pilha de folderIds
-  const [items, setItems] = useState<any[]>([]);
-  const [next, setNext] = useState<string|null>(null);
+export type DriveItem = { id: string; name: string; mimeType: string; trashed?: boolean };
+
+type ListFn = (folderId: string) => Promise<{ ok: boolean; items: DriveItem[]; error?: any }>;
+
+// função que chama a edge function
+async function listFolderViaEdge(folderId: string) {
+  const fn = folderId === "root" ? "diag-list-root" : "diag-list-folder";
+  const payload = folderId === "root" ? undefined : { body: { folderId } };
+  const r = await supabase.functions.invoke(fn, payload as any);
+  if (r.error) return { ok: false, items: [], error: r.error };
+  const rows: DriveItem[] = (r.data?.files || []).filter((it: any) => it && it.name);
+  return { ok: true, items: rows };
+}
+
+export function useDriveBrowser(listFolder: ListFn = listFolderViaEdge) {
+  // Breadcrumb: cada elemento é { id, name }
+  const [path, setPath] = useState<{ id: string; name: string }[]>([{ id: "root", name: "Meu Drive" }]);
+  const [items, setItems] = useState<DriveItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string|null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const current = stack[stack.length - 1];
+  const current = path[path.length - 1];
+  const canGoBack = path.length > 1;
 
-  const list = useCallback(async (reset = true) => {
-    setLoading(true); setErr(null);
+  const load = useCallback(async (folderId: string) => {
+    setLoading(true); 
+    setError(null);
     try {
-      const tok = (await supabase.auth.getSession()).data.session?.access_token;
-      const url = current === "root"
-        ? "/functions/v1/diag-list-root"
-        : "/functions/v1/diag-list-folder";
-
-      const body = current === "root"
-        ? (next && !reset ? { pageToken: next } : {})
-        : ({ folderId: current, ...(next && !reset ? { pageToken: next } : {}) });
-
-      const r = await fetch(`https://tcupxcxyylxfgsbhfdhw.supabase.co${url}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const txt = await r.text();
-      const data = (() => { try { return JSON.parse(txt); } catch { return {}; } })();
-
-      if (r.status === 401) {
-        setErr(data?.reason || "UNAUTHORIZED");
-        setItems([]); setNext(null);
-        return;
-      }
-      if (!r.ok || !data?.ok) {
-        setErr(data?.reason || "LIST_FAILED");
-        setItems([]); setNext(null);
-        return;
-      }
-
-      const folders = (data.files || []).filter((f: any) => f.mimeType === "application/vnd.google-apps.folder");
-      setItems(reset ? folders : [...items, ...folders]);
-      setNext(data.nextPageToken ?? null);
+      const r = await listFolder(folderId);
+      if (!r.ok) throw new Error(r.error?.message || "LIST_FAILED");
+      setItems(r.items || []);
+    } catch (e: any) {
+      setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
-  }, [current, next, items]);
+  }, [listFolder]);
 
-  const enter = useCallback((folderId: string) => {
-    setStack((s) => [...s, folderId]);
-    setNext(null);
+  // inicial: root
+  useEffect(() => { 
+    load("root"); 
+    // eslint-disable-next-line 
   }, []);
 
-  const back = useCallback(() => {
-    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
-    setNext(null);
-  }, []);
+  const openFolder = useCallback(async (id: string, name: string) => {
+    // empilha no breadcrumb
+    setPath(p => [...p, { id, name }]);
+    await load(id);
+  }, [load]);
 
-  const selectHere = useCallback(async (folderId: string, folderName?: string) => {
-    const tok = (await supabase.auth.getSession()).data.session?.access_token;
-    const r = await fetch(`https://tcupxcxyylxfgsbhfdhw.supabase.co/functions/v1/google-drive-auth`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "setFolder", folderId, folderName }),
-    });
-    if (!r.ok) {
-      const t = await r.text();
-      throw new Error(`setFolder failed: ${t}`);
+  const goBack = useCallback(async () => {
+    if (path.length > 1) {
+      const newPath = path.slice(0, -1);
+      setPath(newPath);
+      await load(newPath[newPath.length - 1].id);
     }
-  }, []);
+  }, [path, load]);
 
-  return { current, items, next, loading, err, list, enter, back, selectHere };
+  const goToCrumb = useCallback(async (index: number) => {
+    const newPath = path.slice(0, index + 1);
+    setPath(newPath);
+    await load(newPath[newPath.length - 1].id);
+  }, [path, load]);
+
+  return { 
+    path, 
+    current, 
+    items, 
+    loading, 
+    error, 
+    canGoBack, 
+    openFolder, 
+    goBack, 
+    goToCrumb 
+  };
 }
