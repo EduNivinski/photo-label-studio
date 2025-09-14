@@ -34,8 +34,38 @@ function getBearer(req: Request): string | null {
   return null;
 }
 
+// Helper: resolver o caminho completo no Google Drive
+async function resolveDrivePath(accessToken: string, startId: string): Promise<{ id: string, name: string }[]> {
+  const chain: { id: string, name: string }[] = [];
+  let cur = startId;
+  const base = "https://www.googleapis.com/drive/v3/files";
+  const params = "fields=id,name,parents,mimeType&supportsAllDrives=true&includeItemsFromAllDrives=true";
+
+  for (let i = 0; i < 20; i++) {
+    const r = await fetch(`${base}/${encodeURIComponent(cur)}?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(`PATH_LOOKUP_FAILED:${j?.error?.message || r.status}`);
+
+    chain.push({ id: j.id, name: j.name || "Sem nome" });
+
+    const parents: string[] = Array.isArray(j.parents) ? j.parents : [];
+    const parent = parents[0];
+    if (!parent || parent === "root") break; // chegou ao root do Meu Drive
+    cur = parent;
+  }
+
+  chain.reverse(); // do root -> filho
+  // Prefixo amigável
+  if (!chain.length || chain[0].name !== "Meu Drive") {
+    chain.unshift({ id: "root", name: "Meu Drive" });
+  }
+  return chain;
+}
+
 // Helper functions for user_drive_settings
-async function upsertUserDriveSettings(userId: string, folderId: string, folderName: string) {
+async function upsertUserDriveSettings(userId: string, folderId: string, folderName: string, folderPath: string) {
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -46,6 +76,7 @@ async function upsertUserDriveSettings(userId: string, folderId: string, folderN
       user_id: userId,
       drive_folder_id: folderId,
       drive_folder_name: folderName,
+      drive_folder_path: folderPath,
       updated_at: new Date().toISOString()
     }, { onConflict: "user_id" });
 
@@ -59,7 +90,7 @@ async function getUserDriveSettings(userId: string) {
   );
   const { data, error } = await admin
     .from("user_drive_settings")
-    .select("drive_folder_id, drive_folder_name")
+    .select("drive_folder_id, drive_folder_name, drive_folder_path")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(`DB_GET_SETTINGS: ${error.message}`);
@@ -86,9 +117,10 @@ async function getAction(req: Request, url: URL): Promise<string> {
 }
 
 async function handleStatus(req: Request, userId: string) {
+  const settings = await getUserDriveSettings(userId); // pode ser null
   try {
-    const token = await ensureAccessToken(userId);
-    const settings = await getUserDriveSettings(userId);
+    const token = await ensureAccessToken(userId); // lança se inválido
+    if (!token) throw new Error("NO_ACCESS_TOKEN");
     return json(req, 200, {
       ok: true,
       connected: true,
@@ -96,10 +128,21 @@ async function handleStatus(req: Request, userId: string) {
       isExpired: false,
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       dedicatedFolderName: settings?.drive_folder_name ?? null,
+      dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null)
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
-    return json(req, 200, { ok: true, connected: false, hasConnection: false, isExpired: true, reason: reason || "EXPIRED_OR_INVALID" });
+    return json(req, 200, {
+      ok: true,
+      connected: false,
+      hasConnection: false,
+      isExpired: true,
+      reason: reason || "EXPIRED_OR_INVALID",
+      // 🔎 Ainda assim devolvemos o caminho salvo
+      dedicatedFolderId: settings?.drive_folder_id ?? null,
+      dedicatedFolderName: settings?.drive_folder_name ?? null,
+      dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null)
+    });
   }
 }
 
@@ -262,27 +305,31 @@ async function handleSetFolder(req: Request, userId: string, body: any) {
     const folderNameIn = body?.folderName?.toString?.() || "";
     if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
 
-    // ✅ Validar que é uma pasta válida no Drive
     const accessToken = await ensureAccessToken(userId);
+
+    // valida se é pasta
     const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` }
     });
     const meta = await metaRes.json().catch(() => ({}));
-    if (!metaRes.ok) {
-      return json(req, 400, { ok: false, reason: "FOLDER_LOOKUP_FAILED", details: meta });
-    }
+    if (!metaRes.ok) return json(req, 400, { ok: false, reason: "FOLDER_LOOKUP_FAILED", details: meta });
     if (meta.trashed) return json(req, 400, { ok: false, reason: "FOLDER_TRASHED" });
     if (meta.mimeType !== "application/vnd.google-apps.folder") {
       return json(req, 400, { ok: false, reason: "NOT_A_FOLDER" });
     }
 
-    const finalName = folderNameIn || meta.name || "Pasta sem nome";
-    await upsertUserDriveSettings(userId, folderId, finalName);
+    // resolve breadcrumb atual e persiste caminho
+    const chain = await resolveDrivePath(accessToken, folderId);
+    const pathStr = chain.map(n => n.name).join(" / ");
+    const finalName = folderNameIn || meta.name || chain[chain.length - 1]?.name || "Pasta sem nome";
+
+    await upsertUserDriveSettings(userId, folderId, finalName, pathStr);
 
     return json(req, 200, {
       ok: true,
       dedicatedFolderId: folderId,
       dedicatedFolderName: finalName,
+      dedicatedFolderPath: pathStr
     });
   } catch (e: any) {
     return json(req, 500, { ok: false, reason: "SET_FOLDER_ERROR", message: e?.message || String(e) });

@@ -267,18 +267,21 @@ export type Database = {
         Row: {
           drive_folder_id: string
           drive_folder_name: string
+          drive_folder_path: string
           updated_at: string
           user_id: string
         }
         Insert: {
           drive_folder_id: string
           drive_folder_name: string
+          drive_folder_path?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           drive_folder_id?: string
           drive_folder_name?: string
+          drive_folder_path?: string
           updated_at?: string
           user_id?: string
         }

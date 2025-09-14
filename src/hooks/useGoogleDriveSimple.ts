@@ -9,6 +9,7 @@ export interface GoogleDriveStatus {
     id: string;
     name: string;
   } | null;
+  dedicatedFolderPath?: string | null;
 }
 
 export function useGoogleDriveSimple() {
@@ -83,10 +84,11 @@ export function useGoogleDriveSimple() {
       const newStatus = {
         isConnected,
         isExpired,
-        dedicatedFolder: statusData?.folderId ? {
-          id: statusData.folderId,
-          name: 'Drive Folder'
+        dedicatedFolder: statusData?.dedicatedFolderId ? {
+          id: statusData.dedicatedFolderId,
+          name: statusData?.dedicatedFolderName || 'Drive Folder'
         } : null,
+        dedicatedFolderPath: statusData?.dedicatedFolderPath || null,
       };
       
       console.log('🔄 Updating status to:', newStatus);

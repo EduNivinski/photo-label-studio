@@ -112,13 +112,13 @@ export default function GoogleDriveIntegration() {
   }, [toast, checkStatus]);
 
   const buildFolderPath = useCallback(() => {
+    // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
+    if (status.dedicatedFolderPath) return status.dedicatedFolderPath;
     if (!status.dedicatedFolder) return null;
-    // Por simplicidade, apenas mostrar o nome da pasta dedicada
-    // Pode ser expandido para mostrar o path completo baseado no breadcrumb
     return typeof status.dedicatedFolder === 'string' 
       ? status.dedicatedFolder 
       : status.dedicatedFolder.name;
-  }, [status.dedicatedFolder]);
+  }, [status.dedicatedFolderPath, status.dedicatedFolder]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
