@@ -1,18 +1,16 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Cloud, Folder, Unplug, Settings, RefreshCw, FileImage } from 'lucide-react';
-import { useGoogleDriveSimple } from '@/hooks/useGoogleDriveSimple';
-// import GoogleDriveFolderSelector from './GoogleDriveFolderSelector';
-// import { GoogleDriveFileViewer } from './GoogleDriveFileViewer';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState, useCallback, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
+import { useToast } from "@/hooks/use-toast";
+import { DriveIntegrationCard } from "./DriveIntegrationCard";
+import { DriveBrowserCard } from "./DriveBrowserCard";
+import { useDriveBrowser } from "@/hooks/useDriveBrowser";
 
-export function GoogleDriveIntegration() {
-  const { status, loading, connect, disconnect, checkStatus } = useGoogleDriveSimple();
-  const [showFolderSelector, setShowFolderSelector] = useState(false);
-  const [showFileViewer, setShowFileViewer] = useState(false);
+export default function GoogleDriveIntegration() {
+  const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
   const { toast } = useToast();
+  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const { current, items, loading: browserLoading, err, list, enter, back } = useDriveBrowser();
 
   const handleConnect = async () => {
     await connect();
@@ -29,246 +27,116 @@ export function GoogleDriveIntegration() {
     }, 1000);
   };
 
-  const handleFolderSelected = () => {
-    setShowFolderSelector(false);
+  const handleFolderSelected = useCallback((folder: { id: string; name: string }) => {
+    console.log('Pasta selecionada:', folder);
+    setShowFolderBrowser(false);
     toast({
-      title: 'Pasta selecionada',
-      description: 'Pasta configurada com sucesso',
+      title: "Pasta selecionada",
+      description: `Pasta "${folder.name}" configurada para backup.`,
     });
-  };
+    // Atualizar status após seleção
+    checkStatus();
+  }, [toast, checkStatus]);
+
+  const buildFolderPath = useCallback(() => {
+    if (!status.dedicatedFolder) return null;
+    // Por simplicidade, apenas mostrar o nome da pasta dedicada
+    // Pode ser expandido para mostrar o path completo baseado no breadcrumb
+    return typeof status.dedicatedFolder === 'string' 
+      ? status.dedicatedFolder 
+      : status.dedicatedFolder.name;
+  }, [status.dedicatedFolder]);
+
+  const getStatusState = useCallback(() => {
+    if (loading) return "checking";
+    if (!status.isConnected) return "disconnected";
+    if (status.isExpired) return "error";
+    return "connected";
+  }, [loading, status.isConnected, status.isExpired]);
+
+  const handleSelectCurrentFolder = useCallback(async () => {
+    const currentFolderName = current === "root" ? "Meu Drive" : 
+                             items.find(item => item.id === current)?.name || "Pasta atual";
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+        body: { action: "set_folder", folderId: current, folderName: currentFolderName }
+      });
+      
+      if (error || !data?.ok) throw new Error(data?.reason || error?.message || "SET_FOLDER_FAILED");
+
+      toast({
+        title: "Pasta selecionada",
+        description: `Pasta "${data.dedicatedFolderName}" configurada.`,
+      });
+
+      setShowFolderBrowser(false);
+      checkStatus();
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: `Não foi possível selecionar a pasta: ${e?.message || e}`,
+        variant: "destructive",
+      });
+    }
+  }, [current, items, toast, checkStatus]);
+
+  const buildBreadcrumbPath = useCallback(() => {
+    // Converter a pilha de navegação em breadcrumb
+    // Por simplicidade, começamos com "Meu Drive"
+    const path = [{ id: "root", name: "Meu Drive" }];
+    
+    // Aqui poderíamos adicionar os folders intermediários se tivéssemos o histórico
+    // Por agora, apenas mostrar o current se não for root
+    if (current !== "root") {
+      const currentItem = items.find(item => item.id === current);
+      if (currentItem) {
+        path.push({ id: current, name: currentItem.name });
+      }
+    }
+    
+    return path;
+  }, [current, items]);
+
+  // Inicializar browser quando mostrar
+  useEffect(() => {
+    if (showFolderBrowser) {
+      list(true);
+    }
+  }, [showFolderBrowser, list]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cloud className="h-6 w-6" />
-            Integração Google Drive
-          </CardTitle>
-          <CardDescription>
-            Conecte e sincronize suas fotos com o Google Drive
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {!status.isConnected && (
-            <div className="space-y-4">
-              <div className="text-center py-8">
-                <Cloud className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Conectar ao Google Drive</h3>
-                <p className="text-muted-foreground mb-6">
-                  Conecte sua conta do Google Drive para fazer backup e importar suas fotos
-                </p>
-                <div className="flex items-center justify-center gap-3">
-                  <Button 
-                    onClick={handleConnect}
-                    disabled={loading}
-                    size="lg"
-                    className="flex items-center gap-2"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Cloud className="h-5 w-5" />
-                    )}
-                    Conectar Google Drive
-                  </Button>
-                  <Button
-                    onClick={() => checkStatus(true)}
-                    variant="outline"
-                    size="lg"
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Verificar Status
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Status Display - na mesma posição do badge conectado */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 text-gray-500">
-                  <div className="h-3 w-3 bg-gray-400 rounded-full"></div>
-                  <span className="text-sm font-medium">Desconectado</span>
-                </div>
-              </div>
-            </div>
-          )}
+      <DriveIntegrationCard
+        state={getStatusState()}
+        dedicatedFolderPath={buildFolderPath()}
+        onCheck={checkStatus}
+        onReconnect={status.isConnected ? handleReconnectWithPermissions : handleConnect}
+        onReconnectWithConsent={handleReconnectWithPermissions}
+        onDisconnect={handleDisconnect}
+        onChooseFolder={() => setShowFolderBrowser(true)}
+      />
 
-          {status.isExpired && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Settings className="h-5 w-5 text-yellow-600 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-yellow-800">Token Expirado</h4>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Sua conexão com o Google Drive expirou. Reconecte para continuar usando a integração.
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      onClick={handleConnect}
-                      disabled={loading}
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Reconectar
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+      {!status.isConnected && (
+        <div className="text-center py-8">
+          <h3 className="text-lg font-medium mb-2">Conectar ao Google Drive</h3>
+          <p className="text-muted-foreground mb-6">
+            Conecte sua conta do Google Drive para fazer backup e importar suas fotos
+          </p>
+        </div>
+      )}
 
-          {status.isConnected && !status.dedicatedFolder && !status.isExpired && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Settings className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-blue-800">Novas Permissões Necessárias</h4>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Para acessar suas pastas do Google Drive, você precisa reconectar 
-                    com as novas permissões de leitura de metadados.
-                  </p>
-                  <div className="mt-3">
-                    <Button
-                      onClick={handleReconnectWithPermissions}
-                      disabled={loading}
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      Reconectar
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {status.isConnected && !status.isExpired && (
-            <div className="space-y-6">
-              {/* Status Section - Elegante com destaque */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-                    <div>
-                      <span className="text-green-800 font-medium text-sm">Google Drive Conectado</span>
-                      {status.dedicatedFolder && (
-                        <p className="text-green-700 text-xs mt-0.5">
-                          📁 Pasta: {status.dedicatedFolder.name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Manual Status Check Button */}
-                  <Button
-                    onClick={() => checkStatus(true)}
-                    variant="outline"
-                    size="sm"
-                    disabled={loading}
-                    className="flex items-center gap-1 text-xs border-green-300 text-green-700 hover:bg-green-100"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
-                    )}
-                    Verificar Status
-                  </Button>
-                </div>
-              </div>
-
-              {/* Management Section - Layout melhorado */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium mb-4 text-gray-800 flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Gerenciamento da Integração
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      toast({
-                        title: 'Funcionalidade temporariamente desabilitada',
-                        description: 'Seleção de pasta será reativada em breve',
-                      });
-                    }}
-                    className="flex items-center gap-2 h-10"
-                  >
-                    <Folder className="h-4 w-4" />
-                    {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={handleReconnectWithPermissions}
-                    disabled={loading}
-                    className="flex items-center gap-2 h-10"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Reconectar
-                  </Button>
-                  
-                  {status.dedicatedFolder && (
-                    <Button
-                      onClick={() => {
-                        toast({
-                          title: 'Funcionalidade temporariamente desabilitada',
-                          description: 'Visualização de arquivos será reativada em breve',
-                        });
-                      }}
-                      variant="outline"
-                      className="flex items-center gap-2 h-10"
-                    >
-                      <FileImage className="h-4 w-4" />
-                      Ver Arquivos
-                    </Button>
-                  )}
-                  
-                  <Button
-                    variant="outline"
-                    onClick={handleDisconnect}
-                    className="flex items-center gap-2 h-10 text-red-600 border-red-200 hover:bg-red-50"
-                  >
-                    <Unplug className="h-4 w-4" />
-                    Desconectar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Temporarily disabled to fix loop issues 
-      {showFolderSelector && (
-        <GoogleDriveFolderSelector
-          onFolderSelected={handleFolderSelected}
-          onClose={() => setShowFolderSelector(false)}
+      {/* Navegador de Pastas */}
+      {showFolderBrowser && (
+        <DriveBrowserCard
+          path={buildBreadcrumbPath()}
+          items={items}
+          canGoBack={current !== "root"}
+          onBack={back}
+          onOpenFolder={enter}
+          onSelectCurrentFolder={handleSelectCurrentFolder}
         />
       )}
-      
-      {showFileViewer && (
-        <GoogleDriveFileViewer
-          onClose={() => setShowFileViewer(false)}
-        />
-      )}
-      */}
     </div>
   );
 }

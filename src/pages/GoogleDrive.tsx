@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Cloud, Folder, FileImage, Upload, Download } from 'lucide-react';
-import { GoogleDriveIntegration } from '@/components/GoogleDriveIntegration';
+import GoogleDriveIntegration from '@/components/GoogleDriveIntegration';
 
 export default function GoogleDrive() {
   return (
