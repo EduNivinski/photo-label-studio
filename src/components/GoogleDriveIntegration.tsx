@@ -146,7 +146,7 @@ export function GoogleDriveIntegration() {
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      Reconectar com Permissões
+                      Reconectar
                     </Button>
                   </div>
                 </div>
@@ -156,94 +156,98 @@ export function GoogleDriveIntegration() {
 
           {status.isConnected && !status.isExpired && (
             <div className="space-y-6">
-              {/* Status Badge - conectado (verde) */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="bg-green-500/20 text-green-700 border-green-500/30">
-                    ✅ Conectado
-                  </Badge>
-                  {status.dedicatedFolder && (
-                    <Badge variant="outline" className="text-xs">
-                      📁 {status.dedicatedFolder.name}
-                    </Badge>
-                  )}
+              {/* Status Section - Elegante com destaque */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <div>
+                      <span className="text-green-800 font-medium text-sm">Google Drive Conectado</span>
+                      {status.dedicatedFolder && (
+                        <p className="text-green-700 text-xs mt-0.5">
+                          📁 Pasta: {status.dedicatedFolder.name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Manual Status Check Button */}
+                  <Button
+                    onClick={() => checkStatus(true)}
+                    variant="outline"
+                    size="sm"
+                    disabled={loading}
+                    className="flex items-center gap-1 text-xs border-green-300 text-green-700 hover:bg-green-100"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Verificar Status
+                  </Button>
                 </div>
-                
-                {/* Manual Status Check Button */}
-                <Button
-                  onClick={() => checkStatus(true)}
-                  variant="outline"
-                  size="sm"
-                  disabled={loading}
-                  className="flex items-center gap-1 text-xs"
-                >
-                  {loading ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3" />
-                  )}
-                  Verificar Status
-                </Button>
               </div>
 
-              {/* Management Section - Always show when connected */}
-              <div className="border rounded-lg p-4">
-                <h4 className="font-medium mb-4">🔧 Gerenciamento</h4>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Management Section - Layout melhorado */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium mb-4 text-gray-800 flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Gerenciamento da Integração
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      toast({
+                        title: 'Funcionalidade temporariamente desabilitada',
+                        description: 'Seleção de pasta será reativada em breve',
+                      });
+                    }}
+                    className="flex items-center gap-2 h-10"
+                  >
+                    <Folder className="h-4 w-4" />
+                    {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    onClick={handleReconnectWithPermissions}
+                    disabled={loading}
+                    className="flex items-center gap-2 h-10"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Reconectar
+                  </Button>
+                  
+                  {status.dedicatedFolder && (
                     <Button
-                      variant="outline"
                       onClick={() => {
                         toast({
                           title: 'Funcionalidade temporariamente desabilitada',
-                          description: 'Seleção de pasta será reativada em breve',
+                          description: 'Visualização de arquivos será reativada em breve',
                         });
                       }}
-                      className="flex items-center gap-2"
-                    >
-                      <Folder className="h-4 w-4" />
-                      {status.dedicatedFolder ? 'Alterar Pasta' : 'Escolher Pasta'}
-                    </Button>
-                    
-                    {status.dedicatedFolder && (
-                      <Button
-                        onClick={() => {
-                          toast({
-                            title: 'Funcionalidade temporariamente desabilitada',
-                            description: 'Visualização de arquivos será reativada em breve',
-                          });
-                        }}
-                        variant="outline"
-                        className="flex items-center gap-2"
-                      >
-                        <FileImage className="h-4 w-4" />
-                        Ver Arquivos
-                      </Button>
-                    )}
-                    
-                    <Button
                       variant="outline"
-                      onClick={handleDisconnect}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 h-10"
                     >
-                      <Unplug className="h-4 w-4" />
-                      Desconectar
+                      <FileImage className="h-4 w-4" />
+                      Ver Arquivos
                     </Button>
-                    
-                    <Button
-                      variant="outline"
-                      onClick={handleReconnectWithPermissions}
-                      disabled={loading}
-                      className="flex items-center gap-2"
-                    >
-                      {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      Reconectar com Permissões
-                    </Button>
-                  </div>
+                  )}
+                  
+                  <Button
+                    variant="outline"
+                    onClick={handleDisconnect}
+                    className="flex items-center gap-2 h-10 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <Unplug className="h-4 w-4" />
+                    Desconectar
+                  </Button>
                 </div>
               </div>
             </div>
