@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useDriveBrowser } from "@/hooks/useDriveBrowser";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,34 +11,33 @@ interface DriveBrowserProps {
 }
 
 export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
-  const { current, items, next, loading, err, list, enter, back, selectHere } = useDriveBrowser();
+  const { current, items, next, loading, err, list, enter, back } = useDriveBrowser();
   const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { 
     list(true); 
   }, [current]);
 
-  const handleSelectFolder = async () => {
-    const currentFolderName = current === "root" ? "Meu Drive" : 
-                             items.find(item => item.id === current)?.name || "Pasta atual";
-    
+  const onSelectFolder = async (folder: { id: string; name: string }) => {
     try {
+      setSaving(true);
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        body: { action: "set_folder", folderId: current, folderName: currentFolderName }
+        body: { action: "set_folder", folderId: folder.id, folderName: folder.name }
       });
-      
-      if (error || !data?.ok) {
-        throw new Error(data?.reason || error?.message || "SET_FOLDER_FAILED");
-      }
-      
-      // Show success message
+      if (error || !data?.ok) throw new Error(data?.reason || error?.message || "SET_FOLDER_FAILED");
+
+      // Confirmação inline
       toast({
         title: "Pasta selecionada",
-        description: `Pasta "${data.dedicatedFolderName}" foi definida como pasta de backup`,
+        description: `Pasta selecionada: ${data.dedicatedFolderName}`,
       });
+
+      // Atualizar status na UI
+      const st = await supabase.functions.invoke("google-drive-auth", { body: { action: "status" }});
       
       // Update parent component
-      onFolderSelected?.({ id: current, name: data.dedicatedFolderName });
+      onFolderSelected?.({ id: folder.id, name: data.dedicatedFolderName });
       
     } catch (e: any) {
       toast({
@@ -46,7 +45,16 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
         description: `Não foi possível selecionar a pasta: ${e?.message || e}`,
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const handleSelectCurrentFolder = async () => {
+    const currentFolderName = current === "root" ? "Meu Drive" : 
+                             items.find(item => item.id === current)?.name || "Pasta atual";
+    
+    await onSelectFolder({ id: current, name: currentFolderName });
   };
 
   const handleReconnect = async () => {
@@ -94,11 +102,12 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
             📁 {current === "root" ? "Meu Drive" : current}
           </div>
           <Button
-            onClick={handleSelectFolder}
+            onClick={handleSelectCurrentFolder}
             variant="default"
             size="sm"
+            disabled={saving}
           >
-            Selecionar esta pasta
+            {saving ? "Selecionando..." : "Selecionar esta pasta"}
           </Button>
         </div>
 
@@ -159,13 +168,23 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
                       <Folder className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <span className="text-sm truncate">{folder.name}</span>
                     </div>
-                    <Button
-                      onClick={() => enter(folder.id)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Abrir
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => enter(folder.id)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Abrir
+                      </Button>
+                      <Button
+                        onClick={() => onSelectFolder({ id: folder.id, name: folder.name })}
+                        variant="default"
+                        size="sm"
+                        disabled={saving}
+                      >
+                        Selecionar
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

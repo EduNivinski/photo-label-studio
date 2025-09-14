@@ -253,35 +253,34 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   });
 
   const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-  return json(req, 200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
-}
-
-async function handleSetFolder(req: Request, userId: string) {
-  const body = await req.json().catch(() => ({}));
-  const folderId = body?.folderId?.toString?.() || "";
-  const folderName = body?.folderName?.toString?.() || "";
-  if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
-
-  // ✅ valida se a pasta existe e o usuário tem acesso
+async function handleSetFolder(req: Request, userId: string, body: any) {
   try {
+    const folderId = body?.folderId?.toString?.() || "";
+    const folderNameIn = body?.folderName?.toString?.() || "";
+    if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+
+    // ✅ Validar que é uma pasta válida no Drive
     const accessToken = await ensureAccessToken(userId);
     const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed`, {
-      headers: { Authorization: `Bearer ${accessToken}` }
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const meta = await metaRes.json();
+    const meta = await metaRes.json().catch(() => ({}));
     if (!metaRes.ok) {
       return json(req, 400, { ok: false, reason: "FOLDER_LOOKUP_FAILED", details: meta });
     }
-    if (meta.trashed) {
-      return json(req, 400, { ok: false, reason: "FOLDER_TRASHED" });
-    }
+    if (meta.trashed) return json(req, 400, { ok: false, reason: "FOLDER_TRASHED" });
     if (meta.mimeType !== "application/vnd.google-apps.folder") {
       return json(req, 400, { ok: false, reason: "NOT_A_FOLDER" });
     }
-    // usa o nome do Drive se não vier um folderName custom
-    const finalName = folderName || meta.name || "Pasta sem nome";
+
+    const finalName = folderNameIn || meta.name || "Pasta sem nome";
     await upsertUserDriveSettings(userId, folderId, finalName);
-    return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: finalName });
+
+    return json(req, 200, {
+      ok: true,
+      dedicatedFolderId: folderId,
+      dedicatedFolderName: finalName,
+    });
   } catch (e: any) {
     return json(req, 500, { ok: false, reason: "SET_FOLDER_ERROR", message: e?.message || String(e) });
   }
@@ -298,7 +297,6 @@ async function getUserIdFromJwt(req: Request): Promise<string | null> {
 
 serve(async (req: Request) => {
   const origin = req.headers.get("origin");
-  
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders(req) });
   }
@@ -311,7 +309,17 @@ serve(async (req: Request) => {
     return await handleCallback(req, url);
   }
 
-  const action = await getAction(req, url);
+  // ✅ Ler body JSON UMA única vez (se houver)
+  let body: any = null;
+  if (req.method !== "GET") {
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try { body = await req.json(); } catch (_) { body = null; }
+    }
+  }
+
+  // ✅ Extrair action da query OU do body lido
+  const action = url.searchParams.get("action") || body?.action || "";
   console.log("[google-drive-auth] action:", action);
 
   try {
@@ -327,10 +335,13 @@ serve(async (req: Request) => {
 
     if (action === "status") return await handleStatus(req, userId!);
     if (action === "authorize") return await handleAuthorize(req, userId!, url);
-    if (action === "set_folder") return await handleSetFolder(req, userId!);
+    
+    // ✅ Passar o body JÁ LIDO ao set_folder
+    if (action === "set_folder") return await handleSetFolder(req, userId!, body);
+    
     if (action === "setFolder") {
-      const body = await req.json().catch(() => ({}));
-      const { folderId, folderName } = body || {};
+      const folderId = body?.folderId?.toString?.() || "";
+      const folderName = body?.folderName?.toString?.() || "";
       if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
 
       const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
