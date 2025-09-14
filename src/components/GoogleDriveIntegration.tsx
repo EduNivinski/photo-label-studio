@@ -241,7 +241,7 @@ export function GoogleDriveIntegration() {
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      Reconectar
+                      Reconectar com Permissões
                     </Button>
                   </div>
                 </div>
