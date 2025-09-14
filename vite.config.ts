@@ -19,4 +19,7 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(Date.now().toString()),
+  },
 }));
