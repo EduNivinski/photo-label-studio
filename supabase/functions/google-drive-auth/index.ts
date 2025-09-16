@@ -17,10 +17,17 @@ function corsHeaders(req: Request) {
   const allowed = origin && ALLOW.has(origin) ? origin : "https://photo-label-studio.lovable.app";
   return {
     "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Vary": "Origin",
   } as const;
+}
+
+function getAdmin() {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) throw new Error("ENV_MISSING_SUPABASE_SERVICE_ROLE");
+  return createClient(url, key);
 }
 
 const json = (req: Request, status: number, body: unknown) => new Response(JSON.stringify(body), {
@@ -99,45 +106,29 @@ async function getUserDriveSettings(userId: string) {
 
 // Helper functions for extended scope management
 async function setAllowExtendedScope(userId: string, allow: boolean) {
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const admin = getAdmin();
   const { error } = await admin
     .from("user_drive_settings")
-    .upsert({
-      user_id: userId,
-      allow_extended_scope: allow,
-      updated_at: new Date().toISOString()
-    }, { onConflict: "user_id" });
-  if (error) throw new Error(`SET_EXT_SCOPE: ${error.message}`);
+    .upsert({ user_id: userId, allow_extended_scope: allow, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) throw new Error(`SET_EXT_SCOPE:${error.message}`);
 }
 
 async function getAllowExtendedScope(userId: string) {
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const admin = getAdmin();
   const { data, error } = await admin
     .from("user_drive_settings")
-    .select("allow_extended_scope")
+    .select("allow_extended_scope, scope_granted")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw new Error(`GET_EXT_SCOPE: ${error.message}`);
-  return !!data?.allow_extended_scope;
+  if (error) throw new Error(`GET_EXT_SCOPE:${error.message}`);
+  return { allow: !!data?.allow_extended_scope, granted: data?.scope_granted || "" };
 }
 
 async function saveGrantedScope(userId: string, scope: string) {
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const admin = getAdmin();
   const { error } = await admin
     .from("user_drive_settings")
-    .update({
-      scope_granted: scope,
-      updated_at: new Date().toISOString()
-    })
+    .update({ scope_granted: scope, updated_at: new Date().toISOString() })
     .eq("user_id", userId);
   if (error) console.warn("WARN saveGrantedScope:", error.message);
 }
@@ -163,7 +154,7 @@ async function getAction(req: Request, url: URL): Promise<string> {
 
 async function handleStatus(req: Request, userId: string) {
   const settings = await getUserDriveSettings(userId); // pode ser null
-  const allow = await getAllowExtendedScope(userId);
+  const { allow, granted } = await getAllowExtendedScope(userId);
   const downloadsEnabled = allow;
   
   try {
@@ -290,6 +281,9 @@ async function handleCallback(req: Request, url: URL) {
       expiresAtIso
     );
 
+    // Save granted scope
+    await saveGrantedScope(userId, (scope as string) || "");
+
     return new Response(`
       <!DOCTYPE html>
       <html><head><title>Authorization Complete</title></head>
@@ -330,7 +324,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
   if (!CLIENT_ID) return json(req, 500, { ok:false, error: "Missing Google OAuth client id" });
 
-  const allow = await getAllowExtendedScope(userId);
+  const { allow } = await getAllowExtendedScope(userId);
 
   const scopes = [
     "openid",
@@ -339,9 +333,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
     "https://www.googleapis.com/auth/drive.metadata.readonly",
     "https://www.googleapis.com/auth/drive.file",
   ];
-  if (allow) {
-    scopes.push("https://www.googleapis.com/auth/drive.readonly"); // ✅ opt-in
-  }
+  if (allow) scopes.push("https://www.googleapis.com/auth/drive.readonly"); // ✅ opt-in
 
   const scopeStr = scopes.join(" ");
 
@@ -451,9 +443,14 @@ serve(async (req: Request) => {
     if (action === "set_folder") return await handleSetFolder(req, userId!, body);
     
     if (action === "set_prefs") {
-      const allow = !!body?.allowExtendedScope;
-      await setAllowExtendedScope(userId!, allow);
-      return json(req, 200, { ok: true });
+      try {
+        const allow = !!body?.allowExtendedScope;
+        await setAllowExtendedScope(userId!, allow);
+        return json(req, 200, { ok: true, allowExtendedScope: allow });
+      } catch (e: any) {
+        console.error("set_prefs error:", e?.message || e);
+        return json(req, 500, { ok: false, reason: "SET_PREFS_FAILED", message: e?.message || String(e) });
+      }
     }
     
     if (action === "setFolder") {
