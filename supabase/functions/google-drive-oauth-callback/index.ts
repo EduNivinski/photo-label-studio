@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { upsertTokens } from "../_shared/token_provider_v2.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Google Drive OAuth callback handler - v2
+
 async function saveGrantedScope(userId: string, scope: string) {
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
