@@ -107,6 +107,36 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_sync_state: {
+        Row: {
+          last_changes_at: string | null
+          last_error: string | null
+          last_full_scan_at: string | null
+          running: boolean
+          start_page_token: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          last_changes_at?: string | null
+          last_error?: string | null
+          last_full_scan_at?: string | null
+          running?: boolean
+          start_page_token?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          last_changes_at?: string | null
+          last_error?: string | null
+          last_full_scan_at?: string | null
+          running?: boolean
+          start_page_token?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_drive_token_audit: {
         Row: {
           action: string
