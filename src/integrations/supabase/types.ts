@@ -77,6 +77,114 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_folders: {
+        Row: {
+          created_at: string
+          drive_id: string | null
+          folder_id: string
+          name: string
+          parent_id: string | null
+          path_cached: string | null
+          trashed: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          drive_id?: string | null
+          folder_id: string
+          name: string
+          parent_id?: string | null
+          path_cached?: string | null
+          trashed?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          drive_id?: string | null
+          folder_id?: string
+          name?: string
+          parent_id?: string | null
+          path_cached?: string | null
+          trashed?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      drive_items: {
+        Row: {
+          created_at: string
+          created_time: string | null
+          drive_id: string | null
+          file_id: string
+          image_meta: Json | null
+          last_seen_at: string
+          md5_checksum: string | null
+          mime_type: string
+          modified_time: string | null
+          name: string
+          parents: string[] | null
+          path_cached: string | null
+          size: number | null
+          status: string
+          thumbnail_link: string | null
+          trashed: boolean
+          updated_at: string
+          user_id: string
+          video_meta: Json | null
+          web_content_link: string | null
+          web_view_link: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_time?: string | null
+          drive_id?: string | null
+          file_id: string
+          image_meta?: Json | null
+          last_seen_at?: string
+          md5_checksum?: string | null
+          mime_type: string
+          modified_time?: string | null
+          name: string
+          parents?: string[] | null
+          path_cached?: string | null
+          size?: number | null
+          status?: string
+          thumbnail_link?: string | null
+          trashed?: boolean
+          updated_at?: string
+          user_id: string
+          video_meta?: Json | null
+          web_content_link?: string | null
+          web_view_link?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_time?: string | null
+          drive_id?: string | null
+          file_id?: string
+          image_meta?: Json | null
+          last_seen_at?: string
+          md5_checksum?: string | null
+          mime_type?: string
+          modified_time?: string | null
+          name?: string
+          parents?: string[] | null
+          path_cached?: string | null
+          size?: number | null
+          status?: string
+          thumbnail_link?: string | null
+          trashed?: boolean
+          updated_at?: string
+          user_id?: string
+          video_meta?: Json | null
+          web_content_link?: string | null
+          web_view_link?: string | null
+        }
+        Relationships: []
+      }
       drive_oauth_audit: {
         Row: {
           created_at: string
