@@ -54,3 +54,12 @@ verify_jwt = true
 
 [functions."diag-env"]
 verify_jwt = false
+
+[functions."drive-index-folder"]
+verify_jwt = true
+
+[functions."drive-changes-pull"]
+verify_jwt = true
+
+[functions."drive-sync-now"]
+verify_jwt = true
