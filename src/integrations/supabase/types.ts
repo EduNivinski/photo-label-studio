@@ -265,23 +265,29 @@ export type Database = {
       }
       user_drive_settings: {
         Row: {
+          allow_extended_scope: boolean
           drive_folder_id: string
           drive_folder_name: string
           drive_folder_path: string
+          scope_granted: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          allow_extended_scope?: boolean
           drive_folder_id: string
           drive_folder_name: string
           drive_folder_path?: string
+          scope_granted?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          allow_extended_scope?: boolean
           drive_folder_id?: string
           drive_folder_name?: string
           drive_folder_path?: string
+          scope_granted?: string
           updated_at?: string
           user_id?: string
         }

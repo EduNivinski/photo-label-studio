@@ -97,6 +97,51 @@ async function getUserDriveSettings(userId: string) {
   return data || null;
 }
 
+// Helper functions for extended scope management
+async function setAllowExtendedScope(userId: string, allow: boolean) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { error } = await admin
+    .from("user_drive_settings")
+    .upsert({
+      user_id: userId,
+      allow_extended_scope: allow,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+  if (error) throw new Error(`SET_EXT_SCOPE: ${error.message}`);
+}
+
+async function getAllowExtendedScope(userId: string) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { data, error } = await admin
+    .from("user_drive_settings")
+    .select("allow_extended_scope")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`GET_EXT_SCOPE: ${error.message}`);
+  return !!data?.allow_extended_scope;
+}
+
+async function saveGrantedScope(userId: string, scope: string) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { error } = await admin
+    .from("user_drive_settings")
+    .update({
+      scope_granted: scope,
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", userId);
+  if (error) console.warn("WARN saveGrantedScope:", error.message);
+}
+
 // Helper para extrair action do query ou body
 async function getAction(req: Request, url: URL): Promise<string> {
   // 1) tenta query string
@@ -118,6 +163,9 @@ async function getAction(req: Request, url: URL): Promise<string> {
 
 async function handleStatus(req: Request, userId: string) {
   const settings = await getUserDriveSettings(userId); // pode ser null
+  const allow = await getAllowExtendedScope(userId);
+  const downloadsEnabled = allow;
+  
   try {
     const token = await ensureAccessToken(userId); // lança se inválido
     if (!token) throw new Error("NO_ACCESS_TOKEN");
@@ -126,6 +174,7 @@ async function handleStatus(req: Request, userId: string) {
       connected: true,
       hasConnection: true,
       isExpired: false,
+      downloadsEnabled,
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       dedicatedFolderName: settings?.drive_folder_name ?? null,
       dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null)
@@ -137,6 +186,7 @@ async function handleStatus(req: Request, userId: string) {
       connected: false,
       hasConnection: false,
       isExpired: true,
+      downloadsEnabled,
       reason: reason || "EXPIRED_OR_INVALID",
       // 🔎 Ainda assim devolvemos o caminho salvo
       dedicatedFolderId: settings?.drive_folder_id ?? null,
@@ -280,10 +330,20 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
   const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
   if (!CLIENT_ID) return json(req, 500, { ok:false, error: "Missing Google OAuth client id" });
 
-  const SCOPE = [
+  const allow = await getAllowExtendedScope(userId);
+
+  const scopes = [
+    "openid",
+    "email", 
+    "profile",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
     "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/drive.readonly",
-  ].join(" ");
+  ];
+  if (allow) {
+    scopes.push("https://www.googleapis.com/auth/drive.readonly"); // ✅ opt-in
+  }
+
+  const scopeStr = scopes.join(" ");
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -292,7 +352,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
     access_type: "offline",
     include_granted_scopes: "true",
     prompt: force ? "consent select_account" : "select_account",
-    scope: SCOPE,
+    scope: scopeStr,
     state,
   });
 
@@ -389,6 +449,12 @@ serve(async (req: Request) => {
     
     // ✅ Passar o body JÁ LIDO ao set_folder
     if (action === "set_folder") return await handleSetFolder(req, userId!, body);
+    
+    if (action === "set_prefs") {
+      const allow = !!body?.allowExtendedScope;
+      await setAllowExtendedScope(userId!, allow);
+      return json(req, 200, { ok: true });
+    }
     
     if (action === "setFolder") {
       const folderId = body?.folderId?.toString?.() || "";

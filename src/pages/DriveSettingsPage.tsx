@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Cloud, Folder, Unplug, RefreshCw, Settings, AlertCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Cloud, Folder, Unplug, RefreshCw, Settings, AlertCircle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import FolderPickerModal from "@/components/Drive/FolderPickerModal";
 import DriveBrowser from "@/components/Drive/DriveBrowser";
@@ -25,6 +26,8 @@ export default function DriveSettingsPage() {
   const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
   const [currentFolder, setCurrentFolder] = useState<{ id: string; name: string }>({ id: "root", name: "Meu Drive" });
   const [items, setItems] = useState<FileItem[]>([]);
+  const [downloadsEnabled, setDownloadsEnabled] = useState(false);
+  const [updatingPrefs, setUpdatingPrefs] = useState(false);
   const busyRef = useRef(false);
   const { toast } = useToast();
 
@@ -55,6 +58,7 @@ export default function DriveSettingsPage() {
         });
       } else {
         setStatus(data as DriveStatus);
+        setDownloadsEnabled(!!(data as any).downloadsEnabled);
         // Update chosen folder from status if available
         if ((data as any).ok && (data as any).connected && (data as any).dedicatedFolderId) {
           setChosen({
@@ -163,6 +167,46 @@ export default function DriveSettingsPage() {
       title: "Pasta selecionada",
       description: `Pasta "${folder.name}" selecionada com sucesso`,
     });
+  }, [toast]);
+
+  const toggleDownloads = useCallback(async (enabled: boolean) => {
+    setUpdatingPrefs(true);
+    try {
+      // Primeiro, atualizar a preferência
+      await supabase.functions.invoke("google-drive-auth", {
+        body: { action: "set_prefs", allowExtendedScope: enabled }
+      });
+
+      if (enabled) {
+        // Se está ligando, também precisa reconectar para obter o novo escopo
+        const { data } = await supabase.functions.invoke("google-drive-auth", {
+          body: { action: "authorize", redirect: window.location.origin + "/settings/drive" }
+        });
+        const url = data?.authorizeUrl;
+        if (url) {
+          window.open(url, "_blank", "width=520,height=720");
+          toast({
+            title: "Reconectando...",
+            description: "Você será redirecionado para autorizar os downloads",
+          });
+        }
+      } else {
+        // Se está desligando, apenas atualizar o estado local
+        setDownloadsEnabled(false);
+        toast({
+          title: "Downloads desabilitados",
+          description: "Downloads pelo app foram desabilitados",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar preferências de download",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingPrefs(false);
+    }
   }, [toast]);
 
   useEffect(() => {
@@ -315,6 +359,39 @@ export default function DriveSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Preferências do Usuário */}
+      {(status.ok && (status as any).connected) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Preferências de Download
+            </CardTitle>
+            <CardDescription>
+              Configure as permissões para download de arquivos do Google Drive
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Permitir downloads pelo app</span>
+                  {downloadsEnabled && <Badge variant="outline" className="text-xs">Ativo</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Habilita o download de arquivos diretamente do Google Drive através do aplicativo
+                </p>
+              </div>
+              <Switch
+                checked={downloadsEnabled}
+                onCheckedChange={toggleDownloads}
+                disabled={updatingPrefs || loading}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status da Pasta Selecionada */}
       {(status.ok && (status as any).connected) && (

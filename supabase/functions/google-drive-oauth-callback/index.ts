@@ -1,5 +1,21 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { upsertTokens } from "../_shared/token_provider_v2.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+async function saveGrantedScope(userId: string, scope: string) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { error } = await admin
+    .from("user_drive_settings")
+    .update({
+      scope_granted: scope,
+      updated_at: new Date().toISOString()
+    })
+    .eq("user_id", userId);
+  if (error) console.warn("WARN saveGrantedScope:", error.message);
+}
 
 const okHtml = `<!doctype html><meta charset="utf-8"><body>
 <script>
@@ -68,6 +84,9 @@ serve(async (req) => {
 
     // Persistir via Service-Role (helper já usa SR e preserva refresh quando ausente)
     await upsertTokens(userId, access_token, refresh_token ?? null, scopeStr, expires_at);
+    
+    // callback: salvar scopes concedidos
+    await saveGrantedScope(userId, scopeStr);
 
     // ✅ Sucesso: sempre HTML e fechar popup
     return html(okHtml, 200);
