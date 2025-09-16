@@ -107,10 +107,29 @@ async function getUserDriveSettings(userId: string) {
 // Helper functions for extended scope management
 async function setAllowExtendedScope(userId: string, allow: boolean) {
   const admin = getAdmin();
-  const { error } = await admin
+
+  // 1) tenta update
+  const { data: existing, error: selErr } = await admin
     .from("user_drive_settings")
-    .upsert({ user_id: userId, allow_extended_scope: allow, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-  if (error) throw new Error(`SET_EXT_SCOPE:${error.message}`);
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (selErr) throw new Error(`SET_EXT_SCOPE_SELECT:${selErr.message}`);
+
+  if (existing) {
+    const { error: updErr } = await admin
+      .from("user_drive_settings")
+      .update({ allow_extended_scope: allow, updated_at: new Date().toISOString() })
+      .eq("user_id", userId);
+    if (updErr) throw new Error(`SET_EXT_SCOPE_UPDATE:${updErr.message}`);
+  } else {
+    // 2) insert mínimo — sem exigir pasta
+    const { error: insErr } = await admin
+      .from("user_drive_settings")
+      .insert({ user_id: userId, allow_extended_scope: allow, scope_granted: '', updated_at: new Date().toISOString() });
+    if (insErr) throw new Error(`SET_EXT_SCOPE_INSERT:${insErr.message}`);
+  }
 }
 
 async function getAllowExtendedScope(userId: string) {
