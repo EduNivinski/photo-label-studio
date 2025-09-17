@@ -32,7 +32,7 @@ import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { HomeFiltersBar } from '@/components/HomeFiltersBar';
-import { useGDriveThumbs } from '@/hooks/useGDriveThumbs';
+import GDriveThumb from '@/components/GDriveThumb';
 import { supabase } from '@/integrations/supabase/client';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
@@ -209,10 +209,6 @@ const Index = () => {
     });
     clearSelection();
   };
-
-  // Google Drive thumbnails
-  const driveFileIds = driveItems.map(item => item.item_key);
-  const { urlFor, recoverOne } = useGDriveThumbs(driveFileIds);
 
   const handlePhotoClick = (photo: Photo) => {
     if (selectedCount > 0) {
@@ -571,16 +567,10 @@ const Index = () => {
               {driveItems.map((item: any) => (
                 <Card key={item.id} className="group overflow-hidden">
                   <div className="aspect-square relative bg-muted">
-                    <img
-                      src={urlFor(item.item_key)}
-                      alt={item.name}
+                    <GDriveThumb 
+                      fileId={item.item_key}
+                      name={item.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      loading="lazy"
-                      onError={(e) => {
-                        recoverOne(item.item_key).then(() => {
-                          (e.currentTarget as HTMLImageElement).src = urlFor(item.item_key) || "/img/placeholder.png";
-                        });
-                      }}
                     />
                   </div>
                   <div className="p-3">

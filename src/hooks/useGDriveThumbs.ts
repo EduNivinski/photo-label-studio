@@ -10,26 +10,26 @@ export function useGDriveThumbs(fileIds: string[], opts: Options = {}) {
   const [loading, setLoading] = useState(false);
   const [vers, setVers] = useState<Record<string, number>>({});
   const refreshMs = opts.refreshMs ?? DEFAULT_REFRESH;
-  const inflight = useRef(new Set<string>());
+  const inflight = useRef<Set<string>>(new Set());
   const timer = useRef<number | null>(null);
 
   async function refresh(requestIds = ids) {
-    const pending = requestIds.filter(id => !inflight.current.has(id));
-    if (!pending.length) return;
+    const idsToFetch = requestIds.filter(id => id && !inflight.current.has(id));
+    if (!idsToFetch.length) return;
     
-    pending.forEach(id => inflight.current.add(id));
+    idsToFetch.forEach(id => inflight.current.add(id));
     setLoading(true);
     try {
-      const urls = await fetchSignedThumbUrls(pending);
+      const urls = await fetchSignedThumbUrls(idsToFetch);
       setMap((prev) => ({ ...prev, ...urls }));
       // bump version para forçar recarregar
       setVers(prev => {
         const next = { ...prev };
-        pending.forEach(id => { next[id] = (next[id] || 0) + 1; });
+        idsToFetch.forEach(id => { next[id] = (next[id] || 0) + 1; });
         return next;
       });
     } finally {
-      pending.forEach(id => inflight.current.delete(id));
+      idsToFetch.forEach(id => inflight.current.delete(id));
       setLoading(false);
     }
   }
@@ -60,9 +60,9 @@ export function useGDriveThumbs(fileIds: string[], opts: Options = {}) {
   }
 
   function urlFor(id: string) {
-    const u = map[id] || "";
+    const base = map[id] || "";
     const v = vers[id] || 0;
-    return u ? `${u}&cv=${v}` : "";
+    return base ? `${base}&cv=${v}` : "";
   }
 
   return { urlFor, map, loading, refresh, recoverOne };
