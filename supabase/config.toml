@@ -67,8 +67,14 @@ verify_jwt = true
 [functions."drive-thumb"]
 verify_jwt = true
 
+[functions]
+verify_jwt = true
+
 [functions."get-thumb-urls"]
 verify_jwt = true
 
 [functions."drive-thumb-signed"]
+verify_jwt = false
+
+[functions."drive-thumb-open"]
 verify_jwt = false

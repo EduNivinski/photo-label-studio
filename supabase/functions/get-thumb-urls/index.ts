@@ -68,7 +68,7 @@ serve(async (req) => {
     for (const id of fileIds) {
       const payload = { uid, fileId: id, exp };
       const sig = await signPayload(payload);
-      urls[id] = `${base}/functions/v1/drive-thumb-signed?sig=${encodeURIComponent(sig)}`;
+      urls[id] = `${base}/functions/v1/drive-thumb-open?sig=${encodeURIComponent(sig)}`;
     }
 
     return new Response(JSON.stringify({ ok:true, urls }), {
