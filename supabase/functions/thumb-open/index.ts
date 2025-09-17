@@ -16,6 +16,18 @@ function admin() {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, { 
+      status: 204, 
+      headers: {
+        "Access-Control-Allow-Origin": ORIGIN,
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type"
+      } 
+    });
+  }
+
   try {
     const url = new URL(req.url);
     const sig = url.searchParams.get("sig") || "";
