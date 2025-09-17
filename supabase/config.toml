@@ -81,3 +81,6 @@ verify_jwt = false
 
 [functions."thumb-open"]
 verify_jwt = false
+
+[functions."library-list-gdrive"]
+verify_jwt = true

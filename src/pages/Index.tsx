@@ -1,7 +1,7 @@
 // Force rebuild to fix updateFilters caching issue - timestamp: 1756513884740
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
+import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2, Grid3X3, List, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,8 @@ import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { HomeFiltersBar } from '@/components/HomeFiltersBar';
+import { useGDriveThumbs } from '@/hooks/useGDriveThumbs';
+import { supabase } from '@/integrations/supabase/client';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
 
@@ -118,6 +120,11 @@ const Index = () => {
     photo: Photo | null;
   }>({ suggestions: [], source: 'mock', photo: null });
 
+  // Google Drive items state
+  const [driveItems, setDriveItems] = useState<any[]>([]);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
+
   // Pagination
   const {
     currentPage,
@@ -157,6 +164,35 @@ const Index = () => {
     fetchCollectionPhotos();
   }, [selectedCollectionId, getAlbumPhotos]);
 
+  // Load Google Drive items
+  useEffect(() => {
+    const loadDriveItems = async () => {
+      setDriveLoading(true);
+      setDriveError(null);
+      try {
+        const { data, error } = await supabase.functions.invoke("library-list-gdrive", {
+          body: { page: 1, pageSize: 24, mimeClass: "all" }
+        });
+        
+        if (error) throw error;
+        
+        if (data?.ok) {
+          setDriveItems(data.items || []);
+        } else {
+          throw new Error(data?.message || "Failed to load Drive items");
+        }
+      } catch (err) {
+        console.error("Error loading Drive items:", err);
+        setDriveError(err instanceof Error ? err.message : "Unknown error");
+        setDriveItems([]);
+      } finally {
+        setDriveLoading(false);
+      }
+    };
+
+    loadDriveItems();
+  }, []);
+
   // Handle collection change
   const handleCollectionChange = (collectionId: string | null) => {
     setSelectedCollectionId(collectionId);
@@ -173,6 +209,10 @@ const Index = () => {
     });
     clearSelection();
   };
+
+  // Google Drive thumbnails
+  const driveFileIds = driveItems.map(item => item.item_key);
+  const { urlFor, recoverOne } = useGDriveThumbs(driveFileIds);
 
   const handlePhotoClick = (photo: Photo) => {
     if (selectedCount > 0) {
@@ -521,6 +561,66 @@ const Index = () => {
           onUpdateLabels={updatePhotoLabels}
         />
       </div>
+
+      {/* Google Drive Items Section */}
+      {driveItems.length > 0 && (
+        <div className="container mx-auto px-4 max-w-7xl mt-12">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-4">Do seu Google Drive</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              {driveItems.map((item: any) => (
+                <Card key={item.id} className="group overflow-hidden">
+                  <div className="aspect-square relative bg-muted">
+                    <img
+                      src={urlFor(item.item_key)}
+                      alt={item.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                      onError={(e) => {
+                        recoverOne(item.item_key).then(() => {
+                          (e.currentTarget as HTMLImageElement).src = urlFor(item.item_key) || "/img/placeholder.png";
+                        });
+                      }}
+                    />
+                  </div>
+                  <div className="p-3">
+                    <h3 className="text-sm font-medium truncate mb-2" title={item.name}>
+                      {item.name}
+                    </h3>
+                    <a
+                      href={item.web_view_link || `https://drive.google.com/file/d/${item.item_key}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Abrir no Drive
+                    </a>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drive Loading State */}
+      {driveLoading && (
+        <div className="container mx-auto px-4 max-w-7xl mt-12">
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Carregando itens do Google Drive...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Drive Error State */}
+      {driveError && (
+        <div className="container mx-auto px-4 max-w-7xl mt-12">
+          <div className="text-center py-8">
+            <p className="text-destructive">Erro ao carregar itens do Drive: {driveError}</p>
+          </div>
+        </div>
+      )}
 
       {/* Load More / Pagination */}
       {totalPages > 1 && (
