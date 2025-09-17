@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions."drive-thumb-open"]
 verify_jwt = false
+
+[functions."thumb-open"]
+verify_jwt = false
