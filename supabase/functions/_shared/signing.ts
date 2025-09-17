@@ -1,4 +1,4 @@
-import { encode as b64u } from "https://deno.land/std@0.224.0/encoding/base64url.ts";
+import { encodeBase64Url as b64u } from "https://deno.land/std@0.224.0/encoding/base64url.ts";
 
 function hmac(input: Uint8Array, key: Uint8Array) {
   return crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"])

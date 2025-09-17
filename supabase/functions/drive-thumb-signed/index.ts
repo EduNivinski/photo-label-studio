@@ -23,10 +23,20 @@ serve(async (req) => {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const meta = await metaRes.json().catch(()=> ({}));
-    if (!metaRes.ok || !meta?.thumbnailLink) return new Response("No thumbnail", { status:404 });
+    if (!metaRes.ok || !meta?.thumbnailLink) {
+      return new Response("No thumbnail", { 
+        status:404,
+        headers: { "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app" }
+      });
+    }
 
     const imgRes = await fetch(meta.thumbnailLink);
-    if (!imgRes.ok) return new Response("Thumb fetch failed", { status:502 });
+    if (!imgRes.ok) {
+      return new Response("Thumb fetch failed", { 
+        status:502,
+        headers: { "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app" }
+      });
+    }
 
     const bytes = new Uint8Array(await imgRes.arrayBuffer());
     const type = imgRes.headers.get("content-type") || "image/jpeg";
