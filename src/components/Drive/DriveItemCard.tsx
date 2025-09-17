@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 interface DriveItem {
   id: string;
@@ -17,9 +17,10 @@ interface DriveItemCardProps {
   item: DriveItem;
   signedThumbnailUrl?: string;
   onClick: () => void;
+  onRecoverThumbnail?: (fileId: string) => Promise<void>;
 }
 
-export function DriveItemCard({ item, signedThumbnailUrl, onClick }: DriveItemCardProps) {
+export function DriveItemCard({ item, signedThumbnailUrl, onClick, onRecoverThumbnail }: DriveItemCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -29,7 +30,24 @@ export function DriveItemCard({ item, signedThumbnailUrl, onClick }: DriveItemCa
   
   const thumbnailSrc = signedThumbnailUrl || item.thumbnailLink;
 
-  const handleImageError = () => {
+  const handleImageError = async (e: React.SyntheticEvent<HTMLImageElement>) => {
+    // se expirou/404, tenta renovar só esse id e reatribui o src
+    if (onRecoverThumbnail) {
+      try {
+        await onRecoverThumbnail(item.item_key);
+        // Tenta recarregar a imagem com a nova URL
+        const newSrc = signedThumbnailUrl || item.thumbnailLink;
+        if (newSrc) {
+          (e.currentTarget as HTMLImageElement).src = newSrc;
+          return;
+        }
+      } catch (error) {
+        console.warn('Failed to recover thumbnail:', error);
+      }
+    }
+    
+    // Fallback para placeholder
+    (e.currentTarget as HTMLImageElement).src = "/img/placeholder.png";
     setImageError(true);
   };
 
@@ -103,11 +121,21 @@ export function DriveItemCard({ item, signedThumbnailUrl, onClick }: DriveItemCa
         </div>
       </div>
       
-      {/* File name */}
+      {/* File name and Drive link */}
       <div className="p-3">
-        <h3 className="text-sm font-medium truncate" title={item.name}>
+        <h3 className="text-sm font-medium truncate mb-2" title={item.name}>
           {item.name}
         </h3>
+        <a
+          href={item.webViewLink || `https://drive.google.com/file/d/${item.item_key}/view`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="h-3 w-3" />
+          Abrir no Drive
+        </a>
       </div>
     </Card>
   );

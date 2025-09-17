@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { DriveItemCard } from './DriveItemCard';
-import { useSignedThumbnails } from '@/hooks/useSignedThumbnails';
+import { useGDriveThumbs } from '@/hooks/useGDriveThumbs';
 
 interface DriveItem {
   id: string;
@@ -26,7 +26,7 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
   }, [items]);
 
   // Get signed thumbnail URLs
-  const { thumbnailUrls, isLoading, error } = useSignedThumbnails(driveFileIds);
+  const { urlFor, loading, recoverOne } = useGDriveThumbs(driveFileIds);
 
   if (items.length === 0) {
     return (
@@ -47,16 +47,9 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
   return (
     <div className="w-full">
       {/* Loading state for thumbnails */}
-      {isLoading && (
+      {loading && (
         <div className="mb-4 text-sm text-muted-foreground">
           Carregando thumbnails...
-        </div>
-      )}
-      
-      {/* Error state for thumbnails */}
-      {error && (
-        <div className="mb-4 text-sm text-red-600">
-          Erro ao carregar thumbnails: {error}
         </div>
       )}
       
@@ -65,8 +58,9 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
           <DriveItemCard
             key={item.id}
             item={item}
-            signedThumbnailUrl={thumbnailUrls[item.item_key]}
+            signedThumbnailUrl={urlFor(item.item_key)}
             onClick={() => onItemClick(item)}
+            onRecoverThumbnail={recoverOne}
           />
         ))}
       </div>
