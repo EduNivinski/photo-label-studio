@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
 import { getFileType } from '@/lib/fileUtils';
+import { getThumbnailUrl, createThumbnailProps } from '@/lib/driveThumbnails';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoCardProps {
@@ -35,6 +36,14 @@ export function PhotoCard({
   const photoLabels = labels.filter(label => photo.labels.includes(label.id) && label.name !== 'favorites');
   const isVideo = getFileType(photo.url) === 'video';
   const isFavorite = photo.labels.includes('favorites');
+
+  // Get appropriate thumbnail URL (proxy for Google Drive items)
+  const thumbnailSrc = getThumbnailUrl(photo);
+  const thumbnailProps = createThumbnailProps(
+    thumbnailSrc,
+    photo.url, // fallback to original URL
+    () => setMediaError(true)
+  );
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger on checkbox, buttons, or other interactive elements
@@ -125,13 +134,12 @@ export function PhotoCard({
         </>
       ) : (
         <img
-          src={photo.url}
+          {...thumbnailProps}
           alt={photo.name}
           className={`w-full h-full object-cover transition-all duration-500 ${
             mediaLoaded ? 'opacity-100' : 'opacity-0'
           } group-hover:scale-110`}
           onLoad={() => setMediaLoaded(true)}
-          onError={() => setMediaError(true)}
         />
       )}
       
