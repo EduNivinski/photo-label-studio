@@ -7,18 +7,24 @@ function hmac(input: Uint8Array, key: Uint8Array) {
 }
 
 export async function signPayload(obj: Record<string, unknown>) {
-  const key = new TextEncoder().encode(Deno.env.get("THUMB_SIGNING_KEY")!);
+  const RAW_KEY = Deno.env.get("THUMB_SIGNING_KEY");
+  if (!RAW_KEY) throw new Error("ENV_MISSING_THUMB_SIGNING_KEY");
+  
+  const key = new TextEncoder().encode(RAW_KEY);
   const payload = new TextEncoder().encode(JSON.stringify(obj));
   const mac = await hmac(payload, key);
   return `${b64u(payload)}.${b64u(mac)}`;
 }
 
 export async function verifyPayload(sig: string) {
+  const RAW_KEY = Deno.env.get("THUMB_SIGNING_KEY");
+  if (!RAW_KEY) throw new Error("ENV_MISSING_THUMB_SIGNING_KEY");
+  
   const [p, m] = sig.split(".");
   if (!p || !m) throw new Error("BAD_SIG");
   const payload = Uint8Array.from(atob(p.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
   const macRecv = Uint8Array.from(atob(m.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
-  const key = new TextEncoder().encode(Deno.env.get("THUMB_SIGNING_KEY")!);
+  const key = new TextEncoder().encode(RAW_KEY);
   const mac = await hmac(payload, key);
   if (mac.length !== macRecv.length || !mac.every((b, i) => b === macRecv[i])) throw new Error("BAD_SIG");
   const obj = JSON.parse(new TextDecoder().decode(payload));
