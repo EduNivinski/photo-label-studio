@@ -6,14 +6,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
 import { getFileType } from '@/lib/fileUtils';
-import { getThumbnailUrl, createThumbnailProps } from '@/lib/driveThumbnails';
 import type { Photo, Label } from '@/types/photo';
 
 interface PhotoCardProps {
   photo: Photo;
   labels: Label[];
   isSelected?: boolean;
-  hasActiveSelections?: boolean; // NEW: indica se há itens selecionados (modo seleção múltipla)
+  hasActiveSelections?: boolean;
+  signedThumbnailUrl?: string; // NEW: signed URL for Google Drive items
   onClick: () => void;
   onLabelManage: () => void;
   onSelectionToggle: (isShiftPressed: boolean) => void;
@@ -25,6 +25,7 @@ export function PhotoCard({
   labels, 
   isSelected = false,
   hasActiveSelections = false,
+  signedThumbnailUrl,
   onClick, 
   onLabelManage,
   onSelectionToggle,
@@ -37,13 +38,13 @@ export function PhotoCard({
   const isVideo = getFileType(photo.url) === 'video';
   const isFavorite = photo.labels.includes('favorites');
 
-  // Get appropriate thumbnail URL (proxy for Google Drive items)
-  const thumbnailSrc = getThumbnailUrl(photo);
-  const thumbnailProps = createThumbnailProps(
-    thumbnailSrc,
-    photo.url, // fallback to original URL
-    () => setMediaError(true)
-  );
+  // Check if this is a Drive item by URL pattern or other criteria
+  const isDriveItem = photo.url?.includes('drive.google.com') || photo.url?.includes('googleusercontent.com');
+  
+  // Get appropriate thumbnail URL (signed URL for Drive items or original)  
+  const thumbnailSrc = isDriveItem && signedThumbnailUrl 
+    ? signedThumbnailUrl 
+    : photo.url;
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't trigger on checkbox, buttons, or other interactive elements
@@ -134,12 +135,17 @@ export function PhotoCard({
         </>
       ) : (
         <img
-          {...thumbnailProps}
+          src={thumbnailSrc}
           alt={photo.name}
           className={`w-full h-full object-cover transition-all duration-500 ${
             mediaLoaded ? 'opacity-100' : 'opacity-0'
           } group-hover:scale-110`}
           onLoad={() => setMediaLoaded(true)}
+          onError={(e) => {
+            e.currentTarget.src = '/img/placeholder.png';
+            setMediaError(true);
+          }}
+          loading="lazy"
         />
       )}
       
