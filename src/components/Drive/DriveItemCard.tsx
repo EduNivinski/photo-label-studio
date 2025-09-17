@@ -31,24 +31,41 @@ export function DriveItemCard({ item, signedThumbnailUrl, onClick, onRecoverThum
   const thumbnailSrc = signedThumbnailUrl || item.thumbnailLink;
 
   const handleImageError = async (e: React.SyntheticEvent<HTMLImageElement>) => {
-    // se expirou/404, tenta renovar só esse id e reatribui o src
+    // Captura referência síncrona do elemento
+    const imgEl = e.currentTarget as HTMLImageElement;
+    
+    // Limite de tentativas por elemento
+    const retries = Number(imgEl.dataset.retries || "0");
+    if (retries >= 1) {
+      // Já tentamos renovar uma vez: fixa no placeholder
+      imgEl.src = "/img/placeholder.png";
+      setImageError(true);
+      return;
+    }
+    imgEl.dataset.retries = String(retries + 1);
+
+    // Coloca placeholder imediato para quebrar loop visual
+    imgEl.src = "/img/placeholder.png";
+    setImageError(true);
+
+    // Dispara renovação se disponível
     if (onRecoverThumbnail) {
       try {
         await onRecoverThumbnail(item.item_key);
-        // Tenta recarregar a imagem com a nova URL
-        const newSrc = signedThumbnailUrl || item.thumbnailLink;
-        if (newSrc) {
-          (e.currentTarget as HTMLImageElement).src = newSrc;
-          return;
+        // Verifica se elemento ainda está no DOM
+        if (!imgEl.isConnected) return;
+        
+        const fresh = signedThumbnailUrl || item.thumbnailLink;
+        if (fresh) {
+          // Cache-buster para evitar 401/404 em cache
+          imgEl.src = `${fresh}&v=${Date.now()}`;
+          setImageError(false);
         }
       } catch (error) {
         console.warn('Failed to recover thumbnail:', error);
+        // Mantém placeholder em caso de falha
       }
     }
-    
-    // Fallback para placeholder
-    (e.currentTarget as HTMLImageElement).src = "/img/placeholder.png";
-    setImageError(true);
   };
 
   const handleImageLoad = () => {
