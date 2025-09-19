@@ -8,6 +8,7 @@ import { Loader2, Cloud, Folder, Unplug, RefreshCw, Settings, AlertCircle, Downl
 import { useToast } from "@/hooks/use-toast";
 import FolderPickerModal from "@/components/Drive/FolderPickerModal";
 import DriveBrowser from "@/components/Drive/DriveBrowser";
+import { GoogleDriveSmokeTests } from "@/components/GoogleDriveSmokeTests";
 
 type DriveStatus =
   | { ok: true; connected: true }
@@ -537,6 +538,9 @@ export default function DriveSettingsPage() {
         onClose={() => setShowFolderPicker(false)}
         onPicked={handleFolderSelected}
       />
+
+      {/* Smoke Tests */}
+      <GoogleDriveSmokeTests />
     </div>
   );
 }

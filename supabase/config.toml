@@ -34,65 +34,45 @@ image_transformation = { enabled = true }
 enabled = true
 port = 54329
 
-[functions."google-drive-auth"]
-verify_jwt = true
+[functions]
+verify_jwt = true  # padrão fechado
 
+# ---- PÚBLICAS (sem JWT) ----
 [functions."google-drive-oauth-callback"]
 verify_jwt = false
-
-[functions."drive-changes-peek"]
-verify_jwt = true
-
-[functions."drive-changes-pull"]
-verify_jwt = true
-
-[functions."google-drive-oauth-callback"]
+[functions."thumb-open"]
 verify_jwt = false
-
+[functions."drive-thumb-open"]
+verify_jwt = false
+[functions."drive-thumb-signed"]
+verify_jwt = false
+[functions."hello-open"]
+verify_jwt = false
 [functions."diag-list-root"]
 verify_jwt = false
-
 [functions."diag-list-folder"]
 verify_jwt = false
-
-[functions."diag-scopes"]
-verify_jwt = true
-
-[functions."diag-user-tokens"]
-verify_jwt = true
-
 [functions."diag-env"]
 verify_jwt = false
 
-[functions."drive-index-folder"]
+# ---- PRIVADAS (com JWT) ----
+[functions."google-drive-auth"]
 verify_jwt = true
-
+[functions."drive-changes-peek"]
+verify_jwt = true
 [functions."drive-changes-pull"]
 verify_jwt = true
-
+[functions."drive-index-folder"]
+verify_jwt = true
 [functions."drive-sync-now"]
 verify_jwt = true
-
 [functions."drive-thumb"]
 verify_jwt = true
-
-[functions]
-verify_jwt = true
-
 [functions."get-thumb-urls"]
 verify_jwt = true
-
-[functions."drive-thumb-signed"]
-verify_jwt = false
-
-[functions."drive-thumb-open"]
-verify_jwt = false
-
-[functions."thumb-open"]
-verify_jwt = false
-
-[functions."hello-open"]
-verify_jwt = false
-
+[functions."diag-scopes"]
+verify_jwt = true
+[functions."diag-user-tokens"]
+verify_jwt = true
 [functions."library-list-gdrive"]
 verify_jwt = true
