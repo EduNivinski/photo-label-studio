@@ -9,6 +9,7 @@ const H = {
 };
 
 serve(async (req) => {
+  console.log("[google-drive-oauth-callback] hit", { method: req.method, url: req.url });
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: H });
 
   try {
