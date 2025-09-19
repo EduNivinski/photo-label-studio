@@ -206,131 +206,7 @@ async function handleStatus(req: Request, userId: string) {
   }
 }
 
-async function handleCallback(req: Request, url: URL) {
-  const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
-  const error = url.searchParams.get("error");
-
-  if (error) {
-    return new Response(`
-      <!DOCTYPE html>
-      <html><head><title>Authorization Error</title></head>
-      <body>
-        <h1>Authorization Error</h1>
-        <p>Error: ${error}</p>
-        <p><a href="/">Return to app</a></p>
-      </body></html>
-    `, { headers: { "Content-Type": "text/html" } });
-  }
-
-  if (!code || !state) {
-    return new Response(`
-      <!DOCTYPE html>
-      <html><head><title>Missing Parameters</title></head>
-      <body>
-        <h1>Missing Parameters</h1>
-        <p>Missing code or state parameter</p>
-        <p><a href="/">Return to app</a></p>
-      </body></html>
-    `, { headers: { "Content-Type": "text/html" } });
-  }
-
-  try {
-    const { userId, r: redirect } = JSON.parse(atob(state));
-    
-    // Exchange code for tokens
-    const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID");
-    const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET");
-    const REDIRECT_URI = Deno.env.get("GOOGLE_REDIRECT_URI");
-
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: CLIENT_ID!,
-        client_secret: CLIENT_SECRET!,
-        code,
-        grant_type: "authorization_code",
-        redirect_uri: REDIRECT_URI!,
-      }),
-    });
-
-    const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok) {
-      throw new Error(`Token exchange failed: ${tokenData.error_description || tokenData.error}`);
-    }
-
-    const { access_token, refresh_token, expires_in, scope } = tokenData;
-
-    // Get existing tokens to preserve refresh_token if not provided
-    const existing = await getUserTokensRow(userId);
-    let oldRefresh: string | null = null;
-    if (existing?.refresh_token_enc) {
-      try { 
-        oldRefresh = await decryptPacked(existing.refresh_token_enc); 
-      } catch { 
-        oldRefresh = null; 
-      }
-    }
-
-    // Decide final refresh token
-    const finalRefresh = (refresh_token && refresh_token.trim().length > 0) ? refresh_token : oldRefresh;
-
-    if (!finalRefresh) {
-      return new Response(`
-        <!DOCTYPE html>
-        <html><head><title>Reconnection Required</title></head>
-        <body>
-          <h1>Reconnection Required</h1>
-          <p>Please reconnect with permissions to complete the setup.</p>
-          <p><a href="${redirect || '/'}">Return to app</a></p>
-        </body></html>
-      `, { headers: { "Content-Type": "text/html" } });
-    }
-
-    // Calculate expires_at with 60s buffer
-    const expiresAtIso = new Date(Date.now() + Math.max(0, (expires_in ?? 3600) - 60) * 1000).toISOString();
-
-    // Save tokens (preserving old refresh if new one not provided)
-    await upsertTokens(
-      userId,
-      access_token,
-      finalRefresh,
-      Array.isArray(scope) ? scope.join(" ") : String(scope || ""),
-      expiresAtIso
-    );
-
-    // Save granted scope
-    await saveGrantedScope(userId, (scope as string) || "");
-
-    return new Response(`
-      <!DOCTYPE html>
-      <html><head><title>Authorization Complete</title></head>
-      <body>
-        <h1>Authorization Complete</h1>
-        <p>Google Drive has been connected successfully!</p>
-        <script>
-          setTimeout(() => {
-            window.location.href = "${redirect || '/'}";
-          }, 2000);
-        </script>
-        <p><a href="${redirect || '/'}">Continue to app</a></p>
-      </body></html>
-    `, { headers: { "Content-Type": "text/html" } });
-
-  } catch (e: any) {
-    console.error("Callback error:", e);
-    return new Response(`
-      <!DOCTYPE html>
-      <html><head><title>Authorization Error</title></head>
-      <body>
-        <h1>Authorization Error</h1>
-        <p>Error: ${e.message}</p>
-        <p><a href="/">Return to app</a></p>
-      </body></html>
-    `, { headers: { "Content-Type": "text/html" } });
-  }
-}
+// Callback handling removed - now handled by separate function
 
 async function handleAuthorize(req: Request, userId: string, url: URL) {
   const body = await req.json().catch(() => ({}));
@@ -418,18 +294,18 @@ async function getUserIdFromJwt(req: Request): Promise<string | null> {
 }
 
 serve(async (req: Request) => {
-  const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(req) });
+    return new Response(null, { 
+      status: 204, 
+      headers: {
+        "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app",
+        "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+        "Access-Control-Allow-Methods": "POST, OPTIONS"
+      }
+    });
   }
 
   const url = new URL(req.url);
-  const pathname = url.pathname || "";
-  
-  // callback não é tratado aqui
-  if (pathname.endsWith("/callback")) {
-    return await handleCallback(req, url);
-  }
 
   // ✅ Ler body JSON UMA única vez (se houver)
   let body: any = null;
@@ -445,13 +321,9 @@ serve(async (req: Request) => {
   console.log("[google-drive-auth] action:", action);
 
   try {
-    if (action === "callback") {
-      return json(req, 400, { ok: false, reason: "CALLBACK_IS_EXTERNAL" });
-    }
-
-    // valida JWT manualmente (já que verify_jwt=false no config)
+    // Require JWT for all actions
     const userId = await getUserIdFromJwt(req);
-    if (!userId && action !== "") {
+    if (!userId) {
       return json(req, 401, { ok: false, reason: "INVALID_JWT" });
     }
 
@@ -490,9 +362,23 @@ serve(async (req: Request) => {
       if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
       return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
     }
+    
+    if (action === "disconnect") {
+      try {
+        const admin = getAdmin();
+        const { error } = await admin
+          .from('user_drive_tokens')
+          .delete()
+          .eq('user_id', userId);
 
-    // default (quando sem action)
-    return json(req, 200, { ok: true, message: "google-drive-auth ready" });
+        if (error) throw new Error(error.message);
+        return json(req, 200, { ok: true, message: "Disconnected successfully" });
+      } catch (e: any) {
+        return json(req, 500, { ok: false, reason: "DISCONNECT_FAILED", message: e?.message || String(e) });
+      }
+    }
+
+    return json(req, 400, { ok: false, reason: "INVALID_ACTION", action });
   } catch (e: any) {
     console.error("google-drive-auth error:", e?.message || e);
     return json(req, 500, { ok: false, reason: "INTERNAL_ERROR" });

@@ -1,101 +1,73 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { upsertTokens } from "../_shared/token_provider_v2.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { exchangeCodeAndUpsert } from "../_shared/drive_oauth.ts";
 
-// Google Drive OAuth callback handler - v2
-
-async function saveGrantedScope(userId: string, scope: string) {
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
-  const { error } = await admin
-    .from("user_drive_settings")
-    .update({
-      scope_granted: scope,
-      updated_at: new Date().toISOString()
-    })
-    .eq("user_id", userId);
-  if (error) console.warn("WARN saveGrantedScope:", error.message);
-}
-
-const okHtml = `<!doctype html><meta charset="utf-8"><body>
-<script>
-  try { window.opener && window.opener.postMessage({ type: "drive_connected" }, "*"); } catch(e){}
-  try { window.close(); } catch(e){}
-  setTimeout(()=>location.replace("/user"), 400);
-</script>
-<p>Google Drive conectado. Você pode fechar esta janela.</p>
-</body>`;
-
-function errHtml(msg: string) {
-  const safe = (msg || "").toString().replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]!));
-  return `<!doctype html><meta charset="utf-8"><body>
-<script>
-  try { window.opener && window.opener.postMessage({ type: "drive_connect_error", error: ${JSON.stringify(safe)} }, "*"); } catch(e){}
-  try { window.close(); } catch(e){}
-  setTimeout(()=>location.replace("/user"), 800);
-</script>
-<pre style="white-space:pre-wrap">${safe}</pre>
-</body>`;
-}
+const ORIGIN = "https://photo-label-studio.lovable.app";
 
 serve(async (req) => {
   try {
+    if (req.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": ORIGIN,
+          "Access-Control-Allow-Headers": "content-type, apikey, x-client-info",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+        }
+      });
+    }
+
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const stateRaw = url.searchParams.get("state");
-    const oauthErr = url.searchParams.get("error");
-    const html = (h: string, s = 200) => new Response(h, { status: s, headers: { "Content-Type": "text/html" } });
+    const state = url.searchParams.get("state");
+    const oauthError = url.searchParams.get("error");
 
-    if (oauthErr) return html(errHtml(`Google error: ${oauthErr}`), 400);
-    if (!code || !stateRaw) return html(errHtml("MISSING_CODE_OR_STATE"), 400);
+    if (oauthError) {
+      return new Response(`Missing code/state: ${oauthError}`, { 
+        status: 400, 
+        headers: { "Access-Control-Allow-Origin": ORIGIN } 
+      });
+    }
 
-    // ⚠️ O "state" deve carregar o userId que emitimos no authorize
-    let userId: string | null = null;
-    try {
-      const st = JSON.parse(atob(stateRaw));
-      userId = st?.userId || null;
-    } catch { /* no-op */ }
-    if (!userId) return html(errHtml("MISSING_USER_ID_IN_STATE"), 400);
+    if (!code || !state) {
+      return new Response("Missing code/state", { 
+        status: 400, 
+        headers: { "Access-Control-Allow-Origin": ORIGIN } 
+      });
+    }
 
-    const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-    const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
+    // Exchange code for tokens and upsert
+    await exchangeCodeAndUpsert({ code, state });
 
-    // Troca de code por tokens
-    const tr = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
-        client_secret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
-        redirect_uri: REDIRECT_URI,
-        grant_type: "authorization_code",
-      }).toString(),
+    // HTML that closes window and notifies opener
+    const html = `
+<!doctype html><meta charset="utf-8" />
+<script>
+try {
+  if (window.opener) {
+    window.opener.postMessage({ type: "drive_connected" }, "${ORIGIN}");
+  }
+  window.close();
+} catch (e) { 
+  document.body.innerText = "Connected. You can close this window."; 
+}
+</script>`;
+
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Access-Control-Allow-Origin": ORIGIN
+      }
     });
-    const tj = await tr.json().catch(() => ({}));
-    if (!tr.ok) return html(errHtml(`CODE_EXCHANGE_FAILED: ${JSON.stringify(tj)}`), 400);
 
-    const access_token  = tj.access_token as string | undefined;
-    const refresh_token = tj.refresh_token as string | undefined; // pode vir undefined nas reautorizações
-    const scopeStr      = (tj.scope as string | undefined) ?? "";
-    const expires_in    = Number(tj.expires_in ?? 3600);
-    const expires_at    = new Date(Date.now() + Math.max(0, (expires_in - 60)) * 1000).toISOString();
-    if (!access_token) return html(errHtml("MISSING_ACCESS_TOKEN"), 400);
-
-    // Persistir via Service-Role (helper já usa SR e preserva refresh quando ausente)
-    await upsertTokens(userId, access_token, refresh_token ?? null, scopeStr, expires_at);
-    
-    // callback: salvar scopes concedidos
-    await saveGrantedScope(userId, scopeStr);
-
-    // ✅ Sucesso: sempre HTML e fechar popup
-    return html(okHtml, 200);
-  } catch (e: any) {
-    return new Response(errHtml(e?.message || "UNKNOWN_ERROR"), {
+  } catch (e) {
+    console.error("OAuth callback error:", e);
+    return new Response(JSON.stringify({ ok: false, reason: String(e?.message || e) }), {
       status: 500,
-      headers: { "Content-Type": "text/html" },
+      headers: { 
+        "Content-Type": "application/json", 
+        "Access-Control-Allow-Origin": ORIGIN 
+      }
     });
   }
 });
