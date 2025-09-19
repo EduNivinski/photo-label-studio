@@ -33,6 +33,7 @@ import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { HomeFiltersBar } from '@/components/HomeFiltersBar';
 import GDriveThumb from '@/components/GDriveThumb';
+import { DriveItemGallery } from '@/components/Drive/DriveItemGallery';
 import { supabase } from '@/integrations/supabase/client';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
@@ -124,6 +125,7 @@ const Index = () => {
   const [driveItems, setDriveItems] = useState<any[]>([]);
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
+  const [driveMimeFilter, setDriveMimeFilter] = useState<"all" | "image" | "video">("all");
 
   // Pagination
   const {
@@ -171,7 +173,7 @@ const Index = () => {
       setDriveError(null);
       try {
         const { data, error } = await supabase.functions.invoke("library-list-gdrive", {
-          body: { page: 1, pageSize: 24, mimeClass: "all" }
+          body: { page: 1, pageSize: 24, mimeClass: driveMimeFilter }
         });
         
         if (error) throw error;
@@ -191,7 +193,7 @@ const Index = () => {
     };
 
     loadDriveItems();
-  }, []);
+  }, [driveMimeFilter]);
 
   // Handle collection change
   const handleCollectionChange = (collectionId: string | null) => {
@@ -562,34 +564,33 @@ const Index = () => {
       {driveItems.length > 0 && (
         <div className="container mx-auto px-4 max-w-7xl mt-12">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-4">Do seu Google Drive</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-              {driveItems.map((item: any) => (
-                <Card key={item.id} className="group overflow-hidden">
-                  <div className="aspect-square relative bg-muted">
-                    <GDriveThumb 
-                      fileId={item.item_key}
-                      name={item.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                  </div>
-                  <div className="p-3">
-                    <h3 className="text-sm font-medium truncate mb-2" title={item.name}>
-                      {item.name}
-                    </h3>
-                    <a
-                      href={item.web_view_link || `https://drive.google.com/file/d/${item.item_key}/view`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      Abrir no Drive
-                    </a>
-                  </div>
-                </Card>
-              ))}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Do seu Google Drive</h2>
+              
+              {/* Drive Mime Type Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Mostrar:</span>
+                <Select value={driveMimeFilter} onValueChange={(value: "all" | "image" | "video") => setDriveMimeFilter(value)}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="image">Fotos</SelectItem>
+                    <SelectItem value="video">Vídeos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            
+            <DriveItemGallery 
+              items={driveItems} 
+              onItemClick={(item) => {
+                if (item.web_view_link) {
+                  window.open(item.web_view_link, '_blank', 'noopener,noreferrer');
+                }
+              }}
+            />
           </div>
         </div>
       )}

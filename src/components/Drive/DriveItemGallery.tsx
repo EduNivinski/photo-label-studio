@@ -1,8 +1,23 @@
 import { useMemo } from 'react';
 import { DriveItemCard } from './DriveItemCard';
+import GDriveVideoCard from './GDriveVideoCard';
 import { useGDriveThumbs } from '@/hooks/useGDriveThumbs';
 
 interface DriveItem {
+  id: string;
+  name: string;
+  mime_type: string;
+  web_view_link?: string;
+  source: 'gdrive';
+  item_key: string;
+  video?: {
+    durationMs?: number | null;
+    width?: number | null;
+    height?: number | null;
+  };
+}
+
+interface DriveItemCardItem {
   id: string;
   name: string;
   mimeType: string;
@@ -54,15 +69,32 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
       )}
       
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-        {items.map((item) => (
-          <DriveItemCard
-            key={item.id}
-            item={item}
-            signedThumbnailUrl={urlFor(item.item_key)}
-            onClick={() => onItemClick(item)}
-            onRecoverThumbnail={recoverOne}
-          />
-        ))}
+        {items.map((item) => {
+          const isVideo = item.mime_type?.startsWith('video/');
+          
+          if (isVideo) {
+            return (
+              <GDriveVideoCard
+                key={item.id}
+                item={item}
+                onClick={() => onItemClick(item)}
+              />
+            );
+          }
+          
+          return (
+            <DriveItemCard
+              key={item.id}
+              item={{
+                ...item,
+                mimeType: item.mime_type
+              } as DriveItemCardItem}
+              signedThumbnailUrl={urlFor(item.item_key)}
+              onClick={() => onItemClick(item)}
+              onRecoverThumbnail={recoverOne}
+            />
+          );
+        })}
       </div>
     </div>
   );

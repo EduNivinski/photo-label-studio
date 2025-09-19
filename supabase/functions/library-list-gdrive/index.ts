@@ -44,7 +44,7 @@ serve(async (req) => {
     const mimeClass = (body.mimeClass || "all") as "all" | "image" | "video";
 
     let q = getAdmin().from("drive_items")
-      .select("file_id,name,mime_type,modified_time,created_time,web_view_link,thumbnail_link,path_cached,size,status", { count: "exact" })
+      .select("file_id,name,mime_type,modified_time,created_time,web_view_link,thumbnail_link,path_cached,size,status,video_duration_ms,video_width,video_height", { count: "exact" })
       .eq("user_id", uid)
       .eq("trashed", false);
 
@@ -71,6 +71,11 @@ serve(async (req) => {
       path: r.path_cached || null,
       size: r.size ? Number(r.size) : null,
       status: r.status || "active",
+      video: {
+        durationMs: r.video_duration_ms ?? null,
+        width: r.video_width ?? null,
+        height: r.video_height ?? null
+      }
     }));
 
     return new Response(JSON.stringify({ ok: true, total: count ?? 0, items }), {

@@ -133,7 +133,10 @@ export type Database = {
           trashed: boolean
           updated_at: string
           user_id: string
+          video_duration_ms: number | null
+          video_height: number | null
           video_meta: Json | null
+          video_width: number | null
           web_content_link: string | null
           web_view_link: string | null
         }
@@ -156,7 +159,10 @@ export type Database = {
           trashed?: boolean
           updated_at?: string
           user_id: string
+          video_duration_ms?: number | null
+          video_height?: number | null
           video_meta?: Json | null
+          video_width?: number | null
           web_content_link?: string | null
           web_view_link?: string | null
         }
@@ -179,7 +185,10 @@ export type Database = {
           trashed?: boolean
           updated_at?: string
           user_id?: string
+          video_duration_ms?: number | null
+          video_height?: number | null
           video_meta?: Json | null
+          video_width?: number | null
           web_content_link?: string | null
           web_view_link?: string | null
         }
