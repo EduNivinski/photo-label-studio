@@ -3,71 +3,41 @@ import { exchangeCodeAndUpsert } from "../_shared/drive_oauth.ts";
 
 const ORIGIN = "https://photo-label-studio.lovable.app";
 
+const h = {
+  "Access-Control-Allow-Origin": ORIGIN,
+  "Access-Control-Allow-Headers": "content-type, apikey, x-client-info",
+  "Access-Control-Allow-Methods": "GET, OPTIONS"
+};
+
 serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: h });
+
   try {
-    if (req.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "Access-Control-Allow-Origin": ORIGIN,
-          "Access-Control-Allow-Headers": "content-type, apikey, x-client-info",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-        }
-      });
-    }
-
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    const oauthError = url.searchParams.get("error");
-
-    if (oauthError) {
-      return new Response(`Missing code/state: ${oauthError}`, { 
-        status: 400, 
-        headers: { "Access-Control-Allow-Origin": ORIGIN } 
-      });
-    }
-
+    const u = new URL(req.url);
+    const code = u.searchParams.get("code");
+    const state = u.searchParams.get("state");
     if (!code || !state) {
-      return new Response("Missing code/state", { 
-        status: 400, 
-        headers: { "Access-Control-Allow-Origin": ORIGIN } 
-      });
+      return new Response("Missing code/state", { status: 400, headers: h });
     }
 
-    // Exchange code for tokens and upsert
+    // troca o code por tokens e UPSERT encriptado (usa state pra achar userId)
     await exchangeCodeAndUpsert({ code, state });
 
-    // HTML that closes window and notifies opener
-    const html = `
-<!doctype html><meta charset="utf-8" />
+    const html = `<!doctype html><meta charset="utf-8" />
 <script>
 try {
-  if (window.opener) {
-    window.opener.postMessage({ type: "drive_connected" }, "${ORIGIN}");
-  }
+  if (window.opener) window.opener.postMessage({type:"drive_connected"}, "${ORIGIN}");
   window.close();
-} catch (e) { 
-  document.body.innerText = "Connected. You can close this window."; 
-}
-</script>`;
+} catch(e) {}
+</script>
+<body style="font-family:system-ui;margin:24px">
+  Conexão realizada. Você pode fechar esta janela.
+</body>`;
+    return new Response(html, { status: 200, headers: { ...h, "Content-Type":"text/html; charset=utf-8" } });
 
-    return new Response(html, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Access-Control-Allow-Origin": ORIGIN
-      }
-    });
-
-  } catch (e) {
-    console.error("OAuth callback error:", e);
-    return new Response(JSON.stringify({ ok: false, reason: String(e?.message || e) }), {
-      status: 500,
-      headers: { 
-        "Content-Type": "application/json", 
-        "Access-Control-Allow-Origin": ORIGIN 
-      }
+  } catch (e:any) {
+    return new Response(JSON.stringify({ ok:false, reason: e?.message || "CALLBACK_ERR" }), {
+      status: 500, headers: { ...h, "Content-Type":"application/json" }
     });
   }
 });
