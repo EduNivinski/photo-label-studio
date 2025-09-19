@@ -32,6 +32,7 @@ import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { HomeFiltersBar } from '@/components/HomeFiltersBar';
+import DriveSyncBadge from '@/components/DriveSyncBadge';
 import GDriveThumb from '@/components/GDriveThumb';
 import { DriveItemGallery } from '@/components/Drive/DriveItemGallery';
 import { supabase } from '@/integrations/supabase/client';
@@ -425,6 +426,11 @@ const Index = () => {
           selectedCollectionId={selectedCollectionId}
           onCollectionChange={handleCollectionChange}
         />
+      </div>
+
+      {/* Drive Sync Badge */}
+      <div className="container mx-auto px-4 max-w-7xl">
+        <DriveSyncBadge />
       </div>
 
       {/* CONTAINER 2: Buscar Labels */}

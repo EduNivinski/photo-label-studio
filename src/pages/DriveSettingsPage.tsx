@@ -28,6 +28,9 @@ export default function DriveSettingsPage() {
   const [items, setItems] = useState<FileItem[]>([]);
   const [downloadsEnabled, setDownloadsEnabled] = useState(false);
   const [updatingPrefs, setUpdatingPrefs] = useState(false);
+  const [newChangesCount, setNewChangesCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [peeking, setPeeking] = useState(false);
   const busyRef = useRef(false);
   const { toast } = useToast();
 
@@ -137,6 +140,57 @@ export default function DriveSettingsPage() {
     }
   }, [toast]);
 
+  const peekChanges = useCallback(async () => {
+    if (!status.ok || !(status as any).connected) return;
+    
+    setPeeking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("drive-changes-peek");
+      if (error || !data) {
+        console.warn("Failed to peek changes:", error);
+        return;
+      }
+      
+      setNewChangesCount(data.newCount || 0);
+    } catch (e) {
+      console.warn("Error peeking changes:", e);
+    } finally {
+      setPeeking(false);
+    }
+  }, [status]);
+
+  const syncNow = useCallback(async () => {
+    if (!status.ok || !(status as any).connected) return;
+    
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("drive-changes-pull");
+      if (error || !data) {
+        throw new Error(error?.message || "Sync failed");
+      }
+      
+      toast({
+        title: "Sincronização concluída",
+        description: `${data.processed} itens processados`,
+      });
+      
+      // Reset count after sync
+      setNewChangesCount(0);
+      
+      // Dispatch event to update home
+      window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
+      
+    } catch (e) {
+      toast({
+        title: "Erro na sincronização",
+        description: e instanceof Error ? e.message : "Falha ao sincronizar",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  }, [status, toast]);
+
   const disconnect = useCallback(async () => {
     setLoading(true);
     try {
@@ -211,9 +265,13 @@ export default function DriveSettingsPage() {
 
   useEffect(() => {
     fetchStatus();
-  }, [fetchStatus]);
+    
+    // Peek changes when connected
+    if (status.ok && (status as any).connected) {
+      peekChanges();
+    }
+  }, [fetchStatus, peekChanges, status]);
 
-  // ouvir o callback
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e?.data?.type === "drive_connected") {
@@ -222,6 +280,8 @@ export default function DriveSettingsPage() {
           description: "Google Drive conectado com sucesso",
         });
         fetchStatus();
+        // Peek changes after connection
+        setTimeout(peekChanges, 1000);
       } else if (e?.data?.type === "drive_connect_error") {
         toast({
           title: "Erro na conexão",
@@ -232,7 +292,7 @@ export default function DriveSettingsPage() {
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [fetchStatus, toast]);
+  }, [fetchStatus, peekChanges, toast]);
 
   const getStatusBadgeVariant = () => {
     if (!status.ok) return "destructive";
@@ -289,6 +349,11 @@ export default function DriveSettingsPage() {
           <CardTitle className="flex items-center gap-2">
             <Cloud className="h-6 w-6" />
             Integração Google Drive
+            {newChangesCount > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                Novos: {newChangesCount}
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription>
             Status da conexão e gerenciamento da integração
@@ -300,11 +365,58 @@ export default function DriveSettingsPage() {
               <span className="text-sm font-medium">Status:</span>
               {getStatusIcon()}
             </div>
-            <Badge variant={getStatusBadgeVariant()} className="flex items-center gap-1">
-              {stateLabel}
-              {loading && <Loader2 className="h-3 w-3 animate-spin" />}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={getStatusBadgeVariant()} className="flex items-center gap-1">
+                {stateLabel}
+                {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+              </Badge>
+              {peeking && <Loader2 className="h-3 w-3 animate-spin" />}
+            </div>
           </div>
+
+          {/* Sync Section */}
+          {(status.ok && (status as any).connected) && (
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Sincronização</span>
+                  {newChangesCount > 0 && (
+                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                      {newChangesCount} novos itens
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {newChangesCount > 0 
+                    ? `Há ${newChangesCount} novos itens para sincronizar` 
+                    : "Seus arquivos estão sincronizados"
+                  }
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={peekChanges}
+                  variant="outline"
+                  size="sm"
+                  disabled={peeking || syncing}
+                  className="flex items-center gap-2"
+                >
+                  {peeking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Verificar
+                </Button>
+                <Button
+                  onClick={syncNow}
+                  variant={newChangesCount > 0 ? "default" : "outline"}
+                  size="sm"
+                  disabled={syncing || peeking}
+                  className="flex items-center gap-2"
+                >
+                  {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Sincronizar agora
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Button

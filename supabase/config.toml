@@ -40,6 +40,12 @@ verify_jwt = true
 [functions."google-drive-oauth-callback"]
 verify_jwt = false
 
+[functions."drive-changes-peek"]
+verify_jwt = true
+
+[functions."drive-changes-pull"]
+verify_jwt = true
+
 [functions."google-drive-oauth-callback"]
 verify_jwt = false
 
