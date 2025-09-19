@@ -7,9 +7,10 @@ serve(() => {
     timestamp: new Date().toISOString()
   }), {
     status: 200,
-    headers: { 
-      "Content-Type": "application/json", 
-      "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app" 
-    }
+      headers: { 
+        "Content-Type": "application/json", 
+        "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+      }
   });
 });
