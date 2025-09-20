@@ -33,10 +33,14 @@ interface DriveItemGalleryProps {
 }
 
 export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) {
-  // Extract file IDs for Drive items that need signed URLs
+  // Extract file IDs for Drive items that need signed URLs (images and videos)
   const driveFileIds = useMemo(() => {
     return items
-      .filter(item => item.source === 'gdrive' && item.item_key)
+      .filter(item => 
+        item.source === 'gdrive' && 
+        item.item_key &&
+        (item.mime_type?.startsWith('image/') || item.mime_type?.startsWith('video/'))
+      )
       .map(item => item.item_key);
   }, [items]);
 
@@ -71,6 +75,7 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
         {items.map((item) => {
           const isVideo = item.mime_type?.startsWith('video/');
+          const isImage = item.mime_type?.startsWith('image/');
           
           if (isVideo) {
             return (
@@ -100,7 +105,7 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
                 ...item,
                 mimeType: item.mime_type
               } as DriveItemCardItem}
-              signedThumbnailUrl={urlFor(item.item_key)}
+              signedThumbnailUrl={isImage || isVideo ? urlFor(item.item_key) : undefined}
               onClick={() => onItemClick(item)}
               onRecoverThumbnail={recoverOne}
             />

@@ -83,7 +83,7 @@ export function DriveItemCard({ item, signedThumbnailUrl, onClick, onRecoverThum
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-4xl">📁</div>
           </div>
-        ) : (thumbnailSrc && !imageError) || item.mimeType?.startsWith('image/') ? (
+        ) : (thumbnailSrc && !imageError) || isImage ? (
           <>
             <DriveThumbOptimized 
               fileId={item.item_key} 
