@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { Play, ExternalLink } from "lucide-react";
 import { useGDriveThumbs } from "@/hooks/useGDriveThumbs";
+import { requestVideoUrls } from "@/hooks/useSignedVideos";
 import { formatDuration } from "@/lib/formatDuration";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,16 +41,30 @@ export default function CardVideoGDrive({
   onPlay,
   onRecoverThumbnail 
 }: CardVideoGDriveProps) {
+  const [videoSrc, setVideoSrc] = useState<string>("");
+  const [isHovered, setIsHovered] = useState(false);
+  
   const duration = formatDuration(item.video?.durationMs);
   
+  // Load video URL on hover or click
+  const loadVideoSrc = async () => {
+    if (videoSrc) return;
+    
+    try {
+      const videoUrls = await requestVideoUrls([item.item_key]);
+      const url = videoUrls[item.item_key];
+      if (url) {
+        setVideoSrc(url);
+      }
+    } catch (error) {
+      console.error('Failed to load video URL:', error);
+    }
+  };
+  
   const handleCardClick = () => {
+    loadVideoSrc();
     if (onPlay) {
       onPlay(item);
-    } else {
-      // Fallback: abrir no Drive
-      if (item.web_view_link) {
-        window.open(item.web_view_link, '_blank', 'noopener,noreferrer');
-      }
     }
   };
 
@@ -66,10 +82,26 @@ export default function CardVideoGDrive({
   };
 
   return (
-    <div className="group relative rounded-lg border bg-card overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200">
-      {/* Poster */}
+    <div 
+      className="group relative rounded-lg border bg-card overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200"
+      onMouseEnter={() => {
+        setIsHovered(true);
+        loadVideoSrc();
+      }}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Video or Poster */}
       <div className="relative aspect-video bg-muted">
-        {posterSrc ? (
+        {videoSrc ? (
+          <video
+            controls
+            preload="metadata"
+            poster={posterSrc}
+            src={videoSrc}
+            className="w-full h-full object-cover"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : posterSrc ? (
           <img
             src={posterSrc}
             alt={item.name}
@@ -83,15 +115,17 @@ export default function CardVideoGDrive({
           </div>
         )}
         
-        {/* Play overlay */}
-        <div 
-          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20"
-          onClick={handleCardClick}
-        >
-          <div className="rounded-full bg-black/60 p-3">
-            <Play className="w-6 h-6 text-white fill-white" />
+        {/* Play overlay - only show if no video src loaded */}
+        {!videoSrc && (
+          <div 
+            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20"
+            onClick={handleCardClick}
+          >
+            <div className="rounded-full bg-black/60 p-3">
+              <Play className="w-6 h-6 text-white fill-white" />
+            </div>
           </div>
-        </div>
+        )}
         
         {/* Duration badge */}
         {duration && duration !== "00:00" && (

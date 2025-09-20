@@ -60,6 +60,9 @@ verify_jwt = true
 [functions."get-thumb-urls"]        # emite URLs assinadas
 verify_jwt = true
 
+[functions."get-video-urls"]        # emite URLs assinadas para vídeos
+verify_jwt = true
+
 [functions."diag-scopes"]
 verify_jwt = true
 
@@ -76,4 +79,8 @@ verify_jwt = false
 
 # Thumbs abertas assinadas
 [functions."thumb-open"]
+verify_jwt = false
+
+# Vídeos abertos assinados
+[functions."video-open"]
 verify_jwt = false
