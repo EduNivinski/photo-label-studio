@@ -35,9 +35,13 @@ import { HomeFiltersBar } from '@/components/HomeFiltersBar';
 import DriveSyncBadge from '@/components/DriveSyncBadge';
 import GDriveThumb from '@/components/GDriveThumb';
 import { DriveItemGallery } from '@/components/Drive/DriveItemGallery';
+import { UnifiedPhotoCard } from '@/components/UnifiedPhotoCard';
+import { useUnifiedMedia } from '@/hooks/useUnifiedMedia';
+import { extractSourceAndKey } from '@/lib/media-adapters';
 import { supabase } from '@/integrations/supabase/client';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
+import type { MediaItem } from '@/types/media';
 
 const Index = () => {
   
@@ -122,7 +126,12 @@ const Index = () => {
     photo: Photo | null;
   }>({ suggestions: [], source: 'mock', photo: null });
 
-  // Google Drive items state
+  // Unified media state
+  const { items: unifiedItems, loading: unifiedLoading, loadItems: loadUnifiedItems } = useUnifiedMedia();
+  const [showUnifiedView, setShowUnifiedView] = useState(true);
+  const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
+
+  // Google Drive items state (kept for legacy view)
   const [driveItems, setDriveItems] = useState<any[]>([]);
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
@@ -167,34 +176,48 @@ const Index = () => {
     fetchCollectionPhotos();
   }, [selectedCollectionId, getAlbumPhotos]);
 
-  // Load Google Drive items
+  // Load unified media items
   useEffect(() => {
-    const loadDriveItems = async () => {
-      setDriveLoading(true);
-      setDriveError(null);
-      try {
-        const { data, error } = await supabase.functions.invoke("library-list-gdrive", {
-          body: { page: 1, pageSize: 24, mimeClass: driveMimeFilter }
-        });
-        
-        if (error) throw error;
-        
-        if (data?.ok) {
-          setDriveItems(data.items || []);
-        } else {
-          throw new Error(data?.message || "Failed to load Drive items");
-        }
-      } catch (err) {
-        console.error("Error loading Drive items:", err);
-        setDriveError(err instanceof Error ? err.message : "Unknown error");
-        setDriveItems([]);
-      } finally {
-        setDriveLoading(false);
-      }
-    };
+    if (showUnifiedView) {
+      loadUnifiedItems({
+        page: 1,
+        pageSize: 50,
+        source: "all",
+        mimeClass: unifiedMimeFilter
+      });
+    }
+  }, [showUnifiedView, unifiedMimeFilter, loadUnifiedItems]);
 
-    loadDriveItems();
-  }, [driveMimeFilter]);
+  // Load Google Drive items (legacy)
+  useEffect(() => {
+    if (!showUnifiedView) {
+      const loadDriveItems = async () => {
+        setDriveLoading(true);
+        setDriveError(null);
+        try {
+          const { data, error } = await supabase.functions.invoke("library-list-gdrive", {
+            body: { page: 1, pageSize: 24, mimeClass: driveMimeFilter }
+          });
+          
+          if (error) throw error;
+          
+          if (data?.ok) {
+            setDriveItems(data.items || []);
+          } else {
+            throw new Error(data?.message || "Failed to load Drive items");
+          }
+        } catch (err) {
+          console.error("Error loading Drive items:", err);
+          setDriveError(err instanceof Error ? err.message : "Unknown error");
+          setDriveItems([]);
+        } finally {
+          setDriveLoading(false);
+        }
+      };
+
+      loadDriveItems();
+    }
+  }, [showUnifiedView, driveMimeFilter]);
 
   // Handle collection change
   const handleCollectionChange = (collectionId: string | null) => {
@@ -307,6 +330,16 @@ const Index = () => {
   const handleUploadFiles = async (files: File[]) => {
     const uploadedPhotos = await uploadPhotos(files);
     
+    // Reload unified items after upload
+    if (showUnifiedView) {
+      loadUnifiedItems({
+        page: 1,
+        pageSize: 50,
+        source: "all",
+        mimeClass: unifiedMimeFilter
+      });
+    }
+    
     // Get suggestions for the first uploaded photo
     if (uploadedPhotos && uploadedPhotos.length > 0) {
       const firstPhoto = uploadedPhotos[0];
@@ -324,9 +357,24 @@ const Index = () => {
     }
   };
 
-  const handleLabelManage = (photo?: Photo) => {
+  const handleLabelManage = (photo?: Photo | MediaItem) => {
     if (photo) {
-      setSelectedPhoto(photo);
+      if ('source' in photo) {
+        // MediaItem - convert to Photo for compatibility
+        const convertedPhoto: Photo = {
+          id: photo.id,
+          name: photo.name,
+          url: photo.posterUrl || '',
+          labels: photo.labels.map(l => l.id),
+          uploadDate: photo.createdAt || new Date().toISOString(),
+          originalDate: photo.createdAt,
+          alias: null,
+          mediaType: photo.isVideo ? 'video' : 'photo'
+        };
+        setSelectedPhoto(convertedPhoto);
+      } else {
+        setSelectedPhoto(photo);
+      }
     }
     setIsLabelManagerOpen(true);
   };
@@ -553,30 +601,15 @@ const Index = () => {
         />
       )}
 
-      {/* Photo Gallery - Full width */}
-      <div className="w-full">
-        <PhotoGallery
-          photos={paginatedPhotos}
-          labels={labels}
-          selectedPhotoIds={selectedPhotoIds}
-          onPhotoClick={handlePhotoClick}
-          onLabelManage={handleLabelManage}
-          onSelectionToggle={(photoId, isShiftPressed) => toggleSelection(photoId)}
-          onUpdateLabels={updatePhotoLabels}
-        />
-      </div>
-
-      {/* Google Drive Items Section */}
-      {driveItems.length > 0 && (
-        <div className="container mx-auto px-4 max-w-7xl mt-12">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Do seu Google Drive</h2>
-              
-              {/* Drive Mime Type Filter */}
+      {/* Unified Gallery - Full width */}
+      {showUnifiedView ? (
+        <div className="w-full">
+          {/* Unified View Toggle */}
+          <div className="container mx-auto px-4 max-w-7xl mb-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Mostrar:</span>
-                <Select value={driveMimeFilter} onValueChange={(value: "all" | "image" | "video") => setDriveMimeFilter(value)}>
+                <Select value={unifiedMimeFilter} onValueChange={(value: "all" | "image" | "video") => setUnifiedMimeFilter(value)}>
                   <SelectTrigger className="w-32">
                     <SelectValue />
                   </SelectTrigger>
@@ -587,17 +620,112 @@ const Index = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowUnifiedView(false)}
+              >
+                Ver modo separado
+              </Button>
             </div>
-            
-            <DriveItemGallery 
-              items={driveItems} 
-              onItemClick={(item) => {
-                if (item.web_view_link) {
-                  window.open(item.web_view_link, '_blank', 'noopener,noreferrer');
-                }
-              }}
-            />
           </div>
+
+          {/* Unified Items Grid */}
+          {unifiedLoading ? (
+            <div className="container mx-auto px-4 max-w-7xl">
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Carregando itens...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full">
+              <div className="container mx-auto px-4 max-w-7xl">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {unifiedItems.map((item) => (
+                    <UnifiedPhotoCard
+                      key={item.id}
+                      item={item}
+                      labels={labels}
+                      isSelected={isSelected(item.id)}
+                      hasActiveSelections={selectedCount > 0}
+                      onClick={() => {
+                        // Handle opening item modal/viewer
+                        if (item.source === 'gdrive' && item.openInDriveUrl) {
+                          window.open(item.openInDriveUrl, '_blank');
+                        }
+                      }}
+                      onLabelManage={() => handleLabelManage(item)}
+                      onSelectionToggle={(isShiftPressed) => toggleSelection(item.id)}
+                      onUpdateLabels={async (itemId, labelIds) => {
+                        // Handle unified label updates via new labels-assign endpoint
+                        const { source, key } = extractSourceAndKey(itemId);
+                        // Implement label assignment logic here
+                        console.log('Updating labels for', source, key, labelIds);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="w-full">
+          {/* Legacy Separate Views */}
+          <div className="container mx-auto px-4 max-w-7xl mb-4">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowUnifiedView(true)}
+            >
+              Ver modo unificado
+            </Button>
+          </div>
+
+          <PhotoGallery
+            photos={paginatedPhotos}
+            labels={labels}
+            selectedPhotoIds={selectedPhotoIds}
+            onPhotoClick={handlePhotoClick}
+            onLabelManage={handleLabelManage}
+            onSelectionToggle={(photoId, isShiftPressed) => toggleSelection(photoId)}
+            onUpdateLabels={updatePhotoLabels}
+          />
+
+          {/* Google Drive Items Section */}
+          {driveItems.length > 0 && (
+            <div className="container mx-auto px-4 max-w-7xl mt-12">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold">Do seu Google Drive</h2>
+                  
+                  {/* Drive Mime Type Filter */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Mostrar:</span>
+                    <Select value={driveMimeFilter} onValueChange={(value: "all" | "image" | "video") => setDriveMimeFilter(value)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="image">Fotos</SelectItem>
+                        <SelectItem value="video">Vídeos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <DriveItemGallery 
+                  items={driveItems} 
+                  onItemClick={(item) => {
+                    if (item.web_view_link) {
+                      window.open(item.web_view_link, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

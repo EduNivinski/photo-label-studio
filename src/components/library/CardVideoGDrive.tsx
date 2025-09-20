@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Play, ExternalLink } from "lucide-react";
 import { useGDriveThumbs } from "@/hooks/useGDriveThumbs";
-import { requestVideoUrls } from "@/hooks/useSignedVideos";
+import { fetchSignedThumbUrls } from "@/lib/thumbs";
 import { formatDuration } from "@/lib/formatDuration";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,7 +51,7 @@ export default function CardVideoGDrive({
     if (videoSrc) return;
     
     try {
-      const videoUrls = await requestVideoUrls([item.item_key]);
+      const videoUrls = await fetchSignedThumbUrls([item.item_key]);
       const url = videoUrls[item.item_key];
       if (url) {
         setVideoSrc(url);

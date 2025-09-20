@@ -21,7 +21,7 @@ export async function requestVideoUrls(fileIds: string[]): Promise<Record<string
   // Fetch fresh URLs if needed
   if (needUrls.length > 0) {
     try {
-      const { data, error } = await supabase.functions.invoke('get-video-urls', {
+      const { data, error } = await supabase.functions.invoke('get-thumb-urls', {
         body: { fileIds: needUrls }
       });
       

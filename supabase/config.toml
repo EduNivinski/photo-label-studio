@@ -75,6 +75,9 @@ verify_jwt = true
 [functions."library-list-unified"]
 verify_jwt = true
 
+[functions."labels-assign"]
+verify_jwt = true
+
 # ===== PÚBLICAS (herdam false; listado só para clareza) =====
 # Callback do OAuth (Google não envia JWT)
 [functions."google-drive-oauth-callback2"]
