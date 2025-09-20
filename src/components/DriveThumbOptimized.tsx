@@ -5,9 +5,10 @@ interface DriveThumbOptimizedProps {
   fileId: string;
   name: string;
   className?: string;
+  onLoad?: () => void;
 }
 
-export function DriveThumbOptimized({ fileId, name, className }: DriveThumbOptimizedProps) {
+export function DriveThumbOptimized({ fileId, name, className, onLoad }: DriveThumbOptimizedProps) {
   const { loadThumbs, getThumbUrl, invalidateThumb } = useSignedThumbs();
   const [url, setUrl] = useState<string>("");
   const [attempts, setAttempts] = useState(0);
@@ -71,6 +72,7 @@ export function DriveThumbOptimized({ fileId, name, className }: DriveThumbOptim
       alt={name}
       loading="lazy"
       onError={handleError}
+      onLoad={onLoad}
       className={className || "h-32 w-32 object-cover rounded-md bg-muted"}
     />
   );
