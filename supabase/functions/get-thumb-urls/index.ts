@@ -43,7 +43,8 @@ serve(async (req) => {
 
     const uid = await getUid(req);
     const base = Deno.env.get("SUPABASE_URL")!.replace(/\/$/,"");
-    const exp = Date.now() + 5 * 60 * 1000; // 5 min
+    const ttlSec = 600; // 10 min TTL
+    const exp = Date.now() + ttlSec * 1000;
 
     const urls: Record<string,string> = {};
     for (const id of fileIds) {
@@ -52,7 +53,7 @@ serve(async (req) => {
       urls[id] = `${base}/functions/v1/thumb-open?sig=${encodeURIComponent(sig)}`;
     }
 
-    return new Response(JSON.stringify({ ok:true, urls }), { status:200, headers: cors(origin) });
+    return new Response(JSON.stringify({ ok:true, ttlSec, urls }), { status:200, headers: cors(origin) });
   } catch (e:any) {
     const msg = e?.message || String(e);
     const code = msg === "INVALID_JWT" ? 401 : 500;

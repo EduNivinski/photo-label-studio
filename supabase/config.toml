@@ -77,7 +77,3 @@ verify_jwt = false
 # Thumbs abertas assinadas
 [functions."thumb-open"]
 verify_jwt = false
-[functions."drive-thumb-open"]
-verify_jwt = false
-[functions."drive-thumb-signed"]
-verify_jwt = false

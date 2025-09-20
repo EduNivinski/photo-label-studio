@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
-import GDriveThumb from '@/components/GDriveThumb';
+import { DriveThumbOptimized } from '@/components/DriveThumbOptimized';
 
 interface DriveItem {
   id: string;
@@ -85,7 +85,7 @@ export function DriveItemCard({ item, signedThumbnailUrl, onClick, onRecoverThum
           </div>
         ) : (thumbnailSrc && !imageError) || item.mimeType?.startsWith('image/') ? (
           <>
-            <GDriveThumb 
+            <DriveThumbOptimized 
               fileId={item.item_key} 
               name={item.name}
               className={`w-full h-full object-cover transition-all duration-500 ${

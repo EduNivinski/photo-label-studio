@@ -54,7 +54,14 @@ serve(async (req) => {
 
     const buf = new Uint8Array(await imgRes.arrayBuffer());
     const type = imgRes.headers.get("content-type") || "image/jpeg";
-    return new Response(buf, { status:200, headers: { "Content-Type": type, "Cache-Control":"private, max-age=300", ...cors() } });
+    return new Response(buf, { 
+      status:200, 
+      headers: { 
+        "Content-Type": type, 
+        "Cache-Control": "public, max-age=60",
+        "Access-Control-Allow-Origin": ORIGIN
+      } 
+    });
   } catch (e:any) {
     const msg = e?.message || String(e);
     const isSig = /BAD_SIG|BAD_PAYLOAD|EXPIRED|ENV_MISSING_THUMB_SIGNING_KEY|BAD_UID/.test(msg);
