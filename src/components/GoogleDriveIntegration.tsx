@@ -1,16 +1,31 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
 import { useToast } from "@/hooks/use-toast";
 import { DriveIntegrationCard } from "./DriveIntegrationCard";
 import { DriveBrowserCard } from "./DriveBrowserCard";
+import { preflightDriveCallback } from "@/lib/drivePreflightCheck";
 
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
   const { toast } = useToast();
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const [preflightResult, setPreflightResult] = useState<{ ok: boolean; reason?: string } | null>(null);
+  const [preflightLoading, setPreflightLoading] = useState(true);
+
+  // Preflight check on component mount
+  useEffect(() => {
+    const runPreflightCheck = async () => {
+      setPreflightLoading(true);
+      const result = await preflightDriveCallback();
+      setPreflightResult(result);
+      setPreflightLoading(false);
+    };
+    runPreflightCheck();
+  }, []);
 
   const handleConnect = async () => {
+    if (!preflightResult?.ok) return; // Block if preflight failed
     await connect();
   };
 
@@ -19,6 +34,7 @@ export default function GoogleDriveIntegration() {
   };
 
   const handleReconnect = async () => {
+    if (!preflightResult?.ok) return; // Block if preflight failed
     try {
       const { data } = await supabase.functions.invoke("google-drive-auth", {
         body: { 
@@ -44,6 +60,7 @@ export default function GoogleDriveIntegration() {
   };
 
   const handleReconnectWithPermissions = async () => {
+    if (!preflightResult?.ok) return; // Block if preflight failed
     try {
       const { data } = await supabase.functions.invoke("google-drive-auth", {
         body: { 
@@ -130,6 +147,8 @@ export default function GoogleDriveIntegration() {
         onReconnectWithConsent={handleReconnectWithPermissions}
         onDisconnect={handleDisconnect}
         onChooseFolder={() => setShowFolderBrowser(true)}
+        preflightResult={preflightResult}
+        preflightLoading={preflightLoading}
       />
 
       {!status.isConnected && (
