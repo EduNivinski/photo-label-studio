@@ -1,17 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const APP_ORIGIN = "https://photo-label-studio.lovable.app";
-
-function cors(origin: string) {
-  const o = origin === APP_ORIGIN ? origin : APP_ORIGIN;
-  return {
-    "Access-Control-Allow-Origin": o,
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Content-Type": "application/json"
-  };
-}
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 function getAdmin() {
   const url = Deno.env.get("SUPABASE_URL")!;
@@ -30,11 +19,8 @@ async function getUserId(req: Request) {
 }
 
 serve(async (req) => {
-  const origin = req.headers.get("origin") || APP_ORIGIN;
-
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: cors(origin) });
-  }
+  const preflightResponse = preflight(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     const uid = await getUserId(req);
@@ -79,13 +65,20 @@ serve(async (req) => {
     }));
 
     return new Response(JSON.stringify({ ok: true, total: count ?? 0, items }), {
-      status: 200, headers: cors(origin)
+      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
     });
-  } catch (e: any) {
-    const msg = e?.message || String(e);
+
+  } catch (error: any) {
+    console.error("library-list-gdrive error:", error);
+    const msg = error?.message || String(error);
     const code = msg === "INVALID_JWT" ? 401 : 500;
-    return new Response(JSON.stringify({ ok: false, reason: "LIST_ERR", message: msg }), {
-      status: code, headers: cors(origin)
+    return new Response(JSON.stringify({ 
+      ok: false, 
+      reason: msg === "INVALID_JWT" ? "INVALID_JWT" : "LIST_ERR", 
+      message: msg 
+    }), {
+      status: code,
+      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
     });
   }
 });

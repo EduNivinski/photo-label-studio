@@ -148,7 +148,7 @@ const Index = () => {
   // Reset pagination when filtered photos change
   useEffect(() => {
     reset();
-  }, [filteredPhotos, reset]);
+  }, [filteredPhotos.length, reset]); // Use length to avoid infinite loop
 
   // Collection filter effect
   useEffect(() => {

@@ -1,18 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { signPayload } from "../_shared/signing.ts";
-
-const ORIGIN = "https://photo-label-studio.lovable.app";
-
-function cors(origin: string) {
-  const o = ORIGIN; // manter fixo
-  return {
-    "Access-Control-Allow-Origin": o,
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Content-Type": "application/json",
-  };
-}
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 function admin() {
   const url = Deno.env.get("SUPABASE_URL")!;
@@ -30,16 +19,25 @@ async function getUid(req: Request) {
 }
 
 serve(async (req) => {
-  const origin = req.headers.get("origin") || ORIGIN;
+  const preflightResponse = preflight(req);
+  if (preflightResponse) return preflightResponse;
 
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
-  if (req.method !== "POST")
-    return new Response(JSON.stringify({ ok:false, reason:"METHOD_NOT_ALLOWED" }), { status:405, headers: cors(origin) });
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ ok:false, reason:"METHOD_NOT_ALLOWED" }), { 
+      status:405, 
+      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
+    });
+  }
 
   try {
     const body = await req.json().catch(()=> ({}));
     const fileIds: string[] = Array.isArray(body.fileIds) ? body.fileIds : [];
-    if (!fileIds.length) return new Response(JSON.stringify({ ok:false, reason:"NO_FILEIDS" }), { status:400, headers: cors(origin) });
+    if (!fileIds.length) {
+      return new Response(JSON.stringify({ ok:false, reason:"NO_FILEIDS" }), { 
+        status:400, 
+        headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
+      });
+    }
 
     const uid = await getUid(req);
     const base = Deno.env.get("SUPABASE_URL")!.replace(/\/$/,"");
@@ -49,14 +47,28 @@ serve(async (req) => {
     const urls: Record<string,string> = {};
     for (const id of fileIds) {
       const sig = await signPayload({ uid, fileId: id, exp });
-      // 👉 usar a rota aberta:
       urls[id] = `${base}/functions/v1/thumb-open?sig=${encodeURIComponent(sig)}`;
     }
 
-    return new Response(JSON.stringify({ ok:true, ttlSec, urls }), { status:200, headers: cors(origin) });
-  } catch (e:any) {
-    const msg = e?.message || String(e);
+    return new Response(JSON.stringify({ 
+      ok: true, 
+      ttlSec, 
+      urls 
+    }), {
+      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
+    });
+
+  } catch (error: any) {
+    console.error("get-thumb-urls error:", error);
+    const msg = error?.message || String(error);
     const code = msg === "INVALID_JWT" ? 401 : 500;
-    return new Response(JSON.stringify({ ok:false, reason:"SIGN_ERR", message: msg }), { status: code, headers: cors(origin) });
+    return new Response(JSON.stringify({ 
+      ok: false, 
+      reason: msg === "INVALID_JWT" ? "INVALID_JWT" : "SIGN_ERR", 
+      message: msg 
+    }), {
+      status: code,
+      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
+    });
   }
 });
