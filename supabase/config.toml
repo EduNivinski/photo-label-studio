@@ -34,20 +34,62 @@ image_transformation = { enabled = true }
 enabled = true
 port = 54329
 
+# ----- DEFAULT: PUBLIC (sem JWT) — ATENÇÃO! -----
 [functions]
-verify_jwt = true  # padrão fechado
+verify_jwt = false
 
-# ---- PÚBLICAS (sem JWT) ----
+# ===== PRIVADAS (com JWT = true) =====
+[functions."google-drive-auth"]
+verify_jwt = true
+
+[functions."drive-changes-peek"]
+verify_jwt = true
+
+[functions."drive-changes-pull"]
+verify_jwt = true
+
+[functions."drive-index-folder"]
+verify_jwt = true
+
+[functions."drive-sync-now"]
+verify_jwt = true
+
+[functions."drive-thumb"]           # proxy com JWT do usuário
+verify_jwt = true
+
+[functions."get-thumb-urls"]        # emite URLs assinadas
+verify_jwt = true
+
+[functions."diag-scopes"]
+verify_jwt = true
+
+[functions."diag-user-tokens"]      # sensível
+verify_jwt = true
+
+[functions."library-list-gdrive"]
+verify_jwt = true
+
+# (inclua também quando criarem)
+[functions."labels-assign"]
+verify_jwt = true
+
+[functions."drive-download"]
+verify_jwt = true
+
+# ===== PÚBLICAS (herdam false; listado só para clareza) =====
+# Callback do OAuth (Google não envia JWT)
 [functions."google-drive-oauth-callback"]
 verify_jwt = false
+
+# Thumbs abertas assinadas
 [functions."thumb-open"]
 verify_jwt = false
 [functions."drive-thumb-open"]
 verify_jwt = false
 [functions."drive-thumb-signed"]
 verify_jwt = false
-[functions."hello-open"]
-verify_jwt = false
+
+# Diags não sensíveis (opcional manter só em dev)
 [functions."diag-list-root"]
 verify_jwt = false
 [functions."diag-list-folder"]
@@ -55,24 +97,6 @@ verify_jwt = false
 [functions."diag-env"]
 verify_jwt = false
 
-# ---- PRIVADAS (com JWT) ----
-[functions."google-drive-auth"]
-verify_jwt = true
-[functions."drive-changes-peek"]
-verify_jwt = true
-[functions."drive-changes-pull"]
-verify_jwt = true
-[functions."drive-index-folder"]
-verify_jwt = true
-[functions."drive-sync-now"]
-verify_jwt = true
-[functions."drive-thumb"]
-verify_jwt = true
-[functions."get-thumb-urls"]
-verify_jwt = true
-[functions."diag-scopes"]
-verify_jwt = true
-[functions."diag-user-tokens"]
-verify_jwt = true
-[functions."library-list-gdrive"]
-verify_jwt = true
+# Canary opcional
+[functions."hello-open"]
+verify_jwt = false
