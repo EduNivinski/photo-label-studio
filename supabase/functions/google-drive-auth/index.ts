@@ -216,7 +216,7 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 
   const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID");
   const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
+  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback2`;
   if (!CLIENT_ID) return json(req, 500, { ok:false, error: "Missing Google OAuth client id" });
 
   const { allow } = await getAllowExtendedScope(userId);

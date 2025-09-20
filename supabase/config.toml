@@ -80,6 +80,8 @@ verify_jwt = true
 # Callback do OAuth (Google não envia JWT)
 [functions."google-drive-oauth-callback"]
 verify_jwt = false
+[functions."google-drive-oauth-callback2"]
+verify_jwt = false
 
 # Thumbs abertas assinadas
 [functions."thumb-open"]
