@@ -90,15 +90,3 @@ verify_jwt = false
 verify_jwt = false
 [functions."drive-thumb-signed"]
 verify_jwt = false
-
-# Diags não sensíveis (opcional manter só em dev)
-[functions."diag-list-root"]
-verify_jwt = false
-[functions."diag-list-folder"]
-verify_jwt = false
-[functions."diag-env"]
-verify_jwt = false
-
-# Canary opcional
-[functions."hello-open"]
-verify_jwt = false
