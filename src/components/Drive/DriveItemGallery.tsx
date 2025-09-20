@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { DriveItemCard } from './DriveItemCard';
-import GDriveVideoCard from './GDriveVideoCard';
+import CardVideoGDrive from '../library/CardVideoGDrive';
 import { useGDriveThumbs } from '@/hooks/useGDriveThumbs';
 
 interface DriveItem {
@@ -74,10 +74,21 @@ export function DriveItemGallery({ items, onItemClick }: DriveItemGalleryProps) 
           
           if (isVideo) {
             return (
-              <GDriveVideoCard
+              <CardVideoGDrive
                 key={item.id}
-                item={item}
-                onClick={() => onItemClick(item)}
+                item={{
+                  ...item,
+                  item_key: item.item_key,
+                  source: 'gdrive' as const
+                }}
+                posterSrc={urlFor(item.item_key)}
+                onRecoverThumbnail={recoverOne}
+                onPlay={(videoItem) => {
+                  // Por enquanto, abre direto no Drive
+                  if (videoItem.web_view_link) {
+                    window.open(videoItem.web_view_link, '_blank', 'noopener,noreferrer');
+                  }
+                }}
               />
             );
           }

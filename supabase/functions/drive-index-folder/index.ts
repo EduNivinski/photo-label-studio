@@ -46,6 +46,12 @@ async function upsertFolder(userId: string, id: string, name: string, parentId: 
 }
 
 async function upsertItem(userId: string, f: DriveFile, path: string) {
+  // Extract video metadata if present
+  const videoMeta = f.videoMediaMetadata;
+  const videoDurationMs = videoMeta?.durationMillis ? Number(videoMeta.durationMillis) : null;
+  const videoWidth = videoMeta?.width ? Number(videoMeta.width) : null;
+  const videoHeight = videoMeta?.height ? Number(videoMeta.height) : null;
+
   const { error } = await admin.from("drive_items").upsert({
     user_id: userId,
     file_id: f.id,
@@ -63,6 +69,9 @@ async function upsertItem(userId: string, f: DriveFile, path: string) {
     thumbnail_link: f.thumbnailLink || null,
     image_meta: f.imageMediaMetadata || null,
     video_meta: f.videoMediaMetadata || null,
+    video_duration_ms: videoDurationMs,
+    video_width: videoWidth,
+    video_height: videoHeight,
     path_cached: path,
     last_seen_at: new Date().toISOString(),
     status: f.trashed ? "deleted" : "active",
