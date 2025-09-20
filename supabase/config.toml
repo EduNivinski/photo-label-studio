@@ -69,17 +69,8 @@ verify_jwt = true
 [functions."library-list-gdrive"]
 verify_jwt = true
 
-# (inclua também quando criarem)
-[functions."labels-assign"]
-verify_jwt = true
-
-[functions."drive-download"]
-verify_jwt = true
-
 # ===== PÚBLICAS (herdam false; listado só para clareza) =====
 # Callback do OAuth (Google não envia JWT)
-[functions."google-drive-oauth-callback"]
-verify_jwt = false
 [functions."google-drive-oauth-callback2"]
 verify_jwt = false
 
