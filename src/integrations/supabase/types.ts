@@ -305,6 +305,35 @@ export type Database = {
         }
         Relationships: []
       }
+      labels_items: {
+        Row: {
+          created_at: string
+          item_key: string
+          label_id: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          item_key: string
+          label_id: string
+          source: string
+        }
+        Update: {
+          created_at?: string
+          item_key?: string
+          label_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labels_items_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       photos: {
         Row: {
           alias: string | null
