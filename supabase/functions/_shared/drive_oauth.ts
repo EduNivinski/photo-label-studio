@@ -24,8 +24,7 @@ export async function exchangeCodeAndUpsert({ code, state }: ExchangeCodeParams)
   // Get OAuth credentials
   const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID");
   const CLIENT_SECRET = Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET");
-  const projectUrl = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-  const REDIRECT_URI = `${projectUrl}/functions/v1/google-drive-oauth-callback`;
+  const REDIRECT_URI = Deno.env.get("GDRIVE_REDIRECT_URI")!;
 
   if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error("Missing Google OAuth credentials");
