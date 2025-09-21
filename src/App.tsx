@@ -5,8 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useSupabaseData } from "@/hooks/useSupabaseData";
-import { useAdvancedFilters } from "@/hooks/useAdvancedFilters";
 import { useSecurityInit } from "@/hooks/useSecurityInit";
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
@@ -78,18 +76,6 @@ function AppContent() {
   // Initialize security monitoring
   useSecurityInit();
   
-  const { photos, labels } = useSupabaseData();
-  const { 
-    filters, 
-    filteredPhotos,
-    showFavorites,
-    updateFilters,
-    toggleLabel,
-    toggleFileType,
-    toggleMediaType,
-    toggleFavorites,
-    clearFilters 
-  } = useAdvancedFilters(photos);
 
   const showAdvancedSidebar = location.pathname === '/' || location.pathname === '/explore';
   const hideSidebarRoutes = ['/auth', '/login'];

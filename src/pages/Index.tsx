@@ -176,17 +176,19 @@ const Index = () => {
     fetchCollectionPhotos();
   }, [selectedCollectionId, getAlbumPhotos]);
 
+  // Stable params for unified media items
+  const unifiedParams = useMemo(() => ({
+    page: 1,
+    pageSize: 50,
+    source: "all" as const,
+    mimeClass: unifiedMimeFilter
+  }), [unifiedMimeFilter]);
+
   // Load unified media items
   useEffect(() => {
-    if (showUnifiedView) {
-      loadUnifiedItems({
-        page: 1,
-        pageSize: 50,
-        source: "all",
-        mimeClass: unifiedMimeFilter
-      });
-    }
-  }, [showUnifiedView, unifiedMimeFilter, loadUnifiedItems]);
+    if (!showUnifiedView) return;
+    loadUnifiedItems(unifiedParams);
+  }, [showUnifiedView, unifiedParams, loadUnifiedItems]);
 
   // Load Google Drive items (legacy)
   useEffect(() => {

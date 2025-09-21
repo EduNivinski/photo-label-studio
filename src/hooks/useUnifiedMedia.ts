@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MediaItem, MediaListRequest, MediaListResponse } from '@/types/media';
 
@@ -8,7 +8,7 @@ export function useUnifiedMedia() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const loadItems = async (request: MediaListRequest): Promise<MediaListResponse> => {
+  const loadItems = useCallback(async (request: MediaListRequest): Promise<MediaListResponse> => {
     setLoading(true);
     setError(null);
 
@@ -38,7 +38,7 @@ export function useUnifiedMedia() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const addLabel = async (mediaId: string, labelId: string) => {
     try {
