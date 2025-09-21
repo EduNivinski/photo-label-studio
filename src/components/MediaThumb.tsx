@@ -10,15 +10,15 @@ interface MediaThumbProps {
 }
 
 export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumbProps) {
-  const [src, setSrc] = useState(item.posterUrl || null);
+  const [poster, setPoster] = useState(item.posterUrl || null);
   const retried = useRef(false);
 
   useEffect(() => {
-    setSrc(item.posterUrl || null);
+    setPoster(item.posterUrl || null);
     retried.current = false;
   }, [item.id, item.posterUrl]);
 
-  const handleError = async () => {
+  const onPosterError = async () => {
     // For DB items, just use fallback
     if (item.source !== 'gdrive') {
       onError?.();
@@ -40,7 +40,7 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
       
       const fresh = data?.urls?.[fileId];
       if (fresh) {
-        setSrc(fresh + '&cb=' + Date.now()); // cache-buster
+        setPoster(fresh + '&cb=' + Date.now()); // cache-buster
       } else {
         onError?.();
       }
@@ -51,29 +51,27 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
   };
 
   if (item.isVideo) {
-    // For video: use <video> with poster
     return (
       <video
         className={`h-full w-full object-cover ${className}`}
-        poster={src || '/img/placeholder.png'}
+        poster={poster || '/img/placeholder.png'}
         preload="metadata"
         playsInline
         muted
-        onError={handleError}
+        onError={onPosterError}
         onLoadedMetadata={onLoad}
       />
     );
   }
 
-  // For image: use <img>
   return (
     <img
-      src={src || '/img/placeholder.png'}
+      className={`h-full w-full object-cover ${className}`}
+      src={poster || '/img/placeholder.png'}
       alt={item.name}
       loading="lazy"
       onLoad={onLoad}
-      onError={handleError}
-      className={`h-full w-full object-cover ${className}`}
+      onError={onPosterError}
     />
   );
 }
