@@ -182,7 +182,8 @@ const Index = () => {
     loadUnifiedItems(unifiedParams);
   }, [unifiedParams, loadUnifiedItems]);
 
-  // Legacy Drive loading - removed since we always use unified view
+  // Ensure no legacy Drive loading variables exist
+  const driveLoading = false; // Deprecated - always use unifiedLoading
 
   // Handle collection change
   const handleCollectionChange = (collectionId: string | null) => {
