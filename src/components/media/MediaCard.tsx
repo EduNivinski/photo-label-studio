@@ -37,7 +37,7 @@ export function MediaCard({
 }: MediaCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const { loadVideoUrls, getVideoUrl } = useSignedVideos();
+  const { loadVideos, getVideoUrl } = useSignedVideos();
 
   const handleCardClick = () => {
     if (onToggleSelection) {
@@ -58,7 +58,7 @@ export function MediaCard({
   const handlePlayVideo = async () => {
     if (item.isVideo && item.source === 'gdrive') {
       const fileId = item.id.replace('gdrive:', '');
-      await loadVideoUrls([fileId]);
+      await loadVideos([fileId]);
       const videoSrc = getVideoUrl(fileId);
       if (videoSrc) {
         window.open(videoSrc, '_blank');
