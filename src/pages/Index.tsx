@@ -127,15 +127,8 @@ const Index = () => {
   }>({ suggestions: [], source: 'mock', photo: null });
 
   // Unified media state
-  const { items: unifiedItems, loading: unifiedLoading, loadItems: loadUnifiedItems } = useUnifiedMedia();
-  const [showUnifiedView, setShowUnifiedView] = useState(true);
+  const { items: unifiedItems, loading: unifiedLoading, loadItems: loadUnifiedItems, addLabel: addUnifiedLabel, removeLabel: removeUnifiedLabel } = useUnifiedMedia();
   const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
-
-  // Google Drive items state (kept for legacy view)
-  const [driveItems, setDriveItems] = useState<any[]>([]);
-  const [driveLoading, setDriveLoading] = useState(false);
-  const [driveError, setDriveError] = useState<string | null>(null);
-  const [driveMimeFilter, setDriveMimeFilter] = useState<"all" | "image" | "video">("all");
 
   // Pagination
   const {
@@ -184,42 +177,12 @@ const Index = () => {
     mimeClass: unifiedMimeFilter
   }), [unifiedMimeFilter]);
 
-  // Load unified media items
+  // Load unified media items - always load on mount
   useEffect(() => {
-    if (!showUnifiedView) return;
     loadUnifiedItems(unifiedParams);
-  }, [showUnifiedView, unifiedParams, loadUnifiedItems]);
+  }, [unifiedParams, loadUnifiedItems]);
 
-  // Load Google Drive items (legacy)
-  useEffect(() => {
-    if (!showUnifiedView) {
-      const loadDriveItems = async () => {
-        setDriveLoading(true);
-        setDriveError(null);
-        try {
-          const { data, error } = await supabase.functions.invoke("library-list-gdrive", {
-            body: { page: 1, pageSize: 24, mimeClass: driveMimeFilter }
-          });
-          
-          if (error) throw error;
-          
-          if (data?.ok) {
-            setDriveItems(data.items || []);
-          } else {
-            throw new Error(data?.message || "Failed to load Drive items");
-          }
-        } catch (err) {
-          console.error("Error loading Drive items:", err);
-          setDriveError(err instanceof Error ? err.message : "Unknown error");
-          setDriveItems([]);
-        } finally {
-          setDriveLoading(false);
-        }
-      };
-
-      loadDriveItems();
-    }
-  }, [showUnifiedView, driveMimeFilter]);
+  // Legacy Drive loading - removed since we always use unified view
 
   // Handle collection change
   const handleCollectionChange = (collectionId: string | null) => {
@@ -245,6 +208,62 @@ const Index = () => {
       setSelectedPhoto(photo);
       setIsModalOpen(true);
     }
+  };
+
+  const handleUnifiedItemClick = (item: MediaItem) => {
+    if (selectedCount > 0) {
+      toggleSelection(item.id);
+    } else {
+      // Convert MediaItem to Photo for modal compatibility
+      const photoForModal: Photo = {
+        id: item.id,
+        name: item.name,
+        url: item.posterUrl || '', // Use posterUrl as main URL
+        labels: item.labels.map(l => l.name), // Convert to string array
+        uploadDate: item.createdAt || new Date().toISOString(),
+        originalDate: item.createdAt,
+        alias: null,
+        mediaType: item.isVideo ? 'video' : 'photo'
+      };
+      setSelectedPhoto(photoForModal);
+      setIsModalOpen(true);
+    }
+  };
+
+  // Unified function to handle both Photo and MediaItem label updates
+  const handleUnifiedUpdateLabels = async (itemId: string, labelIds: string[]): Promise<boolean> => {
+    const { source, key } = extractSourceAndKey(itemId);
+    
+    if (source === 'db') {
+      // For database photos, use the existing updatePhotoLabels function
+      return await updatePhotoLabels(key, labelIds);
+    } else if (source === 'gdrive') {
+      // For Google Drive items, use the unified media functions
+      try {
+        // First remove all existing labels, then add new ones
+        const currentItem = unifiedItems.find(item => item.id === itemId);
+        if (currentItem) {
+          // Remove existing labels
+          for (const existingLabel of currentItem.labels) {
+            await removeUnifiedLabel(itemId, existingLabel.id);
+          }
+        }
+        
+        // Add new labels
+        for (const labelId of labelIds) {
+          await addUnifiedLabel(itemId, labelId);
+        }
+        
+        // Reload unified items to get updated data
+        await loadUnifiedItems(unifiedParams);
+        return true;
+      } catch (error) {
+        console.error('Error updating MediaItem labels:', error);
+        return false;
+      }
+    }
+    
+    return false;
   };
 
   const handleModalClose = () => {
@@ -333,14 +352,12 @@ const Index = () => {
     const uploadedPhotos = await uploadPhotos(files);
     
     // Reload unified items after upload
-    if (showUnifiedView) {
-      loadUnifiedItems({
-        page: 1,
-        pageSize: 50,
-        source: "all",
-        mimeClass: unifiedMimeFilter
-      });
-    }
+    loadUnifiedItems({
+      page: 1,
+      pageSize: 50,
+      source: "all",
+      mimeClass: unifiedMimeFilter
+    });
     
     // Get suggestions for the first uploaded photo
     if (uploadedPhotos && uploadedPhotos.length > 0) {
@@ -603,169 +620,66 @@ const Index = () => {
         />
       )}
 
-      {/* Unified Gallery - Full width */}
-      {showUnifiedView ? (
-        <div className="w-full">
-          {/* Unified View Toggle */}
-          <div className="container mx-auto px-4 max-w-7xl mb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Mostrar:</span>
-                <Select value={unifiedMimeFilter} onValueChange={(value: "all" | "image" | "video") => setUnifiedMimeFilter(value)}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="image">Fotos</SelectItem>
-                    <SelectItem value="video">Vídeos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowUnifiedView(false)}
-              >
-                Ver modo separado
-              </Button>
+      {/* Main Gallery - Always Unified */}
+      <div className="w-full">
+        {/* Mime Type Filter */}
+        <div className="container mx-auto px-4 max-w-7xl mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Mostrar:</span>
+            <Select value={unifiedMimeFilter} onValueChange={(value: "all" | "image" | "video") => setUnifiedMimeFilter(value)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="image">Fotos</SelectItem>
+                <SelectItem value="video">Vídeos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Unified Items Grid */}
+        {unifiedLoading ? (
+          <div className="container mx-auto px-4 max-w-7xl">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Carregando itens...</p>
             </div>
           </div>
-
-          {/* Unified Items Grid */}
-          {unifiedLoading ? (
+        ) : (
+          <div className="w-full">
             <div className="container mx-auto px-4 max-w-7xl">
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">Carregando itens...</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {unifiedItems.map((item) => (
+                  <UnifiedPhotoCard
+                    key={item.id}
+                    item={item}
+                    labels={labels}
+                    isSelected={isSelected(item.id)}
+                    hasActiveSelections={selectedCount > 0}
+                    onClick={() => handleUnifiedItemClick(item)}
+                    onLabelManage={() => handleLabelManage(item)}
+                    onSelectionToggle={(isShiftPressed) => toggleSelection(item.id)}
+                    onUpdateLabels={handleUnifiedUpdateLabels}
+                  />
+                ))}
               </div>
-            </div>
-          ) : (
-            <div className="w-full">
-              <div className="container mx-auto px-4 max-w-7xl">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {unifiedItems.map((item) => (
-                    <UnifiedPhotoCard
-                      key={item.id}
-                      item={item}
-                      labels={labels}
-                      isSelected={isSelected(item.id)}
-                      hasActiveSelections={selectedCount > 0}
-                      onClick={() => {
-                        // Handle opening item modal/viewer
-                        if (item.source === 'gdrive' && item.openInDriveUrl) {
-                          window.open(item.openInDriveUrl, '_blank');
-                        }
-                      }}
-                      onLabelManage={() => handleLabelManage(item)}
-                      onSelectionToggle={(isShiftPressed) => toggleSelection(item.id)}
-                      onUpdateLabels={async (itemId, labelIds) => {
-                        // Handle unified label updates via new labels-assign endpoint
-                        const { source, key } = extractSourceAndKey(itemId);
-                        // Implement label assignment logic here
-                        console.log('Updating labels for', source, key, labelIds);
-                      }}
-                    />
-                  ))}
+              
+              {/* Total count display */}
+              {unifiedItems.length > 0 && (
+                <div className="mt-6 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {unifiedItems.length} {unifiedItems.length === 1 ? 'arquivo encontrado' : 'arquivos encontrados'}
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="w-full">
-          {/* Legacy Separate Views */}
-          <div className="container mx-auto px-4 max-w-7xl mb-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setShowUnifiedView(true)}
-            >
-              Ver modo unificado
-            </Button>
           </div>
+        )}
+      </div>
 
-          <PhotoGallery
-            photos={paginatedPhotos}
-            labels={labels}
-            selectedPhotoIds={selectedPhotoIds}
-            onPhotoClick={handlePhotoClick}
-            onLabelManage={handleLabelManage}
-            onSelectionToggle={(photoId, isShiftPressed) => toggleSelection(photoId)}
-            onUpdateLabels={updatePhotoLabels}
-          />
-
-          {/* Google Drive Items Section */}
-          {driveItems.length > 0 && (
-            <div className="container mx-auto px-4 max-w-7xl mt-12">
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold">Do seu Google Drive</h2>
-                  
-                  {/* Drive Mime Type Filter */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Mostrar:</span>
-                    <Select value={driveMimeFilter} onValueChange={(value: "all" | "image" | "video") => setDriveMimeFilter(value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="image">Fotos</SelectItem>
-                        <SelectItem value="video">Vídeos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                <DriveItemGallery 
-                  items={driveItems} 
-                  onItemClick={(item) => {
-                    if (item.web_view_link) {
-                      window.open(item.web_view_link, '_blank', 'noopener,noreferrer');
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Drive Loading State */}
-      {driveLoading && (
-        <div className="container mx-auto px-4 max-w-7xl mt-12">
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">Carregando itens do Google Drive...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Drive Error State */}
-      {driveError && (
-        <div className="container mx-auto px-4 max-w-7xl mt-12">
-          <div className="text-center py-8">
-            <p className="text-destructive">Erro ao carregar itens do Drive: {driveError}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Load More / Pagination */}
-      {totalPages > 1 && (
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="mt-8 flex justify-center">
-            <Button
-              variant="outline"
-              onClick={() => reset()}
-              disabled={currentPage >= totalPages}
-            >
-              Carregar Mais
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* No photos state */}
-      {!loading && filteredPhotos.length === 0 && (
+      {/* No items state */}
+      {!unifiedLoading && unifiedItems.length === 0 && (
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center py-16">
             {photos.length === 0 ? (
