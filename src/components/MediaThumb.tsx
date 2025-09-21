@@ -50,6 +50,22 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
     }
   };
 
+  if (item.isVideo) {
+    // For video: use <video> with poster
+    return (
+      <video
+        className={`h-full w-full object-cover ${className}`}
+        poster={src || '/img/placeholder.png'}
+        preload="metadata"
+        playsInline
+        muted
+        onError={handleError}
+        onLoadedMetadata={onLoad}
+      />
+    );
+  }
+
+  // For image: use <img>
   return (
     <img
       src={src || '/img/placeholder.png'}
