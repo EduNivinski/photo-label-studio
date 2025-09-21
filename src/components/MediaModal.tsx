@@ -123,19 +123,22 @@ export function MediaModal({
       if (item.source === 'gdrive') {
         const { key: fileId } = extractSourceAndKey(item.id);
         
+        console.log(`🚀 Loading preview for ${item.isVideo ? 'video' : 'image'}: ${item.name} (${fileId})`);
+        
         if (item.isVideo) {
           // Load high-quality poster for video
           setLoadingPoster(true);
           fetchDrivePreview({ fileId, kind: "video" })
             .then(url => {
               if (!abortControllerRef.current?.signal.aborted) {
+                console.log('✅ Video poster loaded successfully:', url);
                 setPosterHq(url);
               } else {
                 URL.revokeObjectURL(url);
               }
             })
             .catch(error => {
-              console.error('Failed to load video poster:', error);
+              console.error('❌ Failed to load video poster:', error);
             })
             .finally(() => {
               if (!abortControllerRef.current?.signal.aborted) {
@@ -148,13 +151,14 @@ export function MediaModal({
           fetchDrivePreview({ fileId, kind: "image" })
             .then(url => {
               if (!abortControllerRef.current?.signal.aborted) {
+                console.log('✅ High-res image loaded successfully:', url);
                 setHiresSrc(url);
               } else {
                 URL.revokeObjectURL(url);
               }
             })
             .catch(error => {
-              console.error('Failed to load image preview:', error);
+              console.error('❌ Failed to load image preview:', error);
             })
             .finally(() => {
               if (!abortControllerRef.current?.signal.aborted) {
@@ -399,7 +403,7 @@ export function MediaModal({
                 poster={posterHq || item.posterUrl || '/img/placeholder.png'}
                 controls={false}
                 className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                style={{ maxHeight: '75vh' }}
+                style={{ maxHeight: '75vh', minHeight: '400px', minWidth: '600px' }}
               />
               
               {/* Video overlay with play button and Drive link */}
@@ -414,6 +418,9 @@ export function MediaModal({
                       <ExternalLink className="h-4 w-4 mr-2" />
                       Assistir no Google Drive
                     </Button>
+                  )}
+                  {posterHq && (
+                    <div className="text-white text-sm mt-2">Preview em alta qualidade carregado ✓</div>
                   )}
                 </div>
               </div>
@@ -431,10 +438,13 @@ export function MediaModal({
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-zoom-in"
               style={{ 
                 maxHeight: '75vh',
+                minHeight: '400px',
+                minWidth: '600px',
                 transform: `scale(${zoom})`,
                 transition: 'transform 0.2s ease'
               }}
               onClick={() => setZoom(zoom === 1 ? 2 : 1)}
+              onLoad={() => console.log('🖼️ High-res image loaded:', hiresSrc ? 'High quality' : 'Fallback')}
             />
           )}
 
