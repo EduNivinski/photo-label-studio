@@ -211,15 +211,36 @@ const Index = () => {
     }
   };
 
-  const handleUnifiedItemClick = (item: MediaItem) => {
+  const handleUnifiedItemClick = async (item: MediaItem) => {
     if (selectedCount > 0) {
       toggleSelection(item.id);
     } else {
+      let viewUrl = item.posterUrl || '';
+      
+      // For Google Drive items, get the signed URL for full-size viewing
+      if (item.source === 'gdrive') {
+        try {
+          const fileId = item.id.split(':')[1];
+          if (fileId) {
+            // Use get-video-urls for videos, get-thumb-urls for images
+            const functionName = item.isVideo ? 'get-video-urls' : 'get-thumb-urls';
+            const { data } = await supabase.functions.invoke(functionName, {
+              body: { fileIds: [fileId] }
+            });
+            viewUrl = data?.urls?.[fileId] || item.posterUrl || '';
+          }
+        } catch (error) {
+          console.error('Error fetching view URL:', error);
+          // Fallback to posterUrl
+          viewUrl = item.posterUrl || '';
+        }
+      }
+      
       // Convert MediaItem to Photo for modal compatibility
       const photoForModal: Photo = {
         id: item.id,
         name: item.name,
-        url: item.posterUrl || '', // Use posterUrl as main URL
+        url: viewUrl,
         labels: item.labels.map(l => l.name), // Convert to string array
         uploadDate: item.createdAt || new Date().toISOString(),
         originalDate: item.createdAt,
