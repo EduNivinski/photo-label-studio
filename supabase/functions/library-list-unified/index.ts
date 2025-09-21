@@ -118,6 +118,28 @@ serve(async (req) => {
       return dateB.getTime() - dateA.getTime();
     });
 
+    // Get thumbnail URLs for Google Drive items that don't have posterUrl
+    const missingIds = items
+      .filter(it => it.source === "gdrive" && !it.posterUrl) // NÃO filtrar por mimeType
+      .map(it => it.id.split(":")[1])
+      .filter(Boolean);
+
+    if (missingIds.length) {
+      const { data, error } = await supabase.functions.invoke("get-thumb-urls", {
+        body: { fileIds: missingIds }
+      });
+      if (!error) {
+        const urlMap = data?.urls || {};
+        for (const it of items) {
+          if (it.source === "gdrive") {
+            const fid = it.id.split(":")[1];
+            const url = fid ? (urlMap as any)[fid] : null;
+            if (url) it.posterUrl = url as string; // ex.: https://.../functions/v1/thumb-open?sig=...
+          }
+        }
+      }
+    }
+
     // Apply pagination
     const total = items.length;
     const startIndex = (page - 1) * pageSize;
@@ -173,35 +195,6 @@ serve(async (req) => {
       }
     }
 
-    // Get thumbnail URLs for Google Drive items that don't have posterUrl
-    const missingIds = paginatedItems
-      .filter(item => item.source === 'gdrive' && !item.posterUrl)
-      .map(item => item.id.split(':')[1])
-      .filter(Boolean);
-
-    if (missingIds.length > 0) {
-      try {
-        const { data, error } = await supabase.functions.invoke("get-thumb-urls", {
-          body: { fileIds: missingIds }
-        });
-        
-        if (!error && data?.urls) {
-          const urlMap = data.urls;
-          // Assign posterUrl to each GDrive item
-          for (const item of paginatedItems) {
-            if (item.source === 'gdrive') {
-              const fileId = item.id.split(':')[1];
-              if (fileId && urlMap[fileId]) {
-                item.posterUrl = urlMap[fileId];
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching thumbnails:', error);
-      }
-    }
-
     // Format response items
     const responseItems = paginatedItems.map(item => {
       const isVideo = (item.mime_type || '').startsWith('video/');
@@ -237,9 +230,17 @@ serve(async (req) => {
       items: responseItems,
       total,
       page,
-      pageSize
+      pageSize,
+      debugFilledThumbs: items.filter(it => it.source==="gdrive" && !!it.posterUrl).length,
+      debugMissingThumbs: items.filter(it => it.source==="gdrive" && !it.posterUrl).length,
     }), {
-      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
+      headers: { 
+        ...corsHeaders(req.headers.get("origin")), 
+        'Content-Type': 'application/json',
+        "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app",
+        "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+      }
     });
 
   } catch (error) {

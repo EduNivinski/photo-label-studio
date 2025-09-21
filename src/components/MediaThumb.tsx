@@ -13,65 +13,40 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
   const [poster, setPoster] = useState(item.posterUrl || null);
   const retried = useRef(false);
 
-  useEffect(() => {
-    setPoster(item.posterUrl || null);
-    retried.current = false;
+  useEffect(() => { 
+    setPoster(item.posterUrl || null); 
+    retried.current = false; 
   }, [item.id, item.posterUrl]);
 
   const onPosterError = async () => {
-    // For DB items, just use fallback
-    if (item.source !== 'gdrive') {
-      onError?.();
-      return;
-    }
-    
-    // For GDrive items, try to get fresh URL once
-    if (retried.current) {
-      onError?.();
-      return;
-    }
-    
+    if (item.source !== "gdrive" || retried.current) return;
     retried.current = true;
     try {
-      const fileId = item.id.split(':')[1];
-      const { data } = await supabase.functions.invoke('get-thumb-urls', {
-        body: { fileIds: [fileId] }
-      });
-      
+      const fileId = item.id.split(":")[1];
+      const { data } = await supabase.functions.invoke("get-thumb-urls", { body:{ fileIds:[fileId] }});
       const fresh = data?.urls?.[fileId];
-      if (fresh) {
-        setPoster(fresh + '&cb=' + Date.now()); // cache-buster
-      } else {
-        onError?.();
-      }
-    } catch (error) {
-      console.error('Failed to refresh thumb URL:', error);
-      onError?.();
-    }
+      if (fresh) setPoster(fresh + "&cb=" + Date.now());
+    } catch {}
   };
 
-  if (item.isVideo) {
-    return (
-      <video
-        className={`h-full w-full object-cover ${className}`}
-        poster={poster || '/img/placeholder.png'}
-        preload="metadata"
-        playsInline
-        muted
-        onError={onPosterError}
-        onLoadedMetadata={onLoad}
-      />
-    );
-  }
-
-  return (
+  return item.isVideo ? (
+    <video
+      className={`h-full w-full object-cover ${className}`}
+      poster={poster || "/img/placeholder.png"}
+      preload="metadata"
+      playsInline
+      muted
+      onError={onPosterError}
+      onLoadedMetadata={onLoad}
+    />
+  ) : (
     <img
       className={`h-full w-full object-cover ${className}`}
-      src={poster || '/img/placeholder.png'}
+      src={poster || "/img/placeholder.png"}
       alt={item.name}
       loading="lazy"
-      onLoad={onLoad}
       onError={onPosterError}
+      onLoad={onLoad}
     />
   );
 }
