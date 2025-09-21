@@ -215,42 +215,23 @@ const Index = () => {
 
   const handleUnifiedItemClick = async (item: MediaItem) => {
     if (selectedCount > 0) {
-      toggleSelection(item.id);
+      const { source, key } = extractSourceAndKey(item.id);
+      toggleSelection(source === 'db' ? key : item.id);
     } else {
-      let viewUrl = item.posterUrl || '';
-      
-      // For Google Drive items, get the signed URL for full-size viewing
-      if (item.source === 'gdrive') {
-        try {
-          const fileId = item.id.split(':')[1];
-          if (fileId) {
-            // Use get-thumb-urls for both videos and images
-            const { data } = await supabase.functions.invoke('get-thumb-urls', {
-              body: { fileIds: [fileId] }
-            });
-            viewUrl = data?.urls?.[fileId] || item.posterUrl || '';
-          }
-        } catch (error) {
-          console.error('Error fetching view URL:', error);
-          // Fallback to posterUrl
-          viewUrl = item.posterUrl || '';
-        }
-      }
-      
-      // Convert MediaItem to Photo for modal compatibility
-      const photoForModal: Photo = {
+      console.log('🔍 Opening MediaModal for item:', {
         id: item.id,
         name: item.name,
-        url: viewUrl,
-        labels: item.labels.map(l => l.name), // Convert to string array
-        uploadDate: item.createdAt || new Date().toISOString(),
-        originalDate: item.createdAt,
-        alias: null,
-        mediaType: item.isVideo ? 'video' : 'photo'
-      };
-      setSelectedPhoto(photoForModal);
+        source: item.source,
+        isVideo: item.isVideo,
+        posterUrl: item.posterUrl
+      });
+      
+      // Use MediaModal directly for unified items (new high-res preview system)
+      setSelectedMediaItem(item);
+      setSelectedPhoto(null);
       setIsModalOpen(true);
     }
+  };
   };
 
   // Unified function to handle both Photo and MediaItem label updates
@@ -783,7 +764,7 @@ const Index = () => {
       )}
 
       {/* Media Modal - New Unified System */}
-      {selectedMediaItem && (
+      {selectedMediaItem && !selectedPhoto && (
         <MediaModal
           item={selectedMediaItem}
           labels={labels}

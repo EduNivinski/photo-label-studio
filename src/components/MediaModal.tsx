@@ -65,10 +65,19 @@ export function MediaModal({
 
   // Utility function to fetch Drive previews
   const fetchDrivePreview = async ({ fileId, kind }: { fileId: string; kind: "image" | "video" }) => {
+    console.log(`📡 Fetching ${kind} preview for fileId: ${fileId}`);
+    
     const base = "https://tcupxcxyylxfgsbhfdhw.supabase.co/functions/v1";
     const path = kind === "image" ? "drive-image-preview" : "drive-video-poster";
     const url = `${base}/${path}?fileId=${encodeURIComponent(fileId)}&max=${kind === "image" ? 1600 : 1280}`;
+    
+    console.log(`📡 Preview URL: ${url}`);
+    
     const token = JSON.parse(localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token") || "{}").access_token;
+    
+    if (!token) {
+      throw new Error('No auth token found');
+    }
     
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -78,8 +87,20 @@ export function MediaModal({
       signal: controller.signal
     });
     
-    if (!r.ok) throw new Error(`preview_${kind}_failed`);
-    return URL.createObjectURL(await r.blob());
+    console.log(`📡 Response status: ${r.status} ${r.statusText}`);
+    
+    if (!r.ok) throw new Error(`preview_${kind}_failed: ${r.status} ${r.statusText}`);
+    
+    const blob = await r.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    
+    console.log(`✅ ${kind} preview blob created:`, {
+      size: blob.size,
+      type: blob.type,
+      url: objectUrl
+    });
+    
+    return objectUrl;
   };
 
   useEffect(() => {
