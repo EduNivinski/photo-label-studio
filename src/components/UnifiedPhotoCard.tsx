@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
+import { MediaThumb } from './MediaThumb';
 import { MediaItem } from '@/types/media';
 import { formatDuration } from '@/lib/formatDuration';
 import type { Label } from '@/types/photo';
@@ -111,18 +112,17 @@ export function UnifiedPhotoCard({
         </div>
       </div>
 
-      {item.isVideo ? (
+      <MediaThumb
+        item={item}
+        className={`transition-all duration-500 ${
+          mediaLoaded ? 'opacity-100' : 'opacity-0'
+        } group-hover:scale-110`}
+        onLoad={() => setMediaLoaded(true)}
+        onError={() => setMediaError(true)}
+      />
+      
+      {item.isVideo && (
         <>
-          <img
-            src={item.posterUrl || '/img/placeholder.png'}
-            alt={item.name}
-            className={`w-full h-full object-cover transition-all duration-500 ${
-              mediaLoaded ? 'opacity-100' : 'opacity-0'
-            } group-hover:scale-110`}
-            onLoad={() => setMediaLoaded(true)}
-            onError={() => setMediaError(true)}
-            loading="lazy"
-          />
           {/* Play button overlay for videos */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="bg-black/70 rounded-full p-4 backdrop-blur-sm">
@@ -136,20 +136,6 @@ export function UnifiedPhotoCard({
             </div>
           )}
         </>
-      ) : (
-        <img
-          src={item.posterUrl || '/img/placeholder.png'}
-          alt={item.name}
-          className={`w-full h-full object-cover transition-all duration-500 ${
-            mediaLoaded ? 'opacity-100' : 'opacity-0'
-          } group-hover:scale-110`}
-          onLoad={() => setMediaLoaded(true)}
-          onError={(e) => {
-            e.currentTarget.src = '/img/placeholder.png';
-            setMediaError(true);
-          }}
-          loading="lazy"
-        />
       )}
       
       {!mediaLoaded && !mediaError && (

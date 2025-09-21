@@ -173,18 +173,27 @@ serve(async (req) => {
       }
     }
 
-    // Get thumbnail URLs for Google Drive items
-    const gdriveFileIds = paginatedItems
-      .filter(item => item.source === 'gdrive')
+    // Get thumbnail URLs for Google Drive items in batch
+    const gdriveIds = paginatedItems
+      .filter(item => item.source === 'gdrive' && !item.posterUrl)
       .map(item => item.file_id);
 
-    let thumbUrls: Record<string, string> = {};
-    if (gdriveFileIds.length > 0) {
+    if (gdriveIds.length > 0) {
       try {
         const { data: thumbData } = await supabase.functions.invoke("get-thumb-urls", {
-          body: { fileIds: gdriveFileIds }
+          body: { fileIds: gdriveIds }
         });
-        thumbUrls = thumbData?.urls || {};
+        const urlMap = thumbData?.urls || {};
+        
+        // Assign posterUrl to each GDrive item
+        for (const item of paginatedItems) {
+          if (item.source === 'gdrive') {
+            const fileId = item.file_id;
+            if (fileId && urlMap[fileId]) {
+              item.posterUrl = urlMap[fileId];
+            }
+          }
+        }
       } catch (error) {
         console.error('Error fetching thumbnails:', error);
       }
@@ -193,7 +202,7 @@ serve(async (req) => {
     // Format response items
     const responseItems = paginatedItems.map(item => {
       const isVideo = (item.mime_type || '').startsWith('video/');
-      const thumbUrl = item.source === 'gdrive' ? thumbUrls[item.file_id] : item.url;
+      const posterUrl = item.source === 'gdrive' ? item.posterUrl : item.url;
       const itemKey = item.source === 'db' ? item.id.replace('db:', '') : item.file_id;
       const labelsKey = `${item.source}:${itemKey}`;
       const labels = itemLabels[labelsKey] || [];
@@ -209,7 +218,7 @@ serve(async (req) => {
         durationMs: item.video_duration_ms || null,
         createdAt: item.created_time || item.upload_date,
         updatedAt: item.modified_time || item.updated_at,
-        posterUrl: thumbUrl,
+        posterUrl,
         previewUrl: item.source === 'db' ? item.url : null,
         openInDriveUrl: item.source === 'gdrive' ? (item.web_view_link || `https://drive.google.com/file/d/${item.file_id}/view`) : null,
         downloadEnabled: true,
