@@ -16,9 +16,27 @@ function getAllowedOrigins(): Set<string> {
 const ALLOW_ORIGINS = getAllowedOrigins();
 
 export function corsHeaders(origin: string | null) {
-  const allowed = origin && ALLOW_ORIGINS.has(origin)
-    ? origin
-    : "https://photo-label-studio.lovable.app";
+  const o = origin || "";
+  const hasWildcard = ALLOW_ORIGINS.has("*");
+
+  const isAllowed = (() => {
+    if (!o) return false;
+    if (ALLOW_ORIGINS.has(o)) return true;
+    if (hasWildcard) return true;
+    try {
+      const url = new URL(o);
+      const host = url.host.toLowerCase();
+      if (host === "localhost" || host.startsWith("localhost:")) return true;
+      if (host.endsWith(".lovable.app")) return true; // allow all Lovable preview/prod envs
+      if (host.endsWith(".lovable.dev")) return true; // optional sandboxes
+      return false;
+    } catch {
+      return false;
+    }
+  })();
+
+  const allowed = isAllowed ? o : "https://photo-label-studio.lovable.app";
+
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Headers":
