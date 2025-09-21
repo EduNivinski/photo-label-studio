@@ -10,26 +10,32 @@ export function useUnifiedMedia() {
   const [error, setError] = useState<string | null>(null);
 
   const loadItems = useCallback(async (request: MediaListRequest): Promise<MediaListResponse> => {
+    console.log('🔄 Loading unified media with request:', request);
     setLoading(true);
     setError(null);
 
     try {
+      console.log('📡 Calling library-list-unified edge function...');
       const { data, error } = await supabase.functions.invoke('library-list-unified', {
         body: request
       });
 
       if (error) {
+        console.error('❌ Edge function error:', error);
         throw new Error(error.message || 'Failed to load media items');
       }
 
+      console.log('✅ Edge function response:', data);
       const response = data as MediaListResponse;
       setItems(response.items);
       setTotal(response.total);
+      console.log('📊 Loaded items:', response.items.length, 'of', response.total);
+      console.log('🖼️ Google Drive items with posterUrl:', response.items.filter(i => i.source === 'gdrive' && i.posterUrl).length);
       return response;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
-      console.error('Error loading unified media, falling back to local DB:', err);
+      console.error('❌ Error loading unified media, falling back to local DB:', err);
       
       // Fallback: Load photos from local database directly
       try {

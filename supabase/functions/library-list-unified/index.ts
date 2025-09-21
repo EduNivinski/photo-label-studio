@@ -118,33 +118,43 @@ serve(async (req) => {
       return dateB.getTime() - dateA.getTime();
     });
 
-    // Get thumbnail URLs for Google Drive items that don't have posterUrl
-    const missingIds = items
-      .filter(it => it.source === "gdrive" && !it.posterUrl) // NÃO filtrar por mimeType
-      .map(it => it.id.split(":")[1])
-      .filter(Boolean);
-
-    if (missingIds.length) {
-      const { data, error } = await supabase.functions.invoke("get-thumb-urls", {
-        body: { fileIds: missingIds }
-      });
-      if (!error) {
-        const urlMap = data?.urls || {};
-        for (const it of items) {
-          if (it.source === "gdrive") {
-            const fid = it.id.split(":")[1];
-            const url = fid ? (urlMap as any)[fid] : null;
-            if (url) it.posterUrl = url as string; // ex.: https://.../functions/v1/thumb-open?sig=...
-          }
-        }
-      }
-    }
-
-    // Apply pagination
+    // Apply pagination FIRST
     const total = items.length;
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedItems = items.slice(startIndex, endIndex);
+
+    // Get thumbnail URLs for Google Drive items that don't have posterUrl (only for paginated items)
+    const missingIds = paginatedItems
+      .filter(it => it.source === "gdrive" && !it.posterUrl) // NÃO filtrar por mimeType
+      .map(it => it.id.split(":")[1])
+      .filter(Boolean);
+
+    console.log(`📊 Processing ${paginatedItems.length} paginated items, ${missingIds.length} need thumbnails`);
+
+    if (missingIds.length) {
+      try {
+        console.log('🖼️ Fetching thumbnails for fileIds:', missingIds);
+        const { data, error } = await supabase.functions.invoke("get-thumb-urls", {
+          body: { fileIds: missingIds }
+        });
+        if (!error && data?.urls) {
+          const urlMap = data.urls;
+          console.log('✅ Got thumbnail URLs:', Object.keys(urlMap).length);
+          for (const it of paginatedItems) {
+            if (it.source === "gdrive") {
+              const fid = it.id.split(":")[1];
+              const url = fid ? (urlMap as any)[fid] : null;
+              if (url) it.posterUrl = url as string; // ex.: https://.../functions/v1/thumb-open?sig=...
+            }
+          }
+        } else {
+          console.error('❌ Failed to get thumbnails:', error);
+        }
+      } catch (thumbError) {
+        console.error('❌ Error fetching thumbnails:', thumbError);
+      }
+    }
 
     // Get labels for all items
     const itemKeys = paginatedItems.map(item => ({
@@ -226,13 +236,22 @@ serve(async (req) => {
       };
     });
 
+    console.log('📋 Response summary:', {
+      itemsReturned: responseItems.length,
+      total,
+      page,
+      pageSize,
+      gdriveWithPoster: responseItems.filter(it => it.source==="gdrive" && !!it.posterUrl).length,
+      gdriveWithoutPoster: responseItems.filter(it => it.source==="gdrive" && !it.posterUrl).length
+    });
+
     return new Response(JSON.stringify({
       items: responseItems,
       total,
       page,
       pageSize,
-      debugFilledThumbs: items.filter(it => it.source==="gdrive" && !!it.posterUrl).length,
-      debugMissingThumbs: items.filter(it => it.source==="gdrive" && !it.posterUrl).length,
+      debugFilledThumbs: paginatedItems.filter(it => it.source==="gdrive" && !!it.posterUrl).length,
+      debugMissingThumbs: paginatedItems.filter(it => it.source==="gdrive" && !it.posterUrl).length,
     }), {
       headers: { 
         ...corsHeaders(req.headers.get("origin")), 
