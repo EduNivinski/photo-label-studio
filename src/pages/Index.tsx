@@ -732,7 +732,7 @@ const Index = () => {
         selectedPhoto={selectedPhoto}
         onCreateLabel={createLabel}
         onDeleteLabel={deleteLabel}
-        onUpdatePhotoLabels={updatePhotoLabels}
+        onUpdatePhotoLabels={handleUnifiedUpdateLabels}
       />
 
       {/* Bulk Label Dialog */}
