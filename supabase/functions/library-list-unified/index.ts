@@ -173,24 +173,27 @@ serve(async (req) => {
       }
     }
 
-    // Get thumbnail URLs for Google Drive items in batch
-    const gdriveIds = paginatedItems
+    // Get thumbnail URLs for Google Drive items that don't have posterUrl
+    const missingIds = paginatedItems
       .filter(item => item.source === 'gdrive' && !item.posterUrl)
-      .map(item => item.file_id);
+      .map(item => item.id.split(':')[1])
+      .filter(Boolean);
 
-    if (gdriveIds.length > 0) {
+    if (missingIds.length > 0) {
       try {
-        const { data: thumbData } = await supabase.functions.invoke("get-thumb-urls", {
-          body: { fileIds: gdriveIds }
+        const { data, error } = await supabase.functions.invoke("get-thumb-urls", {
+          body: { fileIds: missingIds }
         });
-        const urlMap = thumbData?.urls || {};
         
-        // Assign posterUrl to each GDrive item
-        for (const item of paginatedItems) {
-          if (item.source === 'gdrive') {
-            const fileId = item.file_id;
-            if (fileId && urlMap[fileId]) {
-              item.posterUrl = urlMap[fileId];
+        if (!error && data?.urls) {
+          const urlMap = data.urls;
+          // Assign posterUrl to each GDrive item
+          for (const item of paginatedItems) {
+            if (item.source === 'gdrive') {
+              const fileId = item.id.split(':')[1];
+              if (fileId && urlMap[fileId]) {
+                item.posterUrl = urlMap[fileId];
+              }
             }
           }
         }
