@@ -48,10 +48,10 @@ serve(async (req) => {
 
     const userId = userData.user.id;
 
-    // Verify user owns the label
+    // Verify that the label belongs to this user
     const { data: labelData, error: labelError } = await supabase
       .from('labels')
-      .select('id')
+      .select('*')
       .eq('id', labelId)
       .eq('user_id', userId)
       .single();
@@ -63,32 +63,28 @@ serve(async (req) => {
       });
     }
 
-    // Upsert the label assignment
-    const { error: insertError } = await supabase
+    // Remove the label assignment from labels_items table
+    const { error: removeError } = await supabase
       .from('labels_items')
-      .upsert({
-        label_id: labelId,
-        source,
-        item_key: itemKey
-      }, {
-        onConflict: 'label_id,source,item_key'
-      });
+      .delete()
+      .eq('label_id', labelId)
+      .eq('source', source)
+      .eq('item_key', itemKey);
 
-    if (insertError) {
-      console.error('Error assigning label:', insertError);
-      return new Response(JSON.stringify({ error: 'Failed to assign label' }), {
+    if (removeError) {
+      console.error('Error removing label:', removeError);
+      return new Response(JSON.stringify({ error: 'Failed to remove label' }), {
         status: 500,
         headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
       });
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { ...corsHeaders(req.headers.get("origin")), "Content-Type": "application/json" }
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in labels-assign:', error);
+    console.error('Error in labels-remove:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }

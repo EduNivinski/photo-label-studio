@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MediaItem, MediaListRequest, MediaListResponse } from '@/types/media';
+import { extractSourceAndKey } from '@/lib/media-adapters';
 
 export function useUnifiedMedia() {
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -42,15 +43,15 @@ export function useUnifiedMedia() {
 
   const addLabel = async (mediaId: string, labelId: string) => {
     try {
-      const [source, itemKey] = mediaId.split(':', 2);
+      const { source, key } = extractSourceAndKey(mediaId);
       
-      const { error } = await supabase
-        .from('labels_items')
-        .insert({
-          label_id: labelId,
-          source: source as 'db' | 'gdrive',
-          item_key: itemKey
-        });
+      const { error } = await supabase.functions.invoke('labels-assign', {
+        body: {
+          labelId,
+          source,
+          itemKey: key
+        }
+      });
 
       if (error) throw error;
     } catch (err) {
@@ -61,14 +62,15 @@ export function useUnifiedMedia() {
 
   const removeLabel = async (mediaId: string, labelId: string) => {
     try {
-      const [source, itemKey] = mediaId.split(':', 2);
+      const { source, key } = extractSourceAndKey(mediaId);
       
-      const { error } = await supabase
-        .from('labels_items')
-        .delete()
-        .eq('label_id', labelId)
-        .eq('source', source)
-        .eq('item_key', itemKey);
+      const { error } = await supabase.functions.invoke('labels-remove', {
+        body: {
+          labelId,
+          source,
+          itemKey: key
+        }
+      });
 
       if (error) throw error;
     } catch (err) {

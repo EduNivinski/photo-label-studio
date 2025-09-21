@@ -128,7 +128,7 @@ const Index = () => {
 
   // Unified media state
   const { items: unifiedItems, loading: unifiedLoading, loadItems: loadUnifiedItems } = useUnifiedMedia();
-  const [showUnifiedView, setShowUnifiedView] = useState(false);
+  const [showUnifiedView, setShowUnifiedView] = useState(true);
   const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
 
   // Google Drive items state (kept for legacy view)

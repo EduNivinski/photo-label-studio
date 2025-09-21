@@ -124,6 +124,48 @@ serve(async (req) => {
     const endIndex = startIndex + pageSize;
     const paginatedItems = items.slice(startIndex, endIndex);
 
+    // Get labels for all items
+    const itemKeys = paginatedItems.map(item => ({
+      source: item.source,
+      item_key: item.source === 'db' ? item.id.replace('db:', '') : item.file_id
+    }));
+
+    // Build label query conditions
+    const labelConditions = itemKeys.map(({ source, item_key }) => 
+      `(source.eq.${source},item_key.eq.${item_key})`
+    ).join(',');
+
+    let itemLabels: Record<string, any[]> = {};
+    if (itemKeys.length > 0) {
+      try {
+        const { data: labelsData, error: labelsError } = await supabase
+          .from('labels_items')
+          .select(`
+            source,
+            item_key,
+            labels:label_id (
+              id,
+              name,
+              color
+            )
+          `)
+          .or(labelConditions);
+
+        if (!labelsError && labelsData) {
+          // Group labels by item
+          labelsData.forEach(labelItem => {
+            const key = `${labelItem.source}:${labelItem.item_key}`;
+            if (!itemLabels[key]) itemLabels[key] = [];
+            if (labelItem.labels) {
+              itemLabels[key].push(labelItem.labels);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching labels:', error);
+      }
+    }
+
     // Get thumbnail URLs for Google Drive items
     const gdriveFileIds = paginatedItems
       .filter(item => item.source === 'gdrive')
@@ -145,6 +187,9 @@ serve(async (req) => {
     const responseItems = paginatedItems.map(item => {
       const isVideo = (item.mime_type || '').startsWith('video/');
       const thumbUrl = item.source === 'gdrive' ? thumbUrls[item.file_id] : item.url;
+      const itemKey = item.source === 'db' ? item.id.replace('db:', '') : item.file_id;
+      const labelsKey = `${item.source}:${itemKey}`;
+      const labels = itemLabels[labelsKey] || [];
       
       return {
         id: item.id,
@@ -161,7 +206,11 @@ serve(async (req) => {
         previewUrl: item.source === 'db' ? item.url : null,
         openInDriveUrl: item.source === 'gdrive' ? (item.web_view_link || `https://drive.google.com/file/d/${item.file_id}/view`) : null,
         downloadEnabled: true,
-        labels: item.labels || []
+        labels: labels.map(label => ({
+          id: label.id,
+          name: label.name,
+          color: label.color
+        }))
       };
     });
 
