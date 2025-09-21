@@ -87,3 +87,10 @@ verify_jwt = false
 verify_jwt = false
 
 # Removed video-open - now using thumb-open for all media
+
+# ===== PREVIEW FUNCTIONS (com JWT = true) =====
+[functions."drive-image-preview"]
+verify_jwt = true
+
+[functions."drive-video-poster"] 
+verify_jwt = true

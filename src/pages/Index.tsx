@@ -25,6 +25,7 @@ import { BulkLabelDialog } from '@/components/BulkLabelDialog';
 import { UploadDialog } from '@/components/UploadDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { PhotoModal } from '@/components/PhotoModal';
+import { MediaModal } from '@/components/MediaModal';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { LabelSuggestions } from '@/components/LabelSuggestions';
 import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
@@ -113,6 +114,7 @@ const Index = () => {
   const [isCreateCollectionFromSelectionOpen, setIsCreateCollectionFromSelectionOpen] = useState(false);
   const [isEditAlbumOpen, setIsEditAlbumOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+  const [selectedMediaItem, setSelectedMediaItem] = useState<MediaItem | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
 
   // View mode state
@@ -290,6 +292,7 @@ const Index = () => {
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedPhoto(null);
+    setSelectedMediaItem(null);
   };
 
   const handleBulkLabelManage = () => {
@@ -766,8 +769,8 @@ const Index = () => {
         onCreateLabel={createLabel}
       />
 
-      {/* Photo Modal */}
-      {selectedPhoto && (
+      {/* Photo Modal - Legacy */}
+      {selectedPhoto && !selectedMediaItem && (
         <PhotoModal
           photo={selectedPhoto}
           labels={labels}
@@ -776,6 +779,62 @@ const Index = () => {
           onLabelManage={() => handleLabelManage(selectedPhoto)}
           onDelete={handlePhotoDelete}
           onUpdateAlias={updatePhotoAlias}
+        />
+      )}
+
+      {/* Media Modal - New Unified System */}
+      {selectedMediaItem && (
+        <MediaModal
+          item={selectedMediaItem}
+          labels={labels}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onLabelManage={() => handleLabelManage(selectedMediaItem)}
+          onDelete={async () => {
+            if (!selectedMediaItem) return;
+            
+            const { source, key } = extractSourceAndKey(selectedMediaItem.id);
+            let success = false;
+            
+            if (source === 'db') {
+              success = await deletePhoto(key);
+            } else {
+              // For Google Drive items, we don't delete from Drive, just remove from our index
+              toast.info('Itens do Google Drive não podem ser excluídos através desta interface');
+              return;
+            }
+            
+            if (success) {
+              toast.success("Item excluído com sucesso!");
+              handleModalClose();
+              // Reload unified items
+              await loadUnifiedItems({ 
+                page: 1, 
+                pageSize: 50, 
+                source: "all", 
+                mimeClass: unifiedMimeFilter 
+              });
+            } else {
+              toast.error("Erro ao excluir item");
+            }
+          }}
+          onUpdateAlias={async (itemId: string, alias: string) => {
+            const { source, key } = extractSourceAndKey(itemId);
+            if (source === 'db') {
+              await updatePhotoAlias(key, alias);
+              // Update the selected item with new alias
+              setSelectedMediaItem(prev => prev ? { ...prev, name: alias } : null);
+              // Reload unified items
+              await loadUnifiedItems({ 
+                page: 1, 
+                pageSize: 50, 
+                source: "all", 
+                mimeClass: unifiedMimeFilter 
+              });
+            } else {
+              toast.info('Não é possível alterar nome de itens do Google Drive');
+            }
+          }}
         />
       )}
 
