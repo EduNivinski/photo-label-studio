@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+// Note: This hook now uses get-thumb-urls for all media (videos and images)
+// maintaining compatibility for components that expect video-specific functions
 type VideoEntry = { url: string; expiresAt: number };
 const videoCache = new Map<string, VideoEntry>();
 
@@ -18,7 +20,7 @@ export async function requestVideoUrls(fileIds: string[]): Promise<Record<string
     }
   }
   
-  // Fetch fresh URLs if needed
+  // Fetch fresh URLs if needed - now using get-thumb-urls for all media
   if (needUrls.length > 0) {
     try {
       const { data, error } = await supabase.functions.invoke('get-thumb-urls', {

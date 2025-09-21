@@ -222,9 +222,8 @@ const Index = () => {
         try {
           const fileId = item.id.split(':')[1];
           if (fileId) {
-            // Use get-video-urls for videos, get-thumb-urls for images
-            const functionName = item.isVideo ? 'get-video-urls' : 'get-thumb-urls';
-            const { data } = await supabase.functions.invoke(functionName, {
+            // Use get-thumb-urls for both videos and images
+            const { data } = await supabase.functions.invoke('get-thumb-urls', {
               body: { fileIds: [fileId] }
             });
             viewUrl = data?.urls?.[fileId] || item.posterUrl || '';
