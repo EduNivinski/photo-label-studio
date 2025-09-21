@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, handlePreflight } from "../_shared/cors.ts";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 serve(async (req) => {
-  const preflightResponse = handlePreflight(req);
+  const preflightResponse = preflight(req);
   if (preflightResponse) return preflightResponse;
 
   try {
@@ -131,14 +131,11 @@ serve(async (req) => {
     }));
 
     // Build label query conditions
-    const labelConditions = itemKeys.map(({ source, item_key }) => 
-      `(source.eq.${source},item_key.eq.${item_key})`
-    ).join(',');
-
     let itemLabels: Record<string, any[]> = {};
     if (itemKeys.length > 0) {
       try {
-        const { data: labelsData, error: labelsError } = await supabase
+        // Query labels for all items
+        let labelQuery = supabase
           .from('labels_items')
           .select(`
             source,
@@ -148,8 +145,18 @@ serve(async (req) => {
               name,
               color
             )
-          `)
-          .or(labelConditions);
+          `);
+
+        // Build OR conditions for each item
+        const orConditions = itemKeys.map(({ source, item_key }) => 
+          `(source.eq.${source},item_key.eq.${item_key})`
+        );
+
+        if (orConditions.length > 0) {
+          labelQuery = labelQuery.or(orConditions.join(','));
+        }
+
+        const { data: labelsData, error: labelsError } = await labelQuery;
 
         if (!labelsError && labelsData) {
           // Group labels by item

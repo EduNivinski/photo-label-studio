@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, handlePreflight } from "../_shared/cors.ts";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 serve(async (req) => {
-  const preflightResponse = handlePreflight(req);
+  const preflightResponse = preflight(req);
   if (preflightResponse) return preflightResponse;
 
   try {
