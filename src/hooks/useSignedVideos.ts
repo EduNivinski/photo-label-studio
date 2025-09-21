@@ -1,28 +1,28 @@
-import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 type VideoEntry = { url: string; expiresAt: number };
+
+// Global in-memory cache for video URLs
 const videoCache = new Map<string, VideoEntry>();
 
 export async function requestVideoUrls(fileIds: string[]): Promise<Record<string, string>> {
-  if (!fileIds?.length) return {};
-  
-  const needUrls: string[] = [];
+  const need: string[] = [];
   const now = Date.now();
   
-  // Check cache for unexpired URLs
+  // Check which video URLs need to be fetched or renewed
   for (const id of fileIds) {
     const cached = videoCache.get(id);
-    if (!cached || now > cached.expiresAt - 30_000) {
-      needUrls.push(id);
+    if (!cached || now > cached.expiresAt - 30_000) { // renew 30s before expiry
+      need.push(id);
     }
   }
   
-  // Fetch fresh URLs if needed
-  if (needUrls.length > 0) {
+  // Fetch only needed video URLs
+  if (need.length > 0) {
     try {
-      const { data, error } = await supabase.functions.invoke('get-thumb-urls', {
-        body: { fileIds: needUrls }
+      const { data, error } = await supabase.functions.invoke("get-video-urls", { 
+        body: { fileIds: need }
       });
       
       if (error) throw error;
@@ -30,60 +30,61 @@ export async function requestVideoUrls(fileIds: string[]): Promise<Record<string
       const ttlSec = data?.ttlSec ?? 600;
       const expiresAt = Date.now() + ttlSec * 1000;
       
-      // Cache new URLs
-      for (const [id, url] of Object.entries<string>(data?.urls || {})) {
+      // Cache the new URLs
+      for (const [id, url] of Object.entries<string>(data.urls || {})) {
         videoCache.set(id, { url, expiresAt });
       }
     } catch (error) {
-      console.error('Failed to fetch video URLs:', error);
+      console.error("Failed to fetch video URLs:", error);
+      // Don't throw - return what we can from cache
     }
   }
   
-  // Return URLs for all requested file IDs
-  const result: Record<string, string> = {};
+  // Return URLs for all requested IDs
+  const out: Record<string, string> = {};
   for (const id of fileIds) {
-    const cached = videoCache.get(id);
-    if (cached) {
-      result[id] = cached.url;
-    }
+    out[id] = videoCache.get(id)?.url || "";
   }
-  
-  return result;
+  return out;
 }
 
 export function useSignedVideos() {
-  const [loading, setLoading] = useState(false);
   const [urls, setUrls] = useState<Record<string, string>>({});
-
-  const loadVideos = useCallback(async (fileIds: string[]) => {
-    if (!fileIds?.length) return;
+  const [loading, setLoading] = useState(false);
+  const requestInFlight = useRef(false);
+  
+  const loadVideoUrls = useCallback(async (fileIds: string[]) => {
+    if (!fileIds.length || requestInFlight.current) return;
     
+    requestInFlight.current = true;
     setLoading(true);
+    
     try {
-      const videoUrls = await requestVideoUrls(fileIds);
-      setUrls(prev => ({ ...prev, ...videoUrls }));
+      const newUrls = await requestVideoUrls(fileIds);
+      setUrls(current => ({ ...current, ...newUrls }));
     } catch (error) {
-      console.error('Error loading video URLs:', error);
+      console.error("Error loading video URLs:", error);
     } finally {
       setLoading(false);
+      requestInFlight.current = false;
     }
   }, []);
-
-  const getVideoUrl = useCallback((fileId: string): string => {
-    return urls[fileId] || videoCache.get(fileId)?.url || '';
-  }, [urls]);
-
+  
   const invalidateVideo = useCallback((fileId: string) => {
     videoCache.delete(fileId);
-    setUrls(prev => {
-      const newUrls = { ...prev };
-      delete newUrls[fileId];
-      return newUrls;
+    setUrls(current => {
+      const updated = { ...current };
+      delete updated[fileId];
+      return updated;
     });
   }, []);
-
+  
+  const getVideoUrl = useCallback((fileId: string): string => {
+    return urls[fileId] || videoCache.get(fileId)?.url || "";
+  }, [urls]);
+  
   return {
-    loadVideos,
+    loadVideoUrls,
     getVideoUrl,
     invalidateVideo,
     loading

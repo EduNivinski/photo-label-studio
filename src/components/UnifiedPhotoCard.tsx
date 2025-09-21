@@ -114,13 +114,19 @@ export function UnifiedPhotoCard({
       {item.isVideo ? (
         <>
           <img
-            src={item.posterUrl || '/img/placeholder.png'}
+            src={item.posterUrl || item.previewUrl || '/img/placeholder.png'}
             alt={item.name}
             className={`w-full h-full object-cover transition-all duration-500 ${
               mediaLoaded ? 'opacity-100' : 'opacity-0'
             } group-hover:scale-110`}
             onLoad={() => setMediaLoaded(true)}
-            onError={() => setMediaError(true)}
+            onError={(e) => {
+              // Fallback chain for Google Drive videos
+              if (item.source === 'gdrive' && e.currentTarget.src !== '/img/placeholder.png') {
+                e.currentTarget.src = '/img/placeholder.png';
+              }
+              setMediaError(true);
+            }}
             loading="lazy"
           />
           {/* Play button overlay for videos */}
@@ -138,14 +144,17 @@ export function UnifiedPhotoCard({
         </>
       ) : (
         <img
-          src={item.posterUrl || '/img/placeholder.png'}
+          src={item.posterUrl || item.previewUrl || '/img/placeholder.png'}
           alt={item.name}
           className={`w-full h-full object-cover transition-all duration-500 ${
             mediaLoaded ? 'opacity-100' : 'opacity-0'
           } group-hover:scale-110`}
           onLoad={() => setMediaLoaded(true)}
           onError={(e) => {
-            e.currentTarget.src = '/img/placeholder.png';
+            // Fallback chain for images
+            if (item.source === 'gdrive' && e.currentTarget.src !== '/img/placeholder.png') {
+              e.currentTarget.src = '/img/placeholder.png';
+            }
             setMediaError(true);
           }}
           loading="lazy"

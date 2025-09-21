@@ -211,15 +211,33 @@ const Index = () => {
     }
   };
 
-  const handleUnifiedItemClick = (item: MediaItem) => {
+  const handleUnifiedItemClick = async (item: MediaItem) => {
     if (selectedCount > 0) {
       toggleSelection(item.id);
     } else {
+      // For Google Drive videos, get the proper video URL
+      let videoUrl = item.posterUrl || item.previewUrl || '';
+      
+      if (item.source === 'gdrive' && item.isVideo) {
+        try {
+          const { data } = await supabase.functions.invoke("get-video-urls", {
+            body: { fileIds: [item.id.replace('gdrive:', '')] }
+          });
+          
+          if (data?.urls?.[item.id.replace('gdrive:', '')]) {
+            videoUrl = data.urls[item.id.replace('gdrive:', '')];
+          }
+        } catch (error) {
+          console.error('Error getting video URL:', error);
+          // Fallback to posterUrl or previewUrl
+        }
+      }
+      
       // Convert MediaItem to Photo for modal compatibility
       const photoForModal: Photo = {
         id: item.id,
         name: item.name,
-        url: item.posterUrl || '', // Use posterUrl as main URL
+        url: videoUrl, // Use proper video URL for Google Drive videos
         labels: item.labels.map(l => l.name), // Convert to string array
         uploadDate: item.createdAt || new Date().toISOString(),
         originalDate: item.createdAt,
