@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   ChevronLeft, 
@@ -22,7 +22,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LabelChip } from './LabelChip';
-import { useProgressivePreview } from '@/hooks/useProgressivePreview';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import type { Label } from '@/types/photo';
@@ -58,46 +57,114 @@ export function MediaModal({
   const [aliasValue, setAliasValue] = useState('');
   const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  
-  const { loadImagePreview, loadVideoPreview, getPreviewState } = useProgressivePreview();
+  const [hiresSrc, setHiresSrc] = useState<string | null>(null);
+  const [posterHq, setPosterHq] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingPoster, setLoadingPoster] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Utility function to fetch Drive previews
+  const fetchDrivePreview = async ({ fileId, kind }: { fileId: string; kind: "image" | "video" }) => {
+    const base = "https://tcupxcxyylxfgsbhfdhw.supabase.co/functions/v1";
+    const path = kind === "image" ? "drive-image-preview" : "drive-video-poster";
+    const url = `${base}/${path}?fileId=${encodeURIComponent(fileId)}&max=${kind === "image" ? 1600 : 1280}`;
+    const token = JSON.parse(localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token") || "{}").access_token;
+    
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    const r = await fetch(url, { 
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal
+    });
+    
+    if (!r.ok) throw new Error(`preview_${kind}_failed`);
+    return URL.createObjectURL(await r.blob());
+  };
+
+  useEffect(() => {
+    // Cleanup function to revoke URLs and abort requests
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (hiresSrc && hiresSrc.startsWith('blob:')) {
+        URL.revokeObjectURL(hiresSrc);
+      }
+      if (posterHq && posterHq.startsWith('blob:')) {
+        URL.revokeObjectURL(posterHq);
+      }
+    };
+  }, [hiresSrc, posterHq]);
 
   useEffect(() => {
     if (item) {
       setAliasValue(item.name || '');
       setZoom(1);
-      setPreviewUrl(null);
+      
+      // Reset preview states
+      if (hiresSrc && hiresSrc.startsWith('blob:')) {
+        URL.revokeObjectURL(hiresSrc);
+      }
+      if (posterHq && posterHq.startsWith('blob:')) {
+        URL.revokeObjectURL(posterHq);
+      }
+      setHiresSrc(null);
+      setPosterHq(null);
+      setLoading(false);
+      setLoadingPoster(false);
+      
+      // Abort any ongoing request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       
       // Load high-res preview for Google Drive items
       if (item.source === 'gdrive') {
-        setIsLoadingPreview(true);
+        const { key: fileId } = extractSourceAndKey(item.id);
         
-        const loadPreview = async () => {
-          try {
-            let url: string | null = null;
-            
-            if (item.isVideo) {
-              url = await loadVideoPreview(item, 1280);
-            } else {
-              url = await loadImagePreview(item, 1600);
-            }
-            
-            setPreviewUrl(url);
-          } catch (error) {
-            console.error('Failed to load preview:', error);
-            setPreviewUrl(item.posterUrl);
-          } finally {
-            setIsLoadingPreview(false);
-          }
-        };
-        
-        loadPreview();
-      } else {
-        setPreviewUrl(item.posterUrl);
+        if (item.isVideo) {
+          // Load high-quality poster for video
+          setLoadingPoster(true);
+          fetchDrivePreview({ fileId, kind: "video" })
+            .then(url => {
+              if (!abortControllerRef.current?.signal.aborted) {
+                setPosterHq(url);
+              } else {
+                URL.revokeObjectURL(url);
+              }
+            })
+            .catch(error => {
+              console.error('Failed to load video poster:', error);
+            })
+            .finally(() => {
+              if (!abortControllerRef.current?.signal.aborted) {
+                setLoadingPoster(false);
+              }
+            });
+        } else {
+          // Load high-res image
+          setLoading(true);
+          fetchDrivePreview({ fileId, kind: "image" })
+            .then(url => {
+              if (!abortControllerRef.current?.signal.aborted) {
+                setHiresSrc(url);
+              } else {
+                URL.revokeObjectURL(url);
+              }
+            })
+            .catch(error => {
+              console.error('Failed to load image preview:', error);
+            })
+            .finally(() => {
+              if (!abortControllerRef.current?.signal.aborted) {
+                setLoading(false);
+              }
+            });
+        }
       }
     }
-  }, [item, loadImagePreview, loadVideoPreview]);
+  }, [item]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -134,14 +201,13 @@ export function MediaModal({
 
   const handleDownload = async () => {
     try {
-      let downloadUrl = previewUrl || item.posterUrl;
-      
       if (item.source === 'gdrive' && item.openInDriveUrl) {
         // For Google Drive items, open in Drive for download
         window.open(item.openInDriveUrl, '_blank');
         return;
       }
       
+      const downloadUrl = hiresSrc || posterHq || item.posterUrl;
       if (!downloadUrl) throw new Error('No download URL available');
 
       // Fetch the blob data from the URL
@@ -166,14 +232,15 @@ export function MediaModal({
     } catch (error) {
       console.error('Error downloading file:', error);
       // Fallback to opening in new tab
-      if (previewUrl || item.posterUrl) {
-        window.open(previewUrl || item.posterUrl, '_blank');
+      const fallbackUrl = hiresSrc || posterHq || item.posterUrl;
+      if (fallbackUrl) {
+        window.open(fallbackUrl, '_blank');
       }
     }
   };
 
   const handleShare = async () => {
-    const shareUrl = previewUrl || item.posterUrl || item.openInDriveUrl;
+    const shareUrl = hiresSrc || posterHq || item.posterUrl || item.openInDriveUrl;
     
     if (navigator.share && shareUrl) {
       try {
@@ -320,16 +387,16 @@ export function MediaModal({
       {/* Main Content Area */}
       <div className="flex items-center justify-center min-h-screen p-16">
         <div className="relative max-w-[85vw] max-h-[85vh] flex items-center justify-center">
-          {isLoadingPreview && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-              <div className="text-white">Carregando preview...</div>
+          {(loading || loadingPoster) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg z-10">
+              <div className="text-white">Carregando preview em alta resolução...</div>
             </div>
           )}
           
           {item.isVideo ? (
             <div className="relative">
               <video
-                poster={previewUrl || item.posterUrl || '/img/placeholder.png'}
+                poster={posterHq || item.posterUrl || '/img/placeholder.png'}
                 controls={false}
                 className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                 style={{ maxHeight: '75vh' }}
@@ -359,7 +426,7 @@ export function MediaModal({
             </div>
           ) : (
             <img
-              src={previewUrl || item.posterUrl || '/img/placeholder.png'}
+              src={hiresSrc || item.posterUrl || '/img/placeholder.png'}
               alt={item.name}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl cursor-zoom-in"
               style={{ 
