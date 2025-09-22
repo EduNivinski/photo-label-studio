@@ -139,13 +139,14 @@ export function LabelManager({
     }
   };
 
-  // Reset state when photo changes
+  // Reset state when dialog opens or the selected photo changes
   React.useEffect(() => {
+    if (!isOpen) return;
     setPhotoLabels(selectedPhoto?.labels || []);
     setSearchQuery('');
     setShowColorSelector(false);
     setIsComboboxOpen(false);
-  }, [selectedPhoto, isOpen, labels]);
+  }, [isOpen, selectedPhoto?.id]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -211,6 +212,7 @@ export function LabelManager({
                 <Input
                   placeholder="Buscar ou criar nova label..."
                   value={searchQuery}
+                  onMouseDown={(e) => { e.stopPropagation(); }}
                   onChange={(e) => {
                     e.stopPropagation();
                     const sanitizedValue = sanitizeUserInput(e.target.value);
@@ -235,6 +237,7 @@ export function LabelManager({
             {(isComboboxOpen || searchQuery) && (
               <div 
                 className="border border-border rounded-md bg-popover shadow-lg p-0 z-50"
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
                 <Command>

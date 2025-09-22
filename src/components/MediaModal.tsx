@@ -521,7 +521,7 @@ export function MediaModal({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={onLabelManage}
+                  onClick={(e) => { e.stopPropagation(); setIsLabelManagerOpen(true); }}
                   className="text-white/80 hover:text-white hover:bg-white/10 w-8 h-8 rounded-full border border-white/40 hover:border-white/60 p-0 flex items-center justify-center"
                 >
                   <Plus className="h-4 w-4" />
