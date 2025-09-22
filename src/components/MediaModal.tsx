@@ -303,9 +303,9 @@ export function MediaModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm" onClick={onClose}>
       {/* Header Controls */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4">
+      <div className="absolute top-0 left-0 right-0 z-10 p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-white font-medium text-lg font-sans">
@@ -391,7 +391,7 @@ export function MediaModal({
         <Button
           variant="ghost"
           size="lg"
-          onClick={onPrevious}
+          onClick={(e) => { e.stopPropagation(); onPrevious(); }}
           className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-white/80 hover:text-white hover:bg-white/10 h-16 w-16 rounded-full"
         >
           <ChevronLeft className="h-8 w-8" />
@@ -402,7 +402,7 @@ export function MediaModal({
         <Button
           variant="ghost"
           size="lg"
-          onClick={onNext}
+          onClick={(e) => { e.stopPropagation(); onNext(); }}
           className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-white/80 hover:text-white hover:bg-white/10 h-16 w-16 rounded-full"
         >
           <ChevronRight className="h-8 w-8" />
@@ -410,7 +410,7 @@ export function MediaModal({
       )}
 
       {/* Main Content Area */}
-      <div className="flex items-center justify-center min-h-screen p-16">
+      <div className="flex items-center justify-center min-h-screen p-16" onClick={(e) => e.stopPropagation()}>
         <div className="relative max-w-[85vw] max-h-[85vh] flex items-center justify-center">
           {(loading || loadingPoster) && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg z-10">
@@ -494,7 +494,7 @@ export function MediaModal({
       </div>
 
       {/* Bottom Info Panel */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6" onClick={(e) => e.stopPropagation()}>
         <div className="max-w-4xl mx-auto">
           {/* Main Info Row */}
           <div className="flex items-start justify-between mb-4">
@@ -612,11 +612,6 @@ export function MediaModal({
         </div>
       </div>
 
-      {/* Click outside to close */}
-      <div 
-        className="absolute inset-0 -z-10" 
-        onClick={onClose}
-      />
     </div>
   );
 }
