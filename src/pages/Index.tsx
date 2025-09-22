@@ -236,10 +236,11 @@ const Index = () => {
   // Unified function to handle both Photo and MediaItem label updates
   const handleUnifiedUpdateLabels = async (itemId: string, labelIds: string[]): Promise<boolean> => {
     const { source, key } = extractSourceAndKey(itemId);
+    let success = false;
     
     if (source === 'db') {
       // For database photos, use the existing updatePhotoLabels function
-      return await updatePhotoLabels(key, labelIds);
+      success = await updatePhotoLabels(key, labelIds);
     } else if (source === 'gdrive') {
       // For Google Drive items, use the unified media functions
       try {
@@ -257,16 +258,19 @@ const Index = () => {
           await addUnifiedLabel(itemId, labelId);
         }
         
-        // Reload unified items to get updated data
-        await loadUnifiedItems(unifiedParams);
-        return true;
+        success = true;
       } catch (error) {
         console.error('Error updating MediaItem labels:', error);
-        return false;
+        success = false;
       }
     }
     
-    return false;
+    // Always reload unified items after any label update to reflect changes in UI
+    if (success) {
+      await loadUnifiedItems(unifiedParams);
+    }
+    
+    return success;
   };
 
   const handleModalClose = () => {
