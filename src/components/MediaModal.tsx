@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LabelChip } from './LabelChip';
+import { LabelManager } from './LabelManager';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import type { Label } from '@/types/photo';
@@ -34,6 +35,9 @@ interface MediaModalProps {
   onLabelManage: () => void;
   onDelete: () => void;
   onUpdateAlias?: (itemId: string, alias: string) => Promise<void>;
+  onCreateLabel: (name: string, color?: string) => Promise<void>;
+  onDeleteLabel: (labelId: string) => Promise<boolean>;
+  onUpdatePhotoLabels: (photoId: string, labelIds: string[]) => Promise<boolean>;
   onNext?: () => void;
   onPrevious?: () => void;
   hasNext?: boolean;
@@ -48,6 +52,9 @@ export function MediaModal({
   onLabelManage,
   onDelete,
   onUpdateAlias,
+  onCreateLabel,
+  onDeleteLabel,
+  onUpdatePhotoLabels,
   onNext,
   onPrevious,
   hasNext = false,
@@ -57,6 +64,7 @@ export function MediaModal({
   const [aliasValue, setAliasValue] = useState('');
   const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
+  const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [hiresSrc, setHiresSrc] = useState<string | null>(null);
   const [posterHq, setPosterHq] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -525,7 +533,7 @@ export function MediaModal({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={onLabelManage}
+                onClick={() => setIsLabelManagerOpen(true)}
                 className="bg-white/10 hover:bg-white/20 text-white border-white/20"
               >
                 <Tag className="h-4 w-4 mr-2" />
@@ -611,6 +619,24 @@ export function MediaModal({
           )}
         </div>
       </div>
+
+      {/* Label Manager */}
+      <LabelManager
+        isOpen={isLabelManagerOpen}
+        onClose={() => setIsLabelManagerOpen(false)}
+        labels={labels}
+        selectedPhoto={item ? {
+          id: item.id,
+          name: item.name,
+          labels: itemLabels.map(label => label.id),
+          url: item.posterUrl || '',
+          uploadDate: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+          mediaType: item.isVideo ? 'video' : 'photo'
+        } : undefined}
+        onCreateLabel={onCreateLabel}
+        onDeleteLabel={onDeleteLabel}
+        onUpdatePhotoLabels={onUpdatePhotoLabels}
+      />
 
     </div>
   );

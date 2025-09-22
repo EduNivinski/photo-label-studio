@@ -770,6 +770,9 @@ const Index = () => {
           isOpen={isModalOpen}
           onClose={handleModalClose}
           onLabelManage={() => handleLabelManage(selectedMediaItem)}
+          onCreateLabel={createLabel}
+          onDeleteLabel={deleteLabel}
+          onUpdatePhotoLabels={handleUnifiedUpdateLabels}
           onDelete={async () => {
             if (!selectedMediaItem) return;
             
