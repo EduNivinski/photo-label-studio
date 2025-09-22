@@ -410,8 +410,8 @@ export function MediaModal({
       )}
 
       {/* Main Content Area */}
-      <div className="flex items-center justify-center min-h-screen p-16" onClick={(e) => e.stopPropagation()}>
-        <div className="relative max-w-[85vw] max-h-[85vh] flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen p-16">
+        <div className="relative max-w-[85vw] max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
           {(loading || loadingPoster) && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg z-10">
               <div className="text-white">Carregando preview em alta resolução...</div>
@@ -464,7 +464,7 @@ export function MediaModal({
                 transform: `scale(${zoom})`,
                 transition: 'transform 0.2s ease'
               }}
-              onClick={() => setZoom(zoom === 1 ? 2 : 1)}
+              onClick={(e) => { e.stopPropagation(); setZoom(zoom === 1 ? 2 : 1); }}
               onLoad={() => console.log('🖼️ High-res image loaded:', hiresSrc ? 'High quality' : 'Fallback')}
             />
           )}
