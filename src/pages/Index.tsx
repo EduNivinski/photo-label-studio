@@ -232,7 +232,6 @@ const Index = () => {
       setIsModalOpen(true);
     }
   };
-  };
 
   // Unified function to handle both Photo and MediaItem label updates
   const handleUnifiedUpdateLabels = async (itemId: string, labelIds: string[]): Promise<boolean> => {
