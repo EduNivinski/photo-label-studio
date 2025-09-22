@@ -67,14 +67,6 @@ export function MediaModal({
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [hiresSrc, setHiresSrc] = useState<string | null>(null);
 
-  // Debug effect
-  useEffect(() => {
-    console.log('🏷️ MediaModal - isLabelManagerOpen changed:', isLabelManagerOpen);
-    if (isLabelManagerOpen) {
-      console.log('🏷️ MediaModal - Labels disponíveis:', labels.length);
-      console.log('🏷️ MediaModal - Item atual:', item?.name);
-    }
-  }, [isLabelManagerOpen, labels, item]);
   const [posterHq, setPosterHq] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPoster, setLoadingPoster] = useState(false);
@@ -237,21 +229,9 @@ export function MediaModal({
     return null;
   }
 
-  const itemLabels = labels.filter(label => {
-    const hasLabel = item.labels.some(itemLabel => itemLabel.id === label.id);
-    if (hasLabel) {
-      console.log('🏷️ MediaModal - Label encontrada:', label.name, 'para item:', item.name);
-    }
-    return hasLabel;
-  });
-
-  console.log('🏷️ MediaModal - Item labels calculadas:', {
-    itemName: item?.name,
-    totalLabels: labels.length,
-    itemLabelsRaw: item?.labels,
-    itemLabelsCalculated: itemLabels.length,
-    itemLabelsNames: itemLabels.map(l => l.name)
-  });
+  const itemLabels = labels.filter(label => 
+    item.labels.some(itemLabel => itemLabel.id === label.id)
+  );
 
   const handleDownload = async () => {
     try {
@@ -332,7 +312,7 @@ export function MediaModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm" onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}>
       {/* Header Controls */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
@@ -555,10 +535,7 @@ export function MediaModal({
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  console.log('🏷️ Botão Editar Labels clicado');
-                  console.log('🏷️ Estado atual isLabelManagerOpen:', isLabelManagerOpen);
                   setIsLabelManagerOpen(true);
-                  console.log('🏷️ Abrindo LabelManager...');
                 }}
                 className="bg-white/10 hover:bg-white/20 text-white border-white/20"
               >
@@ -647,25 +624,26 @@ export function MediaModal({
       </div>
 
       {/* Label Manager */}
-      <LabelManager
-        isOpen={isLabelManagerOpen}
-        onClose={() => {
-          console.log('🏷️ Fechando LabelManager');
-          setIsLabelManagerOpen(false);
-        }}
-        labels={labels}
-        selectedPhoto={item ? {
-          id: item.id,
-          name: item.name,
-          labels: itemLabels.map(label => label.id),
-          url: item.posterUrl || '',
-          uploadDate: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
-          mediaType: item.isVideo ? 'video' : 'photo'
-        } : undefined}
-        onCreateLabel={onCreateLabel}
-        onDeleteLabel={onDeleteLabel}
-        onUpdatePhotoLabels={onUpdatePhotoLabels}
-      />
+      <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+        <LabelManager
+          isOpen={isLabelManagerOpen}
+          onClose={() => {
+            setIsLabelManagerOpen(false);
+          }}
+          labels={labels}
+          selectedPhoto={item ? {
+            id: item.id,
+            name: item.name,
+            labels: itemLabels.map(label => label.id),
+            url: item.posterUrl || '',
+            uploadDate: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+            mediaType: item.isVideo ? 'video' : 'photo'
+          } : undefined}
+          onCreateLabel={onCreateLabel}
+          onDeleteLabel={onDeleteLabel}
+          onUpdatePhotoLabels={onUpdatePhotoLabels}
+        />
+      </div>
 
     </div>
   );

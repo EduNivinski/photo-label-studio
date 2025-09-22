@@ -54,14 +54,7 @@ export function LabelManager({
 
   // Get applied labels
   const appliedLabels = useMemo(() => {
-    const applied = labels.filter(label => photoLabels.includes(label.id));
-    console.log('🏷️ LabelManager - Applied labels calculadas:', {
-      photoLabels: photoLabels,
-      allLabels: labels.length,
-      appliedCount: applied.length,
-      appliedNames: applied.map(l => l.name)
-    });
-    return applied;
+    return labels.filter(label => photoLabels.includes(label.id));
   }, [labels, photoLabels]);
 
   const handleAddLabel = (labelId: string) => {
@@ -148,16 +141,10 @@ export function LabelManager({
 
   // Reset state when photo changes
   React.useEffect(() => {
-    console.log('🏷️ LabelManager - Props recebidas:', {
-      isOpen,
-      totalLabels: labels.length,
-      selectedPhoto: selectedPhoto?.name,
-      selectedPhotoLabels: selectedPhoto?.labels
-    });
-    
     setPhotoLabels(selectedPhoto?.labels || []);
     setSearchQuery('');
     setShowColorSelector(false);
+    setIsComboboxOpen(false);
   }, [selectedPhoto, isOpen, labels]);
 
   return (
@@ -234,7 +221,7 @@ export function LabelManager({
                   }}
                   onFocus={(e) => {
                     e.stopPropagation();
-                    setIsComboboxOpen(true);
+                    if (searchQuery) setIsComboboxOpen(true);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -244,7 +231,7 @@ export function LabelManager({
                 />
             </div>
 
-            {/* Sempre mostrar lista de labels disponíveis quando campo tem foco */}
+            {/* Mostrar lista de labels apenas quando o usuário interagir */}
             {(isComboboxOpen || searchQuery) && (
               <div 
                 className="border border-border rounded-md bg-popover shadow-lg p-0 z-50"
