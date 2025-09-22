@@ -184,6 +184,19 @@ const Index = () => {
     loadUnifiedItems(unifiedParams);
   }, [unifiedParams, loadUnifiedItems]);
 
+  // Apply client-side filters to unified items so home reflects label filters immediately
+  const filteredUnifiedItems = useMemo(() => {
+    const required = [...filters.labels, ...includedLabels];
+    return unifiedItems.filter((item) => {
+      const itemLabelIds = item.labels.map(l => l.id);
+      const matchesRequired = required.length === 0 || required.every(id => itemLabelIds.includes(id));
+      const matchesExcluded = excludedLabels.length === 0 || !excludedLabels.some(id => itemLabelIds.includes(id));
+      const matchesSearch = filters.searchTerm.trim() === '' || item.name.toLowerCase().includes(filters.searchTerm.toLowerCase());
+      const matchesUnlabeled = !filters.showUnlabeled || itemLabelIds.filter(id => id !== 'favorites').length === 0;
+      return matchesRequired && matchesExcluded && matchesSearch && matchesUnlabeled;
+    });
+  }, [unifiedItems, filters.labels, filters.searchTerm, filters.showUnlabeled, includedLabels, excludedLabels]);
+
   // Ensure no legacy Drive loading variables exist
   const driveLoading = false; // Deprecated - always use unifiedLoading
 
@@ -235,41 +248,36 @@ const Index = () => {
 
   // Unified function to handle both Photo and MediaItem label updates
   const handleUnifiedUpdateLabels = async (itemId: string, labelIds: string[]): Promise<boolean> => {
-    const { source, key } = extractSourceAndKey(itemId);
+    const { source } = extractSourceAndKey(itemId);
     let success = false;
-    
-    if (source === 'db') {
-      // For database photos, use the existing updatePhotoLabels function
-      success = await updatePhotoLabels(key, labelIds);
-    } else if (source === 'gdrive') {
-      // For Google Drive items, use the unified media functions
-      try {
-        // First remove all existing labels, then add new ones
-        const currentItem = unifiedItems.find(item => item.id === itemId);
-        if (currentItem) {
-          // Remove existing labels
-          for (const existingLabel of currentItem.labels) {
-            await removeUnifiedLabel(itemId, existingLabel.id);
-          }
+
+    try {
+      // Find current item labels from unifiedItems
+      const currentItem = unifiedItems.find(item => item.id === itemId);
+
+      // Remove all existing labels via unified API (works for both DB and GDrive)
+      if (currentItem) {
+        for (const existingLabel of currentItem.labels) {
+          await removeUnifiedLabel(itemId, existingLabel.id);
         }
-        
-        // Add new labels
-        for (const labelId of labelIds) {
-          await addUnifiedLabel(itemId, labelId);
-        }
-        
-        success = true;
-      } catch (error) {
-        console.error('Error updating MediaItem labels:', error);
-        success = false;
       }
+
+      // Add the new set of labels
+      for (const lid of labelIds) {
+        await addUnifiedLabel(itemId, lid);
+      }
+
+      success = true;
+    } catch (error) {
+      console.error('Error updating item labels:', error);
+      success = false;
     }
-    
+
     // Always reload unified items after any label update to reflect changes in UI
     if (success) {
       await loadUnifiedItems(unifiedParams);
     }
-    
+
     return success;
   };
 
@@ -658,7 +666,7 @@ const Index = () => {
           <div className="w-full">
             <div className="container mx-auto px-4 max-w-7xl">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {unifiedItems.map((item) => (
+                {filteredUnifiedItems.map((item) => (
                   <UnifiedPhotoCard
                     key={item.id}
                     item={item}
@@ -674,10 +682,10 @@ const Index = () => {
               </div>
               
               {/* Total count display */}
-              {unifiedItems.length > 0 && (
+              {filteredUnifiedItems.length > 0 && (
                 <div className="mt-6 text-center">
                   <p className="text-sm text-muted-foreground">
-                    {unifiedItems.length} {unifiedItems.length === 1 ? 'arquivo encontrado' : 'arquivos encontrados'}
+                    {filteredUnifiedItems.length} {filteredUnifiedItems.length === 1 ? 'arquivo encontrado' : 'arquivos encontrados'}
                   </p>
                 </div>
               )}
@@ -687,7 +695,7 @@ const Index = () => {
       </div>
 
       {/* No items state */}
-      {!unifiedLoading && unifiedItems.length === 0 && (
+      {!unifiedLoading && filteredUnifiedItems.length === 0 && (
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center py-16">
             {photos.length === 0 ? (

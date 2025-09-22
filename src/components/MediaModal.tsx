@@ -312,7 +312,7 @@ export function MediaModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm" onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}>
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm" onClick={() => onClose()}>
       {/* Header Controls */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
