@@ -66,6 +66,15 @@ export function MediaModal({
   const [showInfo, setShowInfo] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [hiresSrc, setHiresSrc] = useState<string | null>(null);
+
+  // Debug effect
+  useEffect(() => {
+    console.log('🏷️ MediaModal - isLabelManagerOpen changed:', isLabelManagerOpen);
+    if (isLabelManagerOpen) {
+      console.log('🏷️ MediaModal - Labels disponíveis:', labels.length);
+      console.log('🏷️ MediaModal - Item atual:', item?.name);
+    }
+  }, [isLabelManagerOpen, labels, item]);
   const [posterHq, setPosterHq] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPoster, setLoadingPoster] = useState(false);
@@ -533,7 +542,12 @@ export function MediaModal({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setIsLabelManagerOpen(true)}
+                onClick={() => {
+                  console.log('🏷️ Botão Editar Labels clicado');
+                  console.log('🏷️ Estado atual isLabelManagerOpen:', isLabelManagerOpen);
+                  setIsLabelManagerOpen(true);
+                  console.log('🏷️ Abrindo LabelManager...');
+                }}
                 className="bg-white/10 hover:bg-white/20 text-white border-white/20"
               >
                 <Tag className="h-4 w-4 mr-2" />
@@ -623,7 +637,10 @@ export function MediaModal({
       {/* Label Manager */}
       <LabelManager
         isOpen={isLabelManagerOpen}
-        onClose={() => setIsLabelManagerOpen(false)}
+        onClose={() => {
+          console.log('🏷️ Fechando LabelManager');
+          setIsLabelManagerOpen(false);
+        }}
         labels={labels}
         selectedPhoto={item ? {
           id: item.id,
