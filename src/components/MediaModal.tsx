@@ -237,9 +237,21 @@ export function MediaModal({
     return null;
   }
 
-  const itemLabels = labels.filter(label => 
-    item.labels.some(itemLabel => itemLabel.id === label.id)
-  );
+  const itemLabels = labels.filter(label => {
+    const hasLabel = item.labels.some(itemLabel => itemLabel.id === label.id);
+    if (hasLabel) {
+      console.log('🏷️ MediaModal - Label encontrada:', label.name, 'para item:', item.name);
+    }
+    return hasLabel;
+  });
+
+  console.log('🏷️ MediaModal - Item labels calculadas:', {
+    itemName: item?.name,
+    totalLabels: labels.length,
+    itemLabelsRaw: item?.labels,
+    itemLabelsCalculated: itemLabels.length,
+    itemLabelsNames: itemLabels.map(l => l.name)
+  });
 
   const handleDownload = async () => {
     try {

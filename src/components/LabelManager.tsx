@@ -54,7 +54,14 @@ export function LabelManager({
 
   // Get applied labels
   const appliedLabels = useMemo(() => {
-    return labels.filter(label => photoLabels.includes(label.id));
+    const applied = labels.filter(label => photoLabels.includes(label.id));
+    console.log('🏷️ LabelManager - Applied labels calculadas:', {
+      photoLabels: photoLabels,
+      allLabels: labels.length,
+      appliedCount: applied.length,
+      appliedNames: applied.map(l => l.name)
+    });
+    return applied;
   }, [labels, photoLabels]);
 
   const handleAddLabel = (labelId: string) => {
@@ -141,10 +148,17 @@ export function LabelManager({
 
   // Reset state when photo changes
   React.useEffect(() => {
+    console.log('🏷️ LabelManager - Props recebidas:', {
+      isOpen,
+      totalLabels: labels.length,
+      selectedPhoto: selectedPhoto?.name,
+      selectedPhotoLabels: selectedPhoto?.labels
+    });
+    
     setPhotoLabels(selectedPhoto?.labels || []);
     setSearchQuery('');
     setShowColorSelector(false);
-  }, [selectedPhoto]);
+  }, [selectedPhoto, isOpen, labels]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -162,12 +176,12 @@ export function LabelManager({
         </DialogHeader>
         
         <div className="space-y-6">
-          {/* Applied Labels */}
-          {appliedLabels.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-foreground">
-                Labels aplicadas ({appliedLabels.length})
-              </h4>
+          {/* Applied Labels - sempre mostrar a seção */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-foreground">
+              Labels aplicadas ({appliedLabels.length})
+            </h4>
+            {appliedLabels.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {appliedLabels.map((label) => (
                   <Badge 
@@ -182,7 +196,11 @@ export function LabelManager({
                     />
                     <span>{label.name}</span>
                     <button
-                      onClick={() => handleRemoveLabel(label.id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRemoveLabel(label.id);
+                      }}
                       className="ml-1 hover:bg-background/20 rounded-full p-0.5"
                     >
                       <X className="h-3 w-3" />
@@ -190,8 +208,10 @@ export function LabelManager({
                   </Badge>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhuma label aplicada ainda</p>
+            )}
+          </div>
 
           {/* Search and Add Labels */}
           <div className="space-y-3">
@@ -205,19 +225,31 @@ export function LabelManager({
                   placeholder="Buscar ou criar nova label..."
                   value={searchQuery}
                   onChange={(e) => {
+                    e.stopPropagation();
                     const sanitizedValue = sanitizeUserInput(e.target.value);
                     if (validateSecureInput(sanitizedValue, 50)) {
                       setSearchQuery(sanitizedValue);
                       setIsComboboxOpen(sanitizedValue.length > 0);
                     }
                   }}
-                  onFocus={() => searchQuery && setIsComboboxOpen(true)}
+                  onFocus={(e) => {
+                    e.stopPropagation();
+                    setIsComboboxOpen(true);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsComboboxOpen(true);
+                  }}
                   className="pl-10 bg-background border-border"
                 />
             </div>
 
-            {isComboboxOpen && (
-              <div className="border border-border rounded-md bg-popover shadow-lg p-0 z-50">
+            {/* Sempre mostrar lista de labels disponíveis quando campo tem foco */}
+            {(isComboboxOpen || searchQuery) && (
+              <div 
+                className="border border-border rounded-md bg-popover shadow-lg p-0 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Command>
                   <CommandList className="max-h-48">
                     {availableLabels.length > 0 && (
@@ -328,17 +360,23 @@ export function LabelManager({
           {/* Actions */}
           {selectedPhoto && (
             <div className="flex gap-2 pt-4 border-t">
-              <Button 
-                onClick={handleSaveChanges}
-                className="flex-1"
-              >
-                Salvar alterações
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={onClose}
-                className="flex-1"
-              >
+                  <Button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSaveChanges();
+                    }}
+                    className="flex-1"
+                  >
+                    Salvar alterações
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClose();
+                    }}
+                    className="flex-1"
+                  >
                 Cancelar
               </Button>
             </div>
