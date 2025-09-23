@@ -39,6 +39,16 @@ export function useUnifiedMedia() {
       
       // Fallback: Load photos from local database directly
       try {
+        // First verify we have an authenticated user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+          console.error('❌ No authenticated user for fallback:', userError);
+          throw new Error('Authentication required');
+        }
+
+        console.log('🔄 Using fallback with user:', user.id);
+
         let query = supabase
           .from('photos')
           .select('*')
@@ -55,14 +65,15 @@ export function useUnifiedMedia() {
         
         if (photoError) throw photoError;
 
-        // Get all labels for proper display
+        // Get labels for the current user only (RLS will handle this automatically)
         const { data: labelsData } = await supabase
           .from('labels')
           .select('*');
         
         const labelsMap = new Map(labelsData?.map(label => [label.id, label]) || []);
 
-        // Get label assignments from labels_items table for each photo
+        // Get label assignments from labels_items table for photos owned by this user
+        // RLS policies will automatically filter to this user's data
         const { data: labelAssignments } = await supabase
           .from('labels_items')
           .select('item_key, label_id')
@@ -77,6 +88,8 @@ export function useUnifiedMedia() {
           }
           photoLabelsMap.get(photoId)!.push(assignment.label_id);
         });
+
+        console.log(`📊 Fallback loaded: ${photos?.length || 0} photos, ${labelsData?.length || 0} labels for user ${user.id}`);
 
         // Transform to MediaItem format
         const mediaItems: MediaItem[] = (photos || []).map(photo => {
