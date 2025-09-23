@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LabelChip } from './LabelChip';
 import { LabelManager } from './LabelManager';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import type { Label } from '@/types/photo';
@@ -65,6 +66,7 @@ export function MediaModal({
   const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [hiresSrc, setHiresSrc] = useState<string | null>(null);
 
   const [posterHq, setPosterHq] = useState<string | null>(null);
@@ -576,7 +578,7 @@ export function MediaModal({
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={onDelete}
+                onClick={() => setIsDeleteConfirmOpen(true)}
                 className="bg-red-600/80 hover:bg-red-600 text-white"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -644,6 +646,17 @@ export function MediaModal({
           onUpdatePhotoLabels={onUpdatePhotoLabels}
         />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        onConfirm={() => {
+          setIsDeleteConfirmOpen(false);
+          onDelete();
+        }}
+        itemCount={1}
+      />
 
     </div>
   );
