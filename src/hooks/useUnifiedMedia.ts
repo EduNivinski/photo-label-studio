@@ -62,31 +62,51 @@ export function useUnifiedMedia() {
         
         const labelsMap = new Map(labelsData?.map(label => [label.id, label]) || []);
 
+        // Get label assignments from labels_items table for each photo
+        const { data: labelAssignments } = await supabase
+          .from('labels_items')
+          .select('item_key, label_id')
+          .eq('source', 'db');
+
+        // Create a map of photo ID to assigned labels
+        const photoLabelsMap = new Map<string, string[]>();
+        labelAssignments?.forEach(assignment => {
+          const photoId = assignment.item_key;
+          if (!photoLabelsMap.has(photoId)) {
+            photoLabelsMap.set(photoId, []);
+          }
+          photoLabelsMap.get(photoId)!.push(assignment.label_id);
+        });
+
         // Transform to MediaItem format
-        const mediaItems: MediaItem[] = (photos || []).map(photo => ({
-          id: `db:${photo.id}`,
-          source: 'db' as const,
-          name: photo.name,
-          mimeType: photo.media_type === 'video' ? 'video/mp4' : 'image/jpeg',
-          isVideo: photo.media_type === 'video',
-          width: null,
-          height: null,
-          durationMs: null,
-          createdAt: photo.upload_date,
-          updatedAt: photo.upload_date,
-          posterUrl: photo.url,
-          previewUrl: photo.url,
-          openInDriveUrl: null,
-          downloadEnabled: true,
-          labels: photo.labels?.map((labelId: string) => {
-            const labelData = labelsMap.get(labelId);
-            return {
-              id: labelId,
-              name: labelData?.name || labelId,
-              color: labelData?.color || null
-            };
-          }) || []
-        }));
+        const mediaItems: MediaItem[] = (photos || []).map(photo => {
+          const assignedLabelIds = photoLabelsMap.get(photo.id) || [];
+          
+          return {
+            id: `db:${photo.id}`,
+            source: 'db' as const,
+            name: photo.name,
+            mimeType: photo.media_type === 'video' ? 'video/mp4' : 'image/jpeg',
+            isVideo: photo.media_type === 'video',
+            width: null,
+            height: null,
+            durationMs: null,
+            createdAt: photo.upload_date,
+            updatedAt: photo.upload_date,
+            posterUrl: photo.url,
+            previewUrl: photo.url,
+            openInDriveUrl: null,
+            downloadEnabled: true,
+            labels: assignedLabelIds.map(labelId => {
+              const labelData = labelsMap.get(labelId);
+              return {
+                id: labelId,
+                name: labelData?.name || labelId,
+                color: labelData?.color || null
+              };
+            })
+          };
+        });
 
         setItems(mediaItems);
         setTotal(mediaItems.length);
