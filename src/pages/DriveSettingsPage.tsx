@@ -419,7 +419,7 @@ export default function DriveSettingsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <Button
               onClick={fetchStatus}
               variant="outline"
@@ -457,7 +457,22 @@ export default function DriveSettingsPage() {
               className="flex items-center gap-2"
             >
               <Folder className="h-4 w-4" />
-              {browserOpen ? "Ocultar pastas" : "Escolher Pasta"}
+              {browserOpen ? "Ocultar pastas" : "Selecionar Pasta"}
+            </Button>
+            
+            <Button
+              onClick={() => {
+                toast({
+                  title: "Em breve",
+                  description: "Funcionalidade de sincronização de pasta em desenvolvimento",
+                });
+              }}
+              variant="outline"
+              disabled={!status.ok || !(status as any).connected}
+              className="flex items-center gap-2 border-green-200 text-green-700 hover:bg-green-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Sincronizar pasta
             </Button>
             
             <Button
