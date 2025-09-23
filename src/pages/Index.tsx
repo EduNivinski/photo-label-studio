@@ -311,10 +311,9 @@ const Index = () => {
     
     if (selectedCount === 0) return;
 
-    // Get selected items from unified items
+    // Get selected items from unified items - match by full item.id
     const selectedItems = unifiedItems.filter(item => {
-      const { source, key } = extractSourceAndKey(item.id);
-      return selectedPhotoIds.has(source === 'db' ? key : item.id);
+      return selectedPhotoIds.has(item.id);
     });
 
     if (selectedItems.length === 0) {
