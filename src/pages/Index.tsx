@@ -30,6 +30,7 @@ import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { LabelSuggestions } from '@/components/LabelSuggestions';
 import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
 import { EditAlbumDialog } from '@/components/EditAlbumDialog';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 import { DateFilters } from '@/components/DateFilters';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { HomeFiltersBar } from '@/components/HomeFiltersBar';
@@ -116,6 +117,7 @@ const Index = () => {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [selectedMediaItem, setSelectedMediaItem] = useState<MediaItem | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   // View mode state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -299,26 +301,55 @@ const Index = () => {
     }
   };
 
-  const handleBulkDelete = async () => {
-    const selectedPhotos = getSelectedPhotos(photos);
-    if (selectedPhotos.length === 0) return;
+  const handleBulkDelete = () => {
+    if (selectedCount === 0) return;
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeleteConfirmOpen(false);
     
-    if (!confirm(`Tem certeza que deseja excluir ${selectedPhotos.length} foto${selectedPhotos.length !== 1 ? 's' : ''}?`)) {
+    if (selectedCount === 0) return;
+
+    // Get selected items from unified items
+    const selectedItems = unifiedItems.filter(item => {
+      const { source, key } = extractSourceAndKey(item.id);
+      return selectedPhotoIds.has(source === 'db' ? key : item.id);
+    });
+
+    if (selectedItems.length === 0) {
+      toast.error("Nenhum item selecionado para deletar");
       return;
     }
 
     let successCount = 0;
-    for (const photo of selectedPhotos) {
-      const success = await deletePhoto(photo.id);
-      if (success) successCount++;
+    const totalItems = selectedItems.length;
+
+    for (const item of selectedItems) {
+      try {
+        const { data, error } = await supabase.functions.invoke('delete-unified-item', {
+          body: { itemId: item.id }
+        });
+
+        if (error) {
+          console.error('Error deleting item:', error);
+        } else {
+          successCount++;
+        }
+      } catch (error) {
+        console.error('Error deleting item:', error);
+      }
     }
 
     clearSelection();
     
-    if (successCount === selectedPhotos.length) {
-      toast.success(`${successCount} foto${successCount !== 1 ? 's' : ''} deletada${successCount !== 1 ? 's' : ''} com sucesso!`);
+    // Reload unified items after deletion
+    loadUnifiedItems(unifiedParams);
+
+    if (successCount === totalItems) {
+      toast.success(`${successCount} arquivo${successCount !== 1 ? 's' : ''} deletado${successCount !== 1 ? 's' : ''} com sucesso!`);
     } else {
-      toast.error(`Erro ao deletar algumas fotos. ${successCount} de ${selectedPhotos.length} foram deletadas.`);
+      toast.error(`Erro ao deletar alguns arquivos. ${successCount} de ${totalItems} foram deletados.`);
     }
   };
 
@@ -788,18 +819,17 @@ const Index = () => {
           onDelete={async () => {
             if (!selectedMediaItem) return;
             
-            const { source, key } = extractSourceAndKey(selectedMediaItem.id);
-            let success = false;
-            
-            if (source === 'db') {
-              success = await deletePhoto(key);
-            } else {
-              // For Google Drive items, we don't delete from Drive, just remove from our index
-              toast.info('Itens do Google Drive não podem ser excluídos através desta interface');
-              return;
-            }
-            
-            if (success) {
+            try {
+              const { data, error } = await supabase.functions.invoke('delete-unified-item', {
+                body: { itemId: selectedMediaItem.id }
+              });
+
+              if (error) {
+                console.error('Error deleting item:', error);
+                toast.error("Erro ao excluir item");
+                return;
+              }
+
               toast.success("Item excluído com sucesso!");
               handleModalClose();
               // Reload unified items
@@ -809,7 +839,8 @@ const Index = () => {
                 source: "all", 
                 mimeClass: unifiedMimeFilter 
               });
-            } else {
+            } catch (error) {
+              console.error('Error deleting item:', error);
               toast.error("Erro ao excluir item");
             }
           }}
@@ -907,6 +938,14 @@ const Index = () => {
 
       {/* Keyboard Shortcuts Tooltip */}
       <KeyboardShortcuts />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        onConfirm={handleConfirmDelete}
+        itemCount={selectedCount}
+      />
     </div>
   );
 };
