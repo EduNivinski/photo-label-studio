@@ -27,11 +27,61 @@ export function useUnifiedMedia() {
 
       console.log('✅ Edge function response:', data);
       const response = data as MediaListResponse;
-      setItems(response.items);
+
+      // Enrich items with labels from DB to ensure consistency across environments
+      const baseItems = response.items as MediaItem[];
+
+      // Collect item keys per source
+      const sourceKeys = baseItems.reduce<Record<string, string[]>>((acc, item) => {
+        const { source, key } = extractSourceAndKey(item.id);
+        if (!acc[source]) acc[source] = [];
+        acc[source].push(key);
+        return acc;
+      }, {});
+
+      // Load labels dictionary (RLS will scope to current user)
+      const { data: labelsData } = await supabase.from('labels').select('*');
+      const labelsMap = new Map(labelsData?.map((l: any) => [l.id, l]) || []);
+
+      // Load assignments for each present source
+      const assignmentsByItem = new Map<string, string[]>();
+      for (const [source, keys] of Object.entries(sourceKeys)) {
+        if (keys.length === 0) continue;
+        const { data: assigns } = await supabase
+          .from('labels_items')
+          .select('item_key,label_id')
+          .eq('source', source)
+          .in('item_key', keys);
+        assigns?.forEach((a: any) => {
+          const mapKey = `${source}:${a.item_key}`;
+          if (!assignmentsByItem.has(mapKey)) assignmentsByItem.set(mapKey, []);
+          assignmentsByItem.get(mapKey)!.push(a.label_id);
+        });
+      }
+
+      // Build enriched items (merge labels from response with DB assignments)
+      const enrichedItems: MediaItem[] = baseItems.map((item) => {
+        const { source, key } = extractSourceAndKey(item.id);
+        const mapKey = `${source}:${key}`;
+        const assignedIds = assignmentsByItem.get(mapKey) || [];
+        const assigned = assignedIds.map((id) => {
+          const l = labelsMap.get(id);
+          return { id, name: l?.name || id, color: l?.color };
+        });
+        // Merge with any labels already present from the edge response
+        const existing = item.labels || [];
+        const merged = [...existing, ...assigned].reduce<Record<string, { id: string; name: string; color?: string }>>((acc, l) => {
+          acc[l.id] = l;
+          return acc;
+        }, {});
+        return { ...item, labels: Object.values(merged) };
+      });
+
+      setItems(enrichedItems);
       setTotal(response.total);
-      console.log('📊 Loaded items:', response.items.length, 'of', response.total);
-      console.log('🖼️ Google Drive items with posterUrl:', response.items.filter(i => i.source === 'gdrive' && i.posterUrl).length);
-      return response;
+      console.log('📊 Loaded items:', enrichedItems.length, 'of', response.total);
+      console.log('🏷️ Labels enriched for items:', enrichedItems.filter(i => i.labels?.length).length);
+      return { ...response, items: enrichedItems };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
@@ -115,7 +165,7 @@ export function useUnifiedMedia() {
               return {
                 id: labelId,
                 name: labelData?.name || labelId,
-                color: labelData?.color || null
+                color: labelData?.color
               };
             })
           };
