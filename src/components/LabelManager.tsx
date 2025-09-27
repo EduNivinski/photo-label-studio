@@ -71,7 +71,8 @@ export function LabelManager({
     if (!isComboboxOpen) return;
     
     function onDocClick(e: MouseEvent) {
-      if (!dropdownRef.current?.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (!dropdownRef.current?.contains(target) && !inputRef.current?.contains(target)) {
         setIsComboboxOpen(false);
       }
     }
@@ -83,10 +84,14 @@ export function LabelManager({
       }
     }
     
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKeyDown);
+    // Use a small delay to avoid immediate closure
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', onDocClick);
+      document.addEventListener('keydown', onKeyDown);
+    }, 100);
     
     return () => {
+      clearTimeout(timer);
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKeyDown);
     };
@@ -94,19 +99,22 @@ export function LabelManager({
 
   // Prevent global hotkeys when input is focused
   useEffect(() => {
+    if (!isOpen) return;
+    
     function globalKeyHandler(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       const isTextInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
       
-      if (isTextInput && (e.key === ' ' || e.key === 'Backspace' || e.key === 'Delete')) {
-        e.stopPropagation();
+      if (isTextInput && inputRef.current && target === inputRef.current) {
+        // Allow all keyboard events in the search input
+        if (e.key === ' ' || e.key === 'Backspace' || e.key === 'Delete') {
+          e.stopPropagation();
+        }
       }
     }
     
-    if (isOpen) {
-      document.addEventListener('keydown', globalKeyHandler, true);
-      return () => document.removeEventListener('keydown', globalKeyHandler, true);
-    }
+    document.addEventListener('keydown', globalKeyHandler, true);
+    return () => document.removeEventListener('keydown', globalKeyHandler, true);
   }, [isOpen]);
 
   const handleSaveChanges = useCallback(async () => {
@@ -342,13 +350,16 @@ export function LabelManager({
                     setComposing(false);
                     setSearchQuery(e.currentTarget.value);
                   }}
-                  onFocus={() => setIsComboboxOpen(true)}
-                  onKeyDown={(e) => {
-                    // Don't prevent default for space in input
-                    if (e.key === ' ' && e.currentTarget === document.activeElement) {
-                      return;
+                  onFocus={() => {
+                    if (searchQuery.trim() || availableLabels.length > 0) {
+                      setIsComboboxOpen(true);
                     }
-                    
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsComboboxOpen(true);
+                  }}
+                  onKeyDown={(e) => {
                     if (!composing) {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -375,15 +386,15 @@ export function LabelManager({
                 />
                 
                 {isComboboxOpen && (searchQuery.trim() || availableLabels.length > 0) && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
                     {availableLabels.length > 0 && (
                       <div className="p-2">
-                        <div className="text-xs text-gray-500 mb-2">Labels existentes</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Labels existentes</div>
                         {availableLabels.map((label) => (
                           <div
                             key={label.id}
                             onClick={() => handleAddLabel(label.id)}
-                            className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer"
+                            className="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
                           >
                             <div 
                               className="w-3 h-3 rounded-full mr-2"
@@ -398,11 +409,11 @@ export function LabelManager({
                     {searchQuery.trim() && !availableLabels.some(label => 
                       label.name.toLowerCase() === searchQuery.toLowerCase()
                     ) && (
-                      <div className="border-t border-gray-100 p-2">
-                        <div className="text-xs text-gray-500 mb-2">Criar nova</div>
+                      <div className="border-t border-gray-100 dark:border-gray-700 p-2">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Criar nova</div>
                         <div
                           onClick={() => handleCreateAndApplyLabel(searchQuery.trim())}
-                          className="flex items-center p-2 hover:bg-blue-50 rounded cursor-pointer text-blue-600"
+                          className="flex items-center p-2 hover:bg-blue-50 dark:hover:bg-blue-900 rounded cursor-pointer text-blue-600 dark:text-blue-400"
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Criar e aplicar "{searchQuery.trim()}"
@@ -411,7 +422,7 @@ export function LabelManager({
                     )}
                     
                     {searchQuery.trim() === '' && availableLabels.length === 0 && (
-                      <div className="p-4 text-sm text-gray-500 text-center">
+                      <div className="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                         Digite para buscar ou criar uma nova label
                       </div>
                     )}
