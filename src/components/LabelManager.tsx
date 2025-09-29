@@ -39,6 +39,7 @@ export function LabelManager({
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownPointerDown = useRef(false);
   const debounceTimer = useRef<NodeJS.Timeout>();
 
   // Filter available labels (not already applied to photo)
@@ -72,7 +73,8 @@ export function LabelManager({
     
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node;
-      // Only close if clicking completely outside both input and dropdown
+      // Ignore clicks that originate inside the dropdown (during selection)
+      if (dropdownPointerDown.current) return;
       if (!dropdownRef.current?.contains(target) && !inputRef.current?.contains(target)) {
         setIsComboboxOpen(false);
       }
@@ -85,11 +87,11 @@ export function LabelManager({
       }
     }
     
-    // Delay to prevent immediate closure when clicking input to focus
+    // Slight delay to avoid immediate close on focus/click
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', onDocClick);
       document.addEventListener('keydown', onKeyDown);
-    }, 200);
+    }, 150);
     
     return () => {
       clearTimeout(timer);
@@ -346,10 +348,7 @@ export function LabelManager({
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
-                    // Open dropdown when typing
-                    if (!isComboboxOpen) {
-                      setIsComboboxOpen(true);
-                    }
+                    if (!isComboboxOpen) setIsComboboxOpen(true);
                   }}
                   onCompositionStart={() => setComposing(true)}
                   onCompositionEnd={(e) => {
@@ -358,8 +357,19 @@ export function LabelManager({
                   }}
                   onFocus={(e) => {
                     e.stopPropagation();
-                    // Always open on focus, regardless of content
                     setIsComboboxOpen(true);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsComboboxOpen(true);
+                  }}
+                  onBlur={() => {
+                    // Allow clicks inside dropdown without closing
+                    setTimeout(() => {
+                      if (!dropdownPointerDown.current) {
+                        setIsComboboxOpen(false);
+                      }
+                    }, 0);
                   }}
                   onKeyDown={(e) => {
                     // Allow normal text input operations
@@ -396,8 +406,12 @@ export function LabelManager({
                   className="w-full"
                 />
                 
-                {isComboboxOpen && (searchQuery.trim() || availableLabels.length > 0) && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                {isComboboxOpen && (
+                  <div 
+                    className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto"
+                    onMouseDown={() => { dropdownPointerDown.current = true; }}
+                    onMouseUp={() => { setTimeout(() => { dropdownPointerDown.current = false; }, 0); }}
+                  >
                     {availableLabels.length > 0 && (
                       <div className="p-2">
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Labels existentes</div>
@@ -432,7 +446,7 @@ export function LabelManager({
                       </div>
                     )}
                     
-                    {searchQuery.trim() === '' && availableLabels.length === 0 && (
+                    {(!searchQuery.trim() && availableLabels.length === 0) && (
                       <div className="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                         Digite para buscar ou criar uma nova label
                       </div>
