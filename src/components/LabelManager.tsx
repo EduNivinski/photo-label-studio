@@ -72,6 +72,7 @@ export function LabelManager({
     
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node;
+      // Only close if clicking completely outside both input and dropdown
       if (!dropdownRef.current?.contains(target) && !inputRef.current?.contains(target)) {
         setIsComboboxOpen(false);
       }
@@ -84,11 +85,11 @@ export function LabelManager({
       }
     }
     
-    // Use a small delay to avoid immediate closure
+    // Delay to prevent immediate closure when clicking input to focus
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', onDocClick);
       document.addEventListener('keydown', onKeyDown);
-    }, 100);
+    }, 200);
     
     return () => {
       clearTimeout(timer);
@@ -103,13 +104,12 @@ export function LabelManager({
     
     function globalKeyHandler(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
-      const isTextInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      const isInputFocused = target === inputRef.current;
       
-      if (isTextInput && inputRef.current && target === inputRef.current) {
-        // Allow all keyboard events in the search input
-        if (e.key === ' ' || e.key === 'Backspace' || e.key === 'Delete') {
-          e.stopPropagation();
-        }
+      if (isInputFocused) {
+        // Block ALL global shortcuts when typing in the search input
+        e.stopPropagation();
+        return;
       }
     }
     
@@ -344,25 +344,34 @@ export function LabelManager({
                 <Input
                   ref={inputRef}
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    // Open dropdown when typing
+                    if (!isComboboxOpen) {
+                      setIsComboboxOpen(true);
+                    }
+                  }}
                   onCompositionStart={() => setComposing(true)}
                   onCompositionEnd={(e) => {
                     setComposing(false);
                     setSearchQuery(e.currentTarget.value);
                   }}
-                  onFocus={() => {
-                    if (searchQuery.trim() || availableLabels.length > 0) {
-                      setIsComboboxOpen(true);
-                    }
-                  }}
-                  onClick={(e) => {
+                  onFocus={(e) => {
                     e.stopPropagation();
+                    // Always open on focus, regardless of content
                     setIsComboboxOpen(true);
                   }}
                   onKeyDown={(e) => {
+                    // Allow normal text input operations
+                    if (e.key === ' ' || e.key === 'Backspace' || e.key === 'Delete') {
+                      e.stopPropagation();
+                      return;
+                    }
+                    
                     if (!composing) {
                       if (e.key === 'Enter') {
                         e.preventDefault();
+                        e.stopPropagation();
                         const term = searchQuery.trim();
                         if (term) {
                           const existingLabel = availableLabels.find(l => 
@@ -376,6 +385,8 @@ export function LabelManager({
                           }
                         }
                       } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setIsComboboxOpen(false);
                         inputRef.current?.blur();
                       }
