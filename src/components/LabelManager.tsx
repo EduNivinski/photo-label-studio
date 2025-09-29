@@ -67,13 +67,13 @@ export function LabelManager({
     }
   }, [isOpen, selectedPhoto]);
 
-  // Dropdown event listeners
+  // Dropdown event listeners (click-away + Esc)
   useEffect(() => {
     if (!isComboboxOpen) return;
     
-    function onDocClick(e: MouseEvent) {
+    function onDocDown(e: MouseEvent) {
       const target = e.target as Node;
-      // Ignore clicks that originate inside the dropdown (during selection)
+      // Ignore interactions originating inside the combo area
       if (dropdownPointerDown.current) return;
       if (!dropdownRef.current?.contains(target) && !inputRef.current?.contains(target)) {
         setIsComboboxOpen(false);
@@ -86,16 +86,11 @@ export function LabelManager({
         inputRef.current?.blur();
       }
     }
-    
-    // Slight delay to avoid immediate close on focus/click
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', onDocClick);
-      document.addEventListener('keydown', onKeyDown);
-    }, 150);
-    
+
+    document.addEventListener('mousedown', onDocDown, true); // capture phase for reliable click-away
+    document.addEventListener('keydown', onKeyDown);
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('mousedown', onDocDown, true);
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [isComboboxOpen]);
@@ -418,7 +413,7 @@ export function LabelManager({
                         {availableLabels.map((label) => (
                           <div
                             key={label.id}
-                            onClick={() => handleAddLabel(label.id)}
+                            onMouseDown={(e) => { e.preventDefault(); handleAddLabel(label.id); setIsComboboxOpen(false); }}
                             className="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
                           >
                             <div 
@@ -436,13 +431,13 @@ export function LabelManager({
                     ) && (
                       <div className="border-t border-gray-100 dark:border-gray-700 p-2">
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Criar nova</div>
-                        <div
-                          onClick={() => handleCreateAndApplyLabel(searchQuery.trim())}
-                          className="flex items-center p-2 hover:bg-blue-50 dark:hover:bg-blue-900 rounded cursor-pointer text-blue-600 dark:text-blue-400"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Criar e aplicar "{searchQuery.trim()}"
-                        </div>
+                          <div
+                            onMouseDown={(e) => { e.preventDefault(); handleCreateAndApplyLabel(searchQuery.trim()); }}
+                            className="flex items-center p-2 hover:bg-blue-50 dark:hover:bg-blue-900 rounded cursor-pointer text-blue-600 dark:text-blue-400"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Criar e aplicar "{searchQuery.trim()}"
+                          </div>
                       </div>
                     )}
                     
