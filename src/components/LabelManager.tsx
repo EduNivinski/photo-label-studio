@@ -353,10 +353,6 @@ export function LabelManager({
                     setComposing(false);
                     setSearchQuery(e.currentTarget.value);
                   }}
-                  onFocus={(e) => {
-                    e.stopPropagation();
-                    setIsComboboxOpen(true);
-                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsComboboxOpen(true);
