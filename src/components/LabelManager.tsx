@@ -65,7 +65,7 @@ export function LabelManager({
       setIsComboboxOpen(false);
       setShowCreateDialog(false);
     }
-  }, [isOpen, selectedPhoto]);
+  }, [isOpen, selectedPhoto?.id]);
 
   // Dropdown event listeners (click-away + Esc)
   useEffect(() => {
