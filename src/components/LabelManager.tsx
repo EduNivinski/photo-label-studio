@@ -341,6 +341,9 @@ export function LabelManager({
                 <Input
                   ref={inputRef}
                   value={searchQuery}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     if (!isComboboxOpen) setIsComboboxOpen(true);
@@ -358,43 +361,26 @@ export function LabelManager({
                     e.stopPropagation();
                     setIsComboboxOpen(true);
                   }}
-                  onBlur={() => {
-                    // Allow clicks inside dropdown without closing
-                    setTimeout(() => {
-                      if (!dropdownPointerDown.current) {
-                        setIsComboboxOpen(false);
-                      }
-                    }, 0);
-                  }}
                   onKeyDown={(e) => {
-                    // Allow normal text input operations
-                    if (e.key === ' ' || e.key === 'Backspace' || e.key === 'Delete') {
-                      e.stopPropagation();
-                      return;
-                    }
-                    
-                    if (!composing) {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const term = searchQuery.trim();
-                        if (term) {
-                          const existingLabel = availableLabels.find(l => 
-                            l.name.toLowerCase() === term.toLowerCase()
-                          );
-                          
-                          if (existingLabel) {
-                            handleAddLabel(existingLabel.id);
-                          } else {
-                            handleCreateAndApplyLabel(term);
-                          }
+                    if (composing) return;
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const term = searchQuery.trim();
+                      if (term) {
+                        const existingLabel = availableLabels.find(l => 
+                          l.name.toLowerCase() === term.toLowerCase()
+                        );
+                        
+                        if (existingLabel) {
+                          handleAddLabel(existingLabel.id);
+                        } else {
+                          handleCreateAndApplyLabel(term);
                         }
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsComboboxOpen(false);
-                        inputRef.current?.blur();
                       }
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setIsComboboxOpen(false);
+                      inputRef.current?.blur();
                     }
                   }}
                   placeholder="Buscar ou criar nova label..."
