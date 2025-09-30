@@ -11,6 +11,7 @@ interface StandardLabelCreatorProps {
   onCreateLabel: (name: string, color?: string) => Promise<void>;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  initialName?: string;
 }
 
 const PRESET_COLORS = [
@@ -23,7 +24,8 @@ export function StandardLabelCreator({
   trigger, 
   onCreateLabel, 
   isOpen, 
-  onOpenChange 
+  onOpenChange,
+  initialName 
 }: StandardLabelCreatorProps) {
   const [newLabelName, setNewLabelName] = useState('');
   const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0]);
@@ -36,6 +38,12 @@ export function StandardLabelCreator({
       onOpenChange(openState);
     } else {
       setOpen(openState);
+    }
+    // Set initial name when dialog opens
+    if (openState && initialName) {
+      setNewLabelName(initialName);
+    } else if (!openState) {
+      setNewLabelName('');
     }
   };
 

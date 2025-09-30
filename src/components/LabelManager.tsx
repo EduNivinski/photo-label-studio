@@ -33,6 +33,7 @@ export function LabelManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [pendingLabelName, setPendingLabelName] = useState("");
   const [isApplying, setIsApplying] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [composing, setComposing] = useState(false);
@@ -217,6 +218,7 @@ export function LabelManager({
       if (existingLabel) {
         // Apply existing label
         handleAddLabel(existingLabel.id);
+        setShowCreateDialog(false);
         return;
       }
 
@@ -249,14 +251,12 @@ export function LabelManager({
       // Update the original labels to reflect the change
       setOriginalLabels(prev => [...prev, data.label.id]);
 
-      // Trigger parent update
-      await onUpdatePhotoLabels(selectedPhoto.id, photoLabels.map(id => id === tempId ? data.label.id : id));
-
       toast({
         title: data.created ? "Label criada e aplicada" : "Label aplicada",
-        description: `"${sanitizedName}" ${data.created ? 'foi criada e' : ''} foi aplicada ao arquivo.`,
+        description: `"${sanitizedName}" foi aplicada ao arquivo.`,
       });
 
+      setShowCreateDialog(false);
     } catch (error) {
       console.error("Erro ao criar/aplicar label:", error);
       
@@ -273,7 +273,7 @@ export function LabelManager({
       setSearchQuery("");
       setIsComboboxOpen(false);
     }
-  }, [selectedPhoto, photoLabels, labels, handleAddLabel, onUpdatePhotoLabels]);
+  }, [selectedPhoto, photoLabels, labels, handleAddLabel]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -370,7 +370,10 @@ export function LabelManager({
                         if (existingLabel) {
                           handleAddLabel(existingLabel.id);
                         } else {
-                          handleCreateAndApplyLabel(term);
+                          // Open color picker dialog
+                          setPendingLabelName(term);
+                          setShowCreateDialog(true);
+                          setIsComboboxOpen(false);
                         }
                       }
                     } else if (e.key === 'Escape') {
@@ -414,7 +417,12 @@ export function LabelManager({
                       <div className="border-t border-gray-100 dark:border-gray-700 p-2">
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Criar nova</div>
                           <div
-                            onMouseDown={(e) => { e.preventDefault(); handleCreateAndApplyLabel(searchQuery.trim()); }}
+                            onMouseDown={(e) => { 
+                              e.preventDefault(); 
+                              setPendingLabelName(searchQuery.trim());
+                              setShowCreateDialog(true);
+                              setIsComboboxOpen(false);
+                            }}
                             className="flex items-center p-2 hover:bg-blue-50 dark:hover:bg-blue-900 rounded cursor-pointer text-blue-600 dark:text-blue-400"
                           >
                             <Plus className="h-4 w-4 mr-2" />
@@ -453,10 +461,8 @@ export function LabelManager({
           trigger={<></>}
           isOpen={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          onCreateLabel={async (name: string, color?: string) => {
-            await onCreateLabel(name, color);
-            setShowCreateDialog(false);
-          }}
+          initialName={pendingLabelName}
+          onCreateLabel={handleCreateAndApplyLabel}
         />
       </DialogContent>
     </Dialog>
