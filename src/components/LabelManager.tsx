@@ -34,9 +34,16 @@ export function LabelManager({
   const [isComboboxOpen, setIsComboboxOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [pendingLabelName, setPendingLabelName] = useState("");
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [selectedColor, setSelectedColor] = useState("#6366f1");
   const [isApplying, setIsApplying] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [composing, setComposing] = useState(false);
+
+  const PRESET_COLORS = [
+    "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
+    "#f59e0b", "#10b981", "#06b6d4", "#6b7280"
+  ];
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -65,6 +72,8 @@ export function LabelManager({
       setSearchQuery("");
       setIsComboboxOpen(false);
       setShowCreateDialog(false);
+      setShowColorPicker(false);
+      setSelectedColor("#6366f1");
     }
   }, [isOpen, selectedPhoto?.id]);
 
@@ -369,12 +378,11 @@ export function LabelManager({
                         
                         if (existingLabel) {
                           handleAddLabel(existingLabel.id);
-                        } else {
-                          // Open color picker dialog
-                          setPendingLabelName(term);
-                          setShowCreateDialog(true);
-                          setIsComboboxOpen(false);
-                        }
+                      } else {
+                        // Show color picker inline
+                        setPendingLabelName(term);
+                        setShowColorPicker(true);
+                      }
                       }
                     } else if (e.key === 'Escape') {
                       e.preventDefault();
@@ -416,18 +424,65 @@ export function LabelManager({
                     ) && (
                       <div className="border-t border-gray-100 dark:border-gray-700 p-2">
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Criar nova</div>
+                        {!showColorPicker ? (
                           <div
                             onMouseDown={(e) => { 
                               e.preventDefault(); 
                               setPendingLabelName(searchQuery.trim());
-                              setShowCreateDialog(true);
-                              setIsComboboxOpen(false);
+                              setShowColorPicker(true);
                             }}
                             className="flex items-center p-2 hover:bg-blue-50 dark:hover:bg-blue-900 rounded cursor-pointer text-blue-600 dark:text-blue-400"
                           >
                             <Plus className="h-4 w-4 mr-2" />
                             Criar e aplicar "{searchQuery.trim()}"
                           </div>
+                        ) : (
+                          <div className="p-2 space-y-3">
+                            <div className="text-sm font-medium text-foreground">
+                              Criar "{pendingLabelName}"
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {PRESET_COLORS.map((color) => (
+                                <button
+                                  key={color}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    setSelectedColor(color);
+                                  }}
+                                  className={`w-8 h-8 rounded-full transition-all ${
+                                    selectedColor === color 
+                                      ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' 
+                                      : 'hover:scale-110'
+                                  }`}
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setShowColorPicker(false);
+                                  setPendingLabelName("");
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                              <Button
+                                size="sm"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  handleCreateAndApplyLabel(pendingLabelName, selectedColor);
+                                  setShowColorPicker(false);
+                                }}
+                              >
+                                Criar e aplicar
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     
