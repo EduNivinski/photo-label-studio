@@ -206,9 +206,7 @@ export function LabelManager({
     setPhotoLabels(prev => prev.filter((id) => id !== labelId));
   }, []);
 
-  const handleCreateAndApplyLabel = useCallback(async (name: string, color?: string) => {
-    if (!selectedPhoto) return;
-    
+  const handleCreateLabel = useCallback(async (name: string, color?: string) => {
     try {
       const sanitizedName = name.trim().slice(0, 50);
       
@@ -225,64 +223,50 @@ export function LabelManager({
       const existingLabel = labels.find(l => l.name.toLowerCase() === sanitizedName.toLowerCase());
       
       if (existingLabel) {
-        // Apply existing label
+        // Just add existing label to the list
         handleAddLabel(existingLabel.id);
-        setShowCreateDialog(false);
+        setShowColorPicker(false);
+        setPendingLabelName("");
+        setSearchQuery("");
         return;
       }
 
       setIsSyncing(true);
 
-      const assetId = selectedPhoto.source === 'gdrive' 
-        ? `gdrive:${selectedPhoto.item_key || selectedPhoto.id}` 
-        : `db:${selectedPhoto.id}`;
-
-      // Create and apply label optimistically
-      const tempId = `temp_${Date.now()}`;
+      // Create label (without applying to asset yet)
+      await onCreateLabel(sanitizedName, color);
       
-      // Add to UI immediately (optimistic)
-      setPhotoLabels(prev => [...prev, tempId]);
-      
-      // Call backend to create and apply
-      const { data, error } = await supabase.functions.invoke('labels-create-and-apply', {
-        body: {
-          assetId,
-          labelName: sanitizedName,
-          labelColor: color
+      // The label will be in the labels array after creation
+      // We need to wait a bit for the state to update
+      setTimeout(() => {
+        const newLabel = labels.find(l => l.name.toLowerCase() === sanitizedName.toLowerCase());
+        if (newLabel) {
+          // Add to local state (will be applied when user clicks "Aplicar alterações")
+          setPhotoLabels(prev => [...prev, newLabel.id]);
         }
-      });
-
-      if (error) throw error;
-
-      // Replace temp ID with real ID
-      setPhotoLabels(prev => prev.map(id => id === tempId ? data.label.id : id));
-      
-      // Update the original labels to reflect the change
-      setOriginalLabels(prev => [...prev, data.label.id]);
+      }, 100);
 
       toast({
-        title: data.created ? "Label criada e aplicada" : "Label aplicada",
-        description: `"${sanitizedName}" foi aplicada ao arquivo.`,
+        title: "Label criada",
+        description: `"${sanitizedName}" foi criada. Clique em "Aplicar alterações" para salvar.`,
       });
 
-      setShowCreateDialog(false);
+      // Reset color picker and search
+      setShowColorPicker(false);
+      setPendingLabelName("");
+      setSearchQuery("");
     } catch (error) {
-      console.error("Erro ao criar/aplicar label:", error);
-      
-      // Remove optimistic addition
-      setPhotoLabels(prev => prev.filter(id => !id.startsWith('temp_')));
+      console.error("Erro ao criar label:", error);
       
       toast({
         title: "Erro ao criar label",
-        description: "Não foi possível criar/aplicar a label. Tente novamente.",
+        description: "Não foi possível criar a label. Tente novamente.",
         variant: "destructive",
       });
     } finally {
       setIsSyncing(false);
-      setSearchQuery("");
-      setIsComboboxOpen(false);
     }
-  }, [selectedPhoto, photoLabels, labels, handleAddLabel]);
+  }, [labels, handleAddLabel, onCreateLabel]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -378,7 +362,7 @@ export function LabelManager({
                         
                         if (existingLabel) {
                           handleAddLabel(existingLabel.id);
-                      } else {
+                        } else {
                         // Show color picker inline
                         setPendingLabelName(term);
                         setShowColorPicker(true);
@@ -474,11 +458,10 @@ export function LabelManager({
                                 size="sm"
                                 onMouseDown={(e) => {
                                   e.preventDefault();
-                                  handleCreateAndApplyLabel(pendingLabelName, selectedColor);
-                                  setShowColorPicker(false);
+                                  handleCreateLabel(pendingLabelName, selectedColor);
                                 }}
                               >
-                                Criar e aplicar
+                                Criar
                               </Button>
                             </div>
                           </div>
@@ -517,7 +500,7 @@ export function LabelManager({
           isOpen={showCreateDialog}
           onOpenChange={setShowCreateDialog}
           initialName={pendingLabelName}
-          onCreateLabel={handleCreateAndApplyLabel}
+          onCreateLabel={handleCreateLabel}
         />
       </DialogContent>
     </Dialog>
