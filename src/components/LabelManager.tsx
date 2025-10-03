@@ -39,6 +39,7 @@ export function LabelManager({
   const [isApplying, setIsApplying] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [lastCreatedLabelName, setLastCreatedLabelName] = useState<string | null>(null);
 
   const PRESET_COLORS = [
     "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
@@ -74,8 +75,20 @@ export function LabelManager({
       setShowCreateDialog(false);
       setShowColorPicker(false);
       setSelectedColor("#6366f1");
+      setLastCreatedLabelName(null);
     }
   }, [isOpen, selectedPhoto?.id]);
+
+  // Auto-add newly created label when it appears in labels array
+  useEffect(() => {
+    if (lastCreatedLabelName && labels.length > 0) {
+      const newLabel = labels.find(l => l.name.toLowerCase() === lastCreatedLabelName.toLowerCase());
+      if (newLabel && !photoLabels.includes(newLabel.id)) {
+        setPhotoLabels(prev => [...prev, newLabel.id]);
+        setLastCreatedLabelName(null);
+      }
+    }
+  }, [labels, lastCreatedLabelName, photoLabels]);
 
   // Dropdown event listeners (click-away + Esc)
   useEffect(() => {
@@ -244,14 +257,8 @@ export function LabelManager({
       // Create label via parent callback
       await onCreateLabel(sanitizedName, color);
       
-      // Wait for parent state to update with new label
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Find the newly created label and add it to photoLabels
-      const newLabel = labels.find(l => l.name.toLowerCase() === sanitizedName.toLowerCase());
-      if (newLabel) {
-        setPhotoLabels(prev => [...prev, newLabel.id]);
-      }
+      // Set the last created label name to trigger auto-add via useEffect
+      setLastCreatedLabelName(sanitizedName);
 
       toast({
         title: "Label criada",
