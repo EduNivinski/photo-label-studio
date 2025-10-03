@@ -154,13 +154,16 @@ export function LabelManager({
     }
 
     setIsApplying(true);
-    setIsSyncing(true);
 
     try {
       const assetId = selectedPhoto.source === 'gdrive' 
         ? `gdrive:${selectedPhoto.item_key || selectedPhoto.id}` 
         : `db:${selectedPhoto.id}`;
 
+      // Optimistic update - update UI immediately
+      await onUpdatePhotoLabels(selectedPhoto.id, photoLabels);
+
+      // Then update backend
       const { data, error } = await supabase.functions.invoke('labels-apply-batch', {
         body: {
           assetId,
@@ -178,8 +181,6 @@ export function LabelManager({
       // Update the original labels to match current state
       setOriginalLabels([...photoLabels]);
 
-      await onUpdatePhotoLabels(selectedPhoto.id, photoLabels);
-
       toast({
         title: "Labels atualizadas",
         description: "As labels foram aplicadas com sucesso.",
@@ -190,6 +191,7 @@ export function LabelManager({
       console.error("Erro ao atualizar labels:", error);
       
       // Rollback optimistic UI
+      await onUpdatePhotoLabels(selectedPhoto.id, originalLabels);
       setPhotoLabels([...originalLabels]);
       
       toast({
@@ -199,7 +201,6 @@ export function LabelManager({
       });
     } finally {
       setIsApplying(false);
-      setIsSyncing(false);
     }
   }, [selectedPhoto, photoLabels, originalLabels, isApplying, onUpdatePhotoLabels, onClose]);
 
