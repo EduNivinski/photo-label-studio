@@ -87,12 +87,16 @@ export function LabelManager({
       if (dropdownPointerDown.current) return;
       if (!dropdownRef.current?.contains(target) && !inputRef.current?.contains(target)) {
         setIsComboboxOpen(false);
+        setShowColorPicker(false);
+        setPendingLabelName("");
       }
     }
     
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setIsComboboxOpen(false);
+        setShowColorPicker(false);
+        setPendingLabelName("");
         inputRef.current?.blur();
       }
     }
@@ -219,7 +223,7 @@ export function LabelManager({
         return;
       }
 
-      // Check if label already exists
+      // Check if label already exists (case-insensitive)
       const existingLabel = labels.find(l => l.name.toLowerCase() === sanitizedName.toLowerCase());
       
       if (existingLabel) {
@@ -228,6 +232,10 @@ export function LabelManager({
         setShowColorPicker(false);
         setPendingLabelName("");
         setSearchQuery("");
+        toast({
+          title: "Label existente",
+          description: `A label "${existingLabel.name}" já existe e foi adicionada.`,
+        });
         return;
       }
 
@@ -244,7 +252,21 @@ export function LabelManager({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Check if it's a duplicate key error
+        if (error.code === '23505' && error.message.includes('labels_name_key')) {
+          toast({
+            title: "Label duplicada",
+            description: `Já existe uma label com o nome "${sanitizedName}".`,
+            variant: "destructive",
+          });
+          setShowColorPicker(false);
+          setPendingLabelName("");
+          setSearchQuery("");
+          return;
+        }
+        throw error;
+      }
 
       // Notify parent to refresh labels list
       await onCreateLabel(sanitizedName, color);
@@ -263,12 +285,12 @@ export function LabelManager({
       setShowColorPicker(false);
       setPendingLabelName("");
       setSearchQuery("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao criar label:", error);
       
       toast({
         title: "Erro ao criar label",
-        description: "Não foi possível criar a label. Tente novamente.",
+        description: error.message || "Não foi possível criar a label. Tente novamente.",
         variant: "destructive",
       });
     } finally {
