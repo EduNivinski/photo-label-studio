@@ -241,37 +241,14 @@ export function LabelManager({
 
       setIsSyncing(true);
 
-      // Create label directly via supabase
-      const { data: newLabel, error } = await supabase
-        .from('labels')
-        .insert({
-          name: sanitizedName,
-          color: color || '#6366f1',
-          user_id: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
-
-      if (error) {
-        // Check if it's a duplicate key error
-        if (error.code === '23505' && error.message.includes('labels_name_key')) {
-          toast({
-            title: "Label duplicada",
-            description: `Já existe uma label com o nome "${sanitizedName}".`,
-            variant: "destructive",
-          });
-          setShowColorPicker(false);
-          setPendingLabelName("");
-          setSearchQuery("");
-          return;
-        }
-        throw error;
-      }
-
-      // Notify parent to refresh labels list
+      // Create label via parent callback
       await onCreateLabel(sanitizedName, color);
       
-      // Add to local state immediately
+      // Wait for parent state to update with new label
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Find the newly created label and add it to photoLabels
+      const newLabel = labels.find(l => l.name.toLowerCase() === sanitizedName.toLowerCase());
       if (newLabel) {
         setPhotoLabels(prev => [...prev, newLabel.id]);
       }
@@ -288,11 +265,25 @@ export function LabelManager({
     } catch (error: any) {
       console.error("Erro ao criar label:", error);
       
-      toast({
-        title: "Erro ao criar label",
-        description: error.message || "Não foi possível criar a label. Tente novamente.",
-        variant: "destructive",
-      });
+      // Check if it's a duplicate key error
+      if (error.message?.includes('duplicate') || error.message?.includes('already exists')) {
+        toast({
+          title: "Label duplicada",
+          description: `Já existe uma label com o nome "${name}".`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao criar label",
+          description: error.message || "Não foi possível criar a label. Tente novamente.",
+          variant: "destructive",
+        });
+      }
+      
+      // Reset on error
+      setShowColorPicker(false);
+      setPendingLabelName("");
+      setSearchQuery("");
     } finally {
       setIsSyncing(false);
     }
