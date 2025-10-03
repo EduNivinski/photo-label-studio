@@ -233,18 +233,26 @@ export function LabelManager({
 
       setIsSyncing(true);
 
-      // Create label (without applying to asset yet)
+      // Create label directly via supabase
+      const { data: newLabel, error } = await supabase
+        .from('labels')
+        .insert({
+          name: sanitizedName,
+          color: color || '#6366f1',
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Notify parent to refresh labels list
       await onCreateLabel(sanitizedName, color);
       
-      // The label will be in the labels array after creation
-      // We need to wait a bit for the state to update
-      setTimeout(() => {
-        const newLabel = labels.find(l => l.name.toLowerCase() === sanitizedName.toLowerCase());
-        if (newLabel) {
-          // Add to local state (will be applied when user clicks "Aplicar alterações")
-          setPhotoLabels(prev => [...prev, newLabel.id]);
-        }
-      }, 100);
+      // Add to local state immediately
+      if (newLabel) {
+        setPhotoLabels(prev => [...prev, newLabel.id]);
+      }
 
       toast({
         title: "Label criada",
