@@ -1,39 +1,40 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, preflight } from "../_shared/cors.ts";
+import { requireAuth, httpJson, safeError, getClientIp } from "../_shared/http.ts";
+import { checkRateLimit, RATE_LIMITS } from "../_shared/rate-limit.ts";
+import { LibraryListUnifiedSchema, validateBody } from "../_shared/validation.ts";
 
 serve(async (req) => {
   const preflightResponse = preflight(req);
   if (preflightResponse) return preflightResponse;
 
   try {
-    const { page = 1, pageSize = 20, source = "all", mimeClass = "all", labelIds = [], q = "" } = await req.json();
+    // Authenticate user
+    const { userId } = await requireAuth(req);
+    
+    // Rate limiting
+    const clientIp = getClientIp(req);
+    const canProceed = await checkRateLimit({
+      userId,
+      ip: clientIp,
+      endpoint: "library-list-unified",
+      limit: RATE_LIMITS["library-list-unified"].limit,
+      windowSec: RATE_LIMITS["library-list-unified"].windowSec,
+    });
+
+    if (!canProceed) {
+      return httpJson(429, { ok: false, error: "Rate limit exceeded. Please try again later." });
+    }
+
+    // Validate input
+    const body = await req.json().catch(() => ({}));
+    const { page, pageSize, source, mimeClass, labelIds, q } = validateBody(LibraryListUnifiedSchema, body);
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get user ID from JWT
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !userData.user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
-      });
-    }
-
-    const userId = userData.user.id;
     const items: any[] = [];
 
     // Get items from database
@@ -262,11 +263,16 @@ serve(async (req) => {
       }
     });
 
-  } catch (error) {
-    console.error('Error in library-list-unified:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders(req.headers.get("origin")), 'Content-Type': 'application/json' }
+  } catch (error: any) {
+    if (error?.message === "UNAUTHORIZED") {
+      return httpJson(401, { ok: false, error: "Unauthorized." });
+    }
+    if (error?.message === "VALIDATION_FAILED") {
+      return httpJson(400, { ok: false, error: "Invalid request data." });
+    }
+    return safeError(error, { 
+      publicMessage: "Unable to load library.", 
+      logContext: "library-list-unified" 
     });
   }
 });

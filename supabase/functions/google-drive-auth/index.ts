@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { upsertTokens, getUserTokensRow, decryptPacked, ensureAccessToken } from "../_shared/token_provider_v2.ts";
+import { requireAuth, httpJson, safeError, getClientIp } from "../_shared/http.ts";
+import { checkRateLimit, RATE_LIMITS } from "../_shared/rate-limit.ts";
+import { GoogleDriveAuthActionSchema, GoogleDriveSetFolderSchema, GoogleDriveSetPrefsSchema, validateBody } from "../_shared/validation.ts";
 
 // CORS helper
 const DEFAULT_ALLOWED = [
@@ -53,7 +56,7 @@ async function resolveDrivePath(accessToken: string, startId: string): Promise<{
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const j = await r.json();
-    if (!r.ok) throw new Error(`PATH_LOOKUP_FAILED:${j?.error?.message || r.status}`);
+    if (!r.ok) throw new Error("PATH_LOOKUP_FAILED");
 
     chain.push({ id: j.id, name: j.name || "Sem nome" });
 
@@ -179,7 +182,7 @@ async function handleStatus(req: Request, userId: string) {
   try {
     const token = await ensureAccessToken(userId); // lança se inválido
     if (!token) throw new Error("NO_ACCESS_TOKEN");
-    return json(req, 200, {
+    return httpJson(200, {
       ok: true,
       connected: true,
       hasConnection: true,
@@ -191,7 +194,7 @@ async function handleStatus(req: Request, userId: string) {
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
-    return json(req, 200, {
+    return httpJson(200, {
       ok: true,
       connected: false,
       hasConnection: false,
@@ -216,8 +219,8 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 
   const CLIENT_ID = Deno.env.get("GOOGLE_DRIVE_CLIENT_ID");
   const REDIRECT_URI = Deno.env.get("GDRIVE_REDIRECT_URI")!;
-  if (!CLIENT_ID) return json(req, 500, { ok:false, error: "Missing Google OAuth client id" });
-  if (!REDIRECT_URI) return json(req, 500, { ok:false, error: "Missing GDRIVE_REDIRECT_URI" });
+  if (!CLIENT_ID) return httpJson(500, { ok: false, error: "Configuration error." });
+  if (!REDIRECT_URI) return httpJson(500, { ok: false, error: "Configuration error." });
 
   const { allow } = await getAllowExtendedScope(userId);
 
@@ -245,14 +248,14 @@ async function handleAuthorize(req: Request, userId: string, url: URL) {
 
   const authorizeUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   console.log("[google-drive-auth] Using redirect_uri:", REDIRECT_URI);
-  return json(req, 200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
+  return httpJson(200, { ok: true, authorizeUrl, redirect_uri: REDIRECT_URI });
 }
 
 async function handleSetFolder(req: Request, userId: string, body: any) {
   try {
     const folderId = body?.folderId?.toString?.() || "";
     const folderNameIn = body?.folderName?.toString?.() || "";
-    if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+    if (!folderId) return httpJson(400, { ok: false, error: "Missing folder ID." });
 
     const accessToken = await ensureAccessToken(userId);
 
@@ -261,10 +264,10 @@ async function handleSetFolder(req: Request, userId: string, body: any) {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const meta = await metaRes.json().catch(() => ({}));
-    if (!metaRes.ok) return json(req, 400, { ok: false, reason: "FOLDER_LOOKUP_FAILED", details: meta });
-    if (meta.trashed) return json(req, 400, { ok: false, reason: "FOLDER_TRASHED" });
+    if (!metaRes.ok) return httpJson(400, { ok: false, error: "Folder not found." });
+    if (meta.trashed) return httpJson(400, { ok: false, error: "Folder is trashed." });
     if (meta.mimeType !== "application/vnd.google-apps.folder") {
-      return json(req, 400, { ok: false, reason: "NOT_A_FOLDER" });
+      return httpJson(400, { ok: false, error: "Not a folder." });
     }
 
     // resolve breadcrumb atual e persiste caminho
@@ -274,24 +277,24 @@ async function handleSetFolder(req: Request, userId: string, body: any) {
 
     await upsertUserDriveSettings(userId, folderId, finalName, pathStr);
 
-    return json(req, 200, {
+    return httpJson(200, {
       ok: true,
       dedicatedFolderId: folderId,
       dedicatedFolderName: finalName,
       dedicatedFolderPath: pathStr
     });
   } catch (e: any) {
-    return json(req, 500, { ok: false, reason: "SET_FOLDER_ERROR", message: e?.message || String(e) });
+    return safeError(e, { publicMessage: "Unable to set folder.", logContext: "handleSetFolder" });
   }
 }
 
 async function getUserIdFromJwt(req: Request): Promise<string | null> {
-  const jwt = getBearer(req);
-  if (!jwt) return null;
-  
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: { user }, error } = await admin.auth.getUser(jwt);
-  return error || !user ? null : user.id;
+  try {
+    const { userId } = await requireAuth(req);
+    return userId;
+  } catch {
+    return null;
+  }
 }
 
 serve(async (req: Request) => {
@@ -318,37 +321,54 @@ serve(async (req: Request) => {
   }
 
   // ✅ Extrair action da query OU do body lido
-  const action = url.searchParams.get("action") || body?.action || "";
-  console.log("[google-drive-auth] action:", action);
+  const rawAction = url.searchParams.get("action") || body?.action || "";
+  console.log("[google-drive-auth] action:", rawAction);
 
   try {
+    // Validate action
+    const action = validateBody(GoogleDriveAuthActionSchema, rawAction);
+    
     // Require JWT for all actions
-    const userId = await getUserIdFromJwt(req);
-    if (!userId) {
-      return json(req, 401, { ok: false, reason: "INVALID_JWT" });
+    const { userId } = await requireAuth(req);
+    
+    // Rate limiting
+    const clientIp = getClientIp(req);
+    const canProceed = await checkRateLimit({
+      userId,
+      ip: clientIp,
+      endpoint: "google-drive-auth",
+      limit: RATE_LIMITS["google-drive-auth"].limit,
+      windowSec: RATE_LIMITS["google-drive-auth"].windowSec,
+    });
+
+    if (!canProceed) {
+      return httpJson(429, { ok: false, error: "Rate limit exceeded. Please try again later." });
     }
 
-    if (action === "status") return await handleStatus(req, userId!);
-    if (action === "authorize") return await handleAuthorize(req, userId!, url);
+    if (action === "status") return await handleStatus(req, userId);
+    if (action === "authorize") return await handleAuthorize(req, userId, url);
     
     // ✅ Passar o body JÁ LIDO ao set_folder
-    if (action === "set_folder") return await handleSetFolder(req, userId!, body);
+    if (action === "set_folder") {
+      const { folderId, folderName } = validateBody(GoogleDriveSetFolderSchema, body);
+      return await handleSetFolder(req, userId, { folderId, folderName });
+    }
     
     if (action === "set_prefs") {
+      const { allowExtendedScope } = validateBody(GoogleDriveSetPrefsSchema, body);
       try {
-        const allow = !!body?.allowExtendedScope;
-        await setAllowExtendedScope(userId!, allow);
-        return json(req, 200, { ok: true, allowExtendedScope: allow });
+        await setAllowExtendedScope(userId, allowExtendedScope);
+        return httpJson(200, { ok: true, allowExtendedScope });
       } catch (e: any) {
         console.error("set_prefs error:", e?.message || e);
-        return json(req, 500, { ok: false, reason: "SET_PREFS_FAILED", message: e?.message || String(e) });
+        return safeError(e, { publicMessage: "Unable to update preferences.", logContext: "set_prefs" });
       }
     }
     
     if (action === "setFolder") {
       const folderId = body?.folderId?.toString?.() || "";
       const folderName = body?.folderName?.toString?.() || "";
-      if (!folderId) return json(req, 400, { ok: false, reason: "MISSING_FOLDER_ID" });
+      if (!folderId) return httpJson(400, { ok: false, error: "Missing folder ID." });
 
       const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { error: eUpd } = await admin
@@ -360,8 +380,8 @@ serve(async (req: Request) => {
         })
         .eq("user_id", userId);
 
-      if (eUpd) return json(req, 500, { ok: false, reason: "FOLDER_UPDATE_FAILED", detail: eUpd.message });
-      return json(req, 200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
+      if (eUpd) return safeError(eUpd, { publicMessage: "Unable to set folder.", logContext: "setFolder" });
+      return httpJson(200, { ok: true, dedicatedFolderId: folderId, dedicatedFolderName: folderName ?? null });
     }
     
     if (action === "disconnect") {
@@ -373,15 +393,20 @@ serve(async (req: Request) => {
           .eq('user_id', userId);
 
         if (error) throw new Error(error.message);
-        return json(req, 200, { ok: true, message: "Disconnected successfully" });
+        return httpJson(200, { ok: true, message: "Disconnected successfully" });
       } catch (e: any) {
-        return json(req, 500, { ok: false, reason: "DISCONNECT_FAILED", message: e?.message || String(e) });
+        return safeError(e, { publicMessage: "Unable to disconnect.", logContext: "disconnect" });
       }
     }
 
-    return json(req, 400, { ok: false, reason: "INVALID_ACTION", action });
+    return httpJson(400, { ok: false, error: "Invalid action." });
   } catch (e: any) {
-    console.error("google-drive-auth error:", e?.message || e);
-    return json(req, 500, { ok: false, reason: "INTERNAL_ERROR" });
+    if (e?.message === "UNAUTHORIZED") {
+      return httpJson(401, { ok: false, error: "Unauthorized." });
+    }
+    if (e?.message === "VALIDATION_FAILED") {
+      return httpJson(400, { ok: false, error: "Invalid request data." });
+    }
+    return safeError(e, { publicMessage: "Unable to process request.", logContext: "google-drive-auth" });
   }
 });

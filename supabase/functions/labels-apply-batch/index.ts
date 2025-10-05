@@ -1,69 +1,54 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { requireAuth, httpJson, safeError, getClientIp } from "../_shared/http.ts";
+import { checkRateLimit, RATE_LIMITS } from "../_shared/rate-limit.ts";
+import { LabelsApplyBatchSchema, validateBody } from "../_shared/validation.ts";
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      headers: {
+        'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      }
+    });
   }
 
   try {
-    const { assetId, toAdd = [], toRemove = [] } = await req.json();
+    // Authenticate user
+    const { userId } = await requireAuth(req);
+    
+    // Rate limiting
+    const clientIp = getClientIp(req);
+    const canProceed = await checkRateLimit({
+      userId,
+      ip: clientIp,
+      endpoint: "labels-apply-batch",
+      limit: RATE_LIMITS["labels-apply-batch"].limit,
+      windowSec: RATE_LIMITS["labels-apply-batch"].windowSec,
+    });
 
-    if (!assetId || (!toAdd.length && !toRemove.length)) {
-      return new Response(
-        JSON.stringify({ error: 'assetId and at least one of toAdd/toRemove are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!canProceed) {
+      return httpJson(429, { ok: false, error: "Rate limit exceeded. Please try again later." });
     }
+
+    // Validate input
+    const body = await req.json().catch(() => ({}));
+    const { assetId, toAdd, toRemove } = validateBody(LabelsApplyBatchSchema, body);
 
     // Extract source and itemKey from assetId
     const [source, itemKey] = assetId.split(':');
     
-    if (!source || !itemKey) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid assetId format. Expected source:itemKey' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!['gdrive', 'internal', 'db'].includes(source)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid source. Must be gdrive, internal, or db' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!source || !itemKey || !['gdrive', 'internal', 'db'].includes(source)) {
+      return httpJson(400, { ok: false, error: "Invalid asset format." });
     }
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get JWT from Authorization header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const applied = [];
     const removed = [];
@@ -77,11 +62,11 @@ serve(async (req) => {
           .from('labels')
           .select('id')
           .eq('id', labelId)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .single();
 
         if (!label) {
-          errors.push(`Label ${labelId} not found or not owned by user`);
+          errors.push("Label not found");
           continue;
         }
 
@@ -96,13 +81,13 @@ serve(async (req) => {
 
         if (error) {
           console.error('Error adding label:', error);
-          errors.push(`Failed to add label ${labelId}: ${error.message}`);
+          errors.push("Failed to add label");
         } else {
           applied.push(labelId);
         }
       } catch (err) {
         console.error('Error processing add label:', err);
-        errors.push(`Failed to add label ${labelId}: ${err.message}`);
+        errors.push("Failed to add label");
       }
     }
 
@@ -114,11 +99,11 @@ serve(async (req) => {
           .from('labels')
           .select('id')
           .eq('id', labelId)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .single();
 
         if (!label) {
-          errors.push(`Label ${labelId} not found or not owned by user`);
+          errors.push("Label not found");
           continue;
         }
 
@@ -132,13 +117,13 @@ serve(async (req) => {
 
         if (error) {
           console.error('Error removing label:', error);
-          errors.push(`Failed to remove label ${labelId}: ${error.message}`);
+          errors.push("Failed to remove label");
         } else {
           removed.push(labelId);
         }
       } catch (err) {
         console.error('Error processing remove label:', err);
-        errors.push(`Failed to remove label ${labelId}: ${err.message}`);
+        errors.push("Failed to remove label");
       }
     }
 
@@ -150,7 +135,7 @@ serve(async (req) => {
           .from('photos')
           .select('labels')
           .eq('id', itemKey)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .single();
 
         if (photo) {
@@ -171,37 +156,30 @@ serve(async (req) => {
             .from('photos')
             .update({ labels: currentLabels })
             .eq('id', itemKey)
-            .eq('user_id', user.id);
+            .eq('user_id', userId);
         }
       } catch (err) {
         console.error('Error updating photos table:', err);
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        applied,
-        removed,
-        errors: errors.length > 0 ? errors : undefined
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    return httpJson(200, {
+      ok: true,
+      applied,
+      removed,
+      errors: errors.length > 0 ? errors : undefined
+    });
 
-  } catch (error) {
-    console.error('Batch apply labels error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error',
-        details: error.message 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+  } catch (error: any) {
+    if (error?.message === "UNAUTHORIZED") {
+      return httpJson(401, { ok: false, error: "Unauthorized." });
+    }
+    if (error?.message === "VALIDATION_FAILED") {
+      return httpJson(400, { ok: false, error: "Invalid request data." });
+    }
+    return safeError(error, { 
+      publicMessage: "Unable to apply labels.", 
+      logContext: "labels-apply-batch" 
+    });
   }
 });
