@@ -34,9 +34,9 @@ image_transformation = { enabled = true }
 enabled = true
 port = 54329
 
-# ----- DEFAULT: PUBLIC (sem JWT) — ATENÇÃO! -----
+# ----- DEFAULT: SECURE (com JWT) — PRODUÇÃO -----
 [functions]
-verify_jwt = false
+verify_jwt = true  # ✅ Secure by default
 
 # ===== PRIVADAS (com JWT = true) =====
 [functions."google-drive-auth"]
@@ -80,12 +80,12 @@ verify_jwt = true
 [functions."delete-unified-item"]
 verify_jwt = true
 
-# ===== PÚBLICAS (herdam false; listado só para clareza) =====
+# ===== PÚBLICAS (explicitamente liberadas) =====
 # Callback do OAuth (Google não envia JWT)
 [functions."google-drive-oauth-callback2"]
 verify_jwt = false
 
-# Thumbs abertas assinadas
+# Thumbs abertas assinadas (validação via HMAC interno)
 [functions."thumb-open"]
 verify_jwt = false
 
