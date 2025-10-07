@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useSecurityValidation } from '@/hooks/useSecurityValidation';
+
 
 export interface GoogleDriveFile {
   id: string;
@@ -38,11 +38,6 @@ export function useGoogleDrive() {
   const [loading, setLoading] = useState(false);
   const [hasCheckedInitialStatus, setHasCheckedInitialStatus] = useState(false);
   const { toast } = useToast();
-  const { 
-    validateGoogleDriveConnection, 
-    validateFileOperation,
-    isValidating 
-  } = useSecurityValidation();
 
   const getAuthHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -638,22 +633,12 @@ export function useGoogleDrive() {
   const listFiles = useCallback(async (folderId?: string): Promise<GoogleDriveFile[]> => {
     try {
       const targetFolderId = folderId || status.dedicatedFolder?.id;
-      
-      // Validate file operation parameters
-      const validationResult = await validateFileOperation(
-        { folderId: targetFolderId },
-        { operation: 'list_files' }
-      );
-
-      if (!validationResult.isValid) {
-        return [];
-      }
 
       const headers = await getAuthHeaders();
       const response = await supabase.functions.invoke('google-drive-api', {
         body: {
           action: 'listFiles',
-          folderId: validationResult.sanitizedData?.folderId
+          folderId: targetFolderId
         },
         headers,
       });
@@ -673,7 +658,7 @@ export function useGoogleDrive() {
       });
       return [];
     }
-  }, [getAuthHeaders, status.dedicatedFolder?.id, toast, validateFileOperation]);
+  }, [getAuthHeaders, status.dedicatedFolder?.id, toast]);
 
   const downloadFile = useCallback(async (fileId: string): Promise<Blob | null> => {
     try {
@@ -956,7 +941,7 @@ export function useGoogleDrive() {
 
   return {
     status,
-    loading: loading || isValidating,
+    loading,
     connect,
     disconnect,
     resetIntegration,

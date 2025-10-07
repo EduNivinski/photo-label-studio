@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, Lock, Mail, User as UserIcon, ArrowLeft } from 'lucide-react';
 import type { User, Session } from '@supabase/supabase-js';
-import { logSecurityEvent, checkRateLimit, validateSecureInput, sanitizeUserInput } from '@/lib/securityMonitoring';
+
 import { Link } from 'react-router-dom';
 
 export default function Auth() {
@@ -54,47 +54,20 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateSecureInput(email, 254) || !validateSecureInput(password, 128)) {
-      toast.error('Dados de entrada inválidos. Verifique e tente novamente.');
-      return;
-    }
-
-    const sanitizedEmail = sanitizeUserInput(email);
-    
-    if (!checkRateLimit('signin_' + sanitizedEmail, 5, 15 * 60 * 1000)) {
-      toast.error('Muitas tentativas de login. Tente novamente em alguns minutos.');
-      logSecurityEvent({
-        event_type: 'rate_limit_exceeded',
-        metadata: { action: 'signin_attempt', email: sanitizedEmail }
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Limpar estado de auth antes de fazer signin
       await supabase.auth.signOut({ scope: 'global' });
       cleanupAuthState();
 
-      // Fazer signin
       const { error } = await supabase.auth.signInWithPassword({
-        email: sanitizedEmail,
-        password: password,
+        email,
+        password,
       });
 
       if (error) {
-        logSecurityEvent({
-          event_type: 'sensitive_operation',
-          metadata: { action: 'signin_failed', email: sanitizedEmail, error: error.message }
-        });
         toast.error(error.message);
       } else {
-        logSecurityEvent({
-          event_type: 'sensitive_operation',
-          metadata: { action: 'signin_success', email: sanitizedEmail }
-        });
         toast.success('Login realizado com sucesso!');
       }
     } catch (error: any) {
@@ -107,53 +80,25 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateSecureInput(email, 254) || 
-        !validateSecureInput(password, 128) || 
-        !validateSecureInput(displayName, 100)) {
-      toast.error('Dados de entrada inválidos. Verifique e tente novamente.');
-      return;
-    }
-
-    const sanitizedEmail = sanitizeUserInput(email);
-    const sanitizedDisplayName = sanitizeUserInput(displayName);
-    
-    if (!checkRateLimit('signup_' + sanitizedEmail, 3, 60 * 60 * 1000)) {
-      toast.error('Muitas tentativas de cadastro. Tente novamente em uma hora.');
-      logSecurityEvent({
-        event_type: 'rate_limit_exceeded',
-        metadata: { action: 'signup_attempt', email: sanitizedEmail }
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
       const redirectUrl = `${window.location.origin}/`;
       
       const { error } = await supabase.auth.signUp({
-        email: sanitizedEmail,
-        password: password,
+        email,
+        password,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            display_name: sanitizedDisplayName,
+            display_name: displayName,
           }
         }
       });
 
       if (error) {
-        logSecurityEvent({
-          event_type: 'sensitive_operation',
-          metadata: { action: 'signup_failed', email: sanitizedEmail, error: error.message }
-        });
         toast.error(error.message);
       } else {
-        logSecurityEvent({
-          event_type: 'sensitive_operation',
-          metadata: { action: 'signup_success', email: sanitizedEmail }
-        });
         toast.success('Conta criada com sucesso! Verifique seu email para confirmar.');
       }
     } catch (error: any) {

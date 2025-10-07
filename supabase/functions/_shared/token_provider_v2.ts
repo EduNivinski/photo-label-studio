@@ -89,8 +89,6 @@ export async function getTokens(userId: string): Promise<{
   scope: string;
   expires_at: string;
 } | null> {
-  console.log(`🔍 Retrieving tokens for user: ${userId}`);
-
   try {
     const { data, error } = await admin
       .from('user_drive_tokens')
@@ -99,19 +97,15 @@ export async function getTokens(userId: string): Promise<{
       .maybeSingle();
 
     if (error) {
-      console.error("❌ Database error retrieving tokens:", error);
-      throw new Error(`Database retrieval error: ${error.message || JSON.stringify(error)}`);
+      throw new Error(`Database retrieval error`);
     }
 
     if (!data) {
-      console.log("ℹ️ No tokens found for user");
       return null;
     }
 
     const access_token = await decryptPacked(data.access_token_enc);
     const refresh_token = await decryptPacked(data.refresh_token_enc);
-
-    console.log("✅ Tokens retrieved and decrypted successfully");
     
     return {
       access_token,
@@ -120,25 +114,23 @@ export async function getTokens(userId: string): Promise<{
       expires_at: data.expires_at as string
     };
   } catch (error) {
-    console.error("❌ Error in getTokens:", error);
+    console.error("Token retrieval failed");
     throw error;
   }
 }
 
 export async function refreshAccessToken(userId: string): Promise<string> {
-  console.log(`🔄 Refreshing access token for user: ${userId}`);
-
   try {
     const tokens = await getTokens(userId);
     if (!tokens) {
-      throw new Error("No tokens found for user");
+      throw new Error("No tokens found");
     }
 
     const clientId = Deno.env.get('GOOGLE_DRIVE_CLIENT_ID');
     const clientSecret = Deno.env.get('GOOGLE_DRIVE_CLIENT_SECRET');
 
     if (!clientId || !clientSecret) {
-      throw new Error("Google Drive client credentials not configured");
+      throw new Error("Client credentials not configured");
     }
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -155,27 +147,23 @@ export async function refreshAccessToken(userId: string): Promise<string> {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ OAuth refresh failed:", response.status, errorText);
-      throw new Error(`OAuth refresh failed: ${response.status}`);
+      throw new Error(`OAuth refresh failed`);
     }
 
     const refreshData = await response.json();
     const newExpiresAt = new Date(Date.now() + (refreshData.expires_in * 1000)).toISOString();
 
-    // Update stored tokens
     await upsertTokens(
       userId,
       refreshData.access_token,
-      tokens.refresh_token, // Keep existing refresh token unless new one provided
+      tokens.refresh_token,
       tokens.scope,
       newExpiresAt
     );
 
-    console.log("✅ Access token refreshed successfully");
     return refreshData.access_token;
   } catch (error) {
-    console.error("❌ Error refreshing token:", error);
+    console.error("Token refresh failed");
     throw error;
   }
 }
@@ -241,8 +229,6 @@ export async function getExistingTokenRow(userId: string): Promise<{
 }
 
 export async function deleteTokens(userId: string): Promise<void> {
-  console.log(`🗑️ Deleting tokens for user: ${userId}`);
-
   try {
     const { error } = await admin
       .from('user_drive_tokens')
@@ -250,13 +236,10 @@ export async function deleteTokens(userId: string): Promise<void> {
       .eq('user_id', userId);
 
     if (error) {
-      console.error("❌ Database error deleting tokens:", error);
-      throw new Error(`Database deletion error: ${error.message || JSON.stringify(error)}`);
+      throw new Error(`Token deletion failed`);
     }
-
-    console.log("✅ Tokens deleted successfully");
   } catch (error) {
-    console.error("❌ Error deleting tokens:", error);
+    console.error("Token deletion failed");
     throw error;
   }
 }

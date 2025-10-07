@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { useSecurityInit } from "@/hooks/useSecurityInit";
+
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
@@ -72,9 +72,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation();
-  
-  // Initialize security monitoring
-  useSecurityInit();
   
 
   const showAdvancedSidebar = location.pathname === '/' || location.pathname === '/explore';

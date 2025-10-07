@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { SmartLabelSearch } from './SmartLabelSearch';
 import type { Label } from '@/types/photo';
-import { validateSecureInput, sanitizeUserInput } from '@/lib/securityMonitoring';
+
 
 interface SearchBarProps {
   searchTerm: string;
@@ -70,12 +70,7 @@ export function SearchBar({
           type="text"
           placeholder="Buscar arquivos..."
           value={searchTerm}
-          onChange={(e) => {
-            const sanitizedValue = sanitizeUserInput(e.target.value);
-            if (validateSecureInput(sanitizedValue, 200)) {
-              onSearchChange(sanitizedValue);
-            }
-          }}
+          onChange={(e) => onSearchChange(e.target.value)}
           className="pl-10 h-10"
         />
       </div>
