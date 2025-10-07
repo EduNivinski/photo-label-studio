@@ -77,16 +77,20 @@ serve(async (req) => {
 
     // Rate limiting (using IP since this is a public endpoint)
     const clientIp = getClientIp(req);
-    const canProceed = await checkRateLimit({
-      userId: uid,
-      ip: clientIp,
-      endpoint: "thumb-open",
-      limit: RATE_LIMITS["thumb-open"].limit,
-      windowSec: RATE_LIMITS["thumb-open"].windowSec,
-    });
-
-    if (!canProceed) {
-      return httpJson(429, { ok: false, error: "Rate limit exceeded." });
+    try {
+      await checkRateLimit({
+        userId: uid,
+        ip: clientIp,
+        endpoint: "thumb-open",
+        limit: RATE_LIMITS["thumb-open"].limit,
+        windowSec: RATE_LIMITS["thumb-open"].windowSec,
+      });
+    } catch (e: any) {
+      if (e?.message === "RATE_LIMITED") {
+        return httpJson(429, { ok: false, error: "Rate limit exceeded." });
+      }
+      // RATE_LIMIT_UNAVAILABLE or other errors
+      return httpJson(503, { ok: false, error: "Service temporarily unavailable." });
     }
 
     // Check if legacy signature support has ended
@@ -97,9 +101,35 @@ serve(async (req) => {
       });
     }
 
+    // Handle legacy signatures with TTL tracking
+    if (isLegacy) {
+      const { data: firstSeen, error: legacyError } = await admin().rpc("security.legacy_sig_first_seen", { 
+        p_sig: sig 
+      });
+      if (legacyError) {
+        console.error("[LEGACY_SIG_RPC_ERROR]", legacyError);
+        throw new Error("LEGACY_SIG_UNAVAILABLE");
+      }
+
+      const ttlMs = 3600 * 1000; // 1 hour
+      const firstSeenTime = new Date(firstSeen).getTime();
+      if (Date.now() > firstSeenTime + ttlMs) {
+        return httpJson(410, { 
+          ok: false, 
+          error: "Signature expired. Please refresh." 
+        });
+      }
+    }
+
     // Verify nonce (replay protection) for non-legacy signatures
     if (!isLegacy && nonce) {
-      const { data: isValid } = await admin().rpc("consume_nonce_once", { p_nonce: nonce });
+      const { data: isValid, error: nonceError } = await admin().rpc("security.consume_nonce_once", { 
+        p_nonce: nonce 
+      });
+      if (nonceError) {
+        console.error("[NONCE_RPC_ERROR]", nonceError);
+        throw new Error("NONCE_UNAVAILABLE");
+      }
       if (!isValid) {
         console.error(`Replay attempt detected: nonce=${nonce}, uid=${uid}`);
         throw new Error("REPLAY");
@@ -139,7 +169,8 @@ serve(async (req) => {
     // Add deprecation headers for legacy signatures
     if (isLegacy) {
       headers["Deprecation"] = "true";
-      headers["Sunset"] = new Date(LEGACY_SUPPORT_UNTIL).toUTCString();
+      // Shorten remaining window to 2 days instead of full 7 days
+      headers["Sunset"] = new Date(Date.now() + 2 * 24 * 3600 * 1000).toUTCString();
       console.warn(`Legacy signature used: uid=${uid}, fileId=${fileId}`);
     }
 

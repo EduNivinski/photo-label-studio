@@ -10,14 +10,18 @@ export interface RateLimitConfig {
 
 /**
  * Check if request is within rate limit using server-side DB check
+ * FAIL CLOSED: If rate limit infrastructure is unavailable, block the request
  */
 export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  // Use service role client for security schema functions
+  const admin = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { data, error } = await supabase.rpc("can_call", {
+    // Call security.can_call with fully qualified schema name
+    const { data, error } = await admin.rpc("security.can_call", {
       p_user_id: config.userId,
       p_ip: config.ip,
       p_endpoint: config.endpoint,
@@ -26,16 +30,20 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> 
     });
 
     if (error) {
-      console.error("Rate limit check error:", error);
-      // Fail open on error to avoid blocking legitimate requests
-      return true;
+      console.error("[RATE_LIMIT_RPC_ERROR]", error);
+      // FAIL CLOSED: If rate limit check fails, block the request
+      throw new Error("RATE_LIMIT_UNAVAILABLE");
     }
 
-    return data === true;
-  } catch (err) {
-    console.error("Rate limit exception:", err);
-    // Fail open on exception
+    if (data === false) {
+      throw new Error("RATE_LIMITED");
+    }
+
     return true;
+  } catch (err) {
+    console.error("[RATE_LIMIT_EXCEPTION]", err);
+    // Re-throw to fail closed
+    throw err;
   }
 }
 
