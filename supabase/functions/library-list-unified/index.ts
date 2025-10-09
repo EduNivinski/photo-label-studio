@@ -51,10 +51,9 @@ serve(async (req) => {
         dbQuery = dbQuery.eq('media_type', 'video');
       }
 
-      // Apply search filter (escape ILIKE wildcards to prevent injection)
+      // Apply search filter
       if (q) {
-        const escapedQuery = q.replace(/[%_]/g, '\\$&');
-        dbQuery = dbQuery.ilike('name', `%${escapedQuery}%`);
+        dbQuery = dbQuery.ilike('name', `%${q}%`);
       }
 
       // Apply label filter
@@ -94,10 +93,9 @@ serve(async (req) => {
         driveQuery = driveQuery.like('mime_type', 'video/%');
       }
 
-      // Apply search filter (escape ILIKE wildcards to prevent injection)
+      // Apply search filter
       if (q) {
-        const escapedQuery = q.replace(/[%_]/g, '\\$&');
-        driveQuery = driveQuery.ilike('name', `%${escapedQuery}%`);
+        driveQuery = driveQuery.ilike('name', `%${q}%`);
       }
 
       const { data: driveItems, error: driveError } = await driveQuery;

@@ -27,7 +27,6 @@ import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import type { Label } from '@/types/photo';
-import { supabase } from '@/integrations/supabase/client';
 
 interface MediaModalProps {
   item: MediaItem | null;
@@ -85,8 +84,7 @@ export function MediaModal({
     
     console.log(`📡 Preview URL: ${url}`);
     
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+    const token = JSON.parse(localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token") || "{}").access_token;
     
     if (!token) {
       throw new Error('No auth token found');
