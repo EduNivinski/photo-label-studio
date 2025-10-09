@@ -26,6 +26,7 @@ import { LabelManager } from './LabelManager';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
+import { supabase } from '@/integrations/supabase/client';
 import type { Label } from '@/types/photo';
 
 interface MediaModalProps {
@@ -78,25 +79,27 @@ export function MediaModal({
   const fetchDrivePreview = async ({ fileId, kind }: { fileId: string; kind: "image" | "video" }) => {
     console.log(`📡 Fetching ${kind} preview for fileId: ${fileId}`);
     
-    const base = "https://tcupxcxyylxfgsbhfdhw.supabase.co/functions/v1";
-    const path = kind === "image" ? "drive-image-preview" : "drive-video-poster";
-    const url = `${base}/${path}?fileId=${encodeURIComponent(fileId)}&max=${kind === "image" ? 1600 : 1280}`;
+    const functionName = kind === "image" ? "drive-image-preview" : "drive-video-poster";
+    const maxSize = kind === "image" ? 1600 : 1280;
     
-    console.log(`📡 Preview URL: ${url}`);
-    
-    const token = JSON.parse(localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token") || "{}").access_token;
-    
-    if (!token) {
-      throw new Error('No auth token found');
-    }
+    console.log(`📡 Invoking ${functionName} for fileId: ${fileId}`);
     
     const controller = new AbortController();
     abortControllerRef.current = controller;
     
-    const r = await fetch(url, { 
-      headers: { Authorization: `Bearer ${token}` },
+    // Use Supabase client - it handles auth automatically
+    const { data: blobData, error: invokeError } = await supabase.functions.invoke(functionName, {
+      body: { fileId, max: maxSize },
+      // @ts-ignore - signal is supported but not in types
       signal: controller.signal
     });
+    
+    if (invokeError) {
+      throw new Error(`Failed to load preview: ${invokeError.message}`);
+    }
+    
+    // Convert the response to blob for display
+    const r = new Response(JSON.stringify(blobData));
     
     console.log(`📡 Response status: ${r.status} ${r.statusText}`);
     

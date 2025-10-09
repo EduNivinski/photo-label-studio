@@ -332,7 +332,8 @@ export default function User() {
       console.log("🧪 Executando testes com JWT:", {
         projectRef: payload.ref,
         userId: session.user.id,
-        hasLocalStorage: !!localStorage.getItem("sb-tcupxcxyylxfgsbhfdhw-auth-token")
+        hasSession: !!session,
+        sessionExpiry: new Date(session.expires_at! * 1000).toISOString()
       });
 
       const userId = session.user.id; // usar o ID real do usuário logado

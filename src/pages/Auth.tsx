@@ -47,18 +47,13 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const cleanupAuthState = () => {
-    localStorage.removeItem('supabase.auth.token');
-    sessionStorage.removeItem('supabase.auth.token');
-  };
-
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Supabase handles cleanup automatically
       await supabase.auth.signOut({ scope: 'global' });
-      cleanupAuthState();
 
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -128,7 +123,6 @@ export default function Auth() {
   };
 
   const handleSignOut = async () => {
-    cleanupAuthState();
     await supabase.auth.signOut({ scope: 'global' });
     navigate('/auth');
   };

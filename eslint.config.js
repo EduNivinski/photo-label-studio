@@ -42,7 +42,15 @@ export default tseslint.config(
             name: '@/hooks/useSecurityInit',
             message: 'Security initialization must be server-side only.',
           },
+          {
+            name: '@/supabase/functions/_shared/token_provider_old',
+            message: 'Use token_provider_v2 instead. Legacy provider is deprecated.',
+          },
         ],
+      }],
+      'no-restricted-syntax': ['error', {
+        selector: 'CallExpression[callee.object.name="localStorage"][callee.property.name="getItem"] > Literal[value=/sb-.*auth-token/]',
+        message: 'Do not access auth tokens directly from localStorage. Use supabase.auth.getSession() or let supabase.functions.invoke() handle auth automatically.',
       }],
     },
   },
