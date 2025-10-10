@@ -107,6 +107,11 @@ function AppContent() {
               <Index />
             </RequireAuth>
           } />
+          <Route path="/app" element={
+            <RequireAuth>
+              <Navigate to="/" replace />
+            </RequireAuth>
+          } />
           <Route path="/upload" element={
             <RequireAuth>
               <Upload />
