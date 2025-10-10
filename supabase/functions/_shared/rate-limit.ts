@@ -10,9 +10,21 @@ export interface RateLimitConfig {
 
 /**
  * Check if request is within rate limit using server-side DB check
- * FAIL CLOSED: If rate limit infrastructure is unavailable, block the request
+ * TEMPORARILY DISABLED: Rate limit infrastructure is not set up yet
+ * TODO: Implement proper rate limiting with security.can_call function
  */
 export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> {
+  // Temporarily bypass rate limiting until security.can_call function is implemented
+  console.log("[RATE_LIMIT_BYPASS]", {
+    endpoint: config.endpoint,
+    userId: config.userId,
+    ip: config.ip,
+  });
+  
+  // Always allow requests for now
+  return true;
+  
+  /* COMMENTED OUT - Enable when security.can_call is implemented
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   
@@ -45,6 +57,7 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<boolean> 
     // Re-throw to fail closed
     throw err;
   }
+  */
 }
 
 /**
