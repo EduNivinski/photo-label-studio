@@ -97,9 +97,9 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
           <div className="flex items-center gap-2">
             <Button
               onClick={handleSelectCurrentFolder}
-              variant="default"
               size="sm"
               disabled={saving}
+              className="bg-purple-400 text-white hover:bg-purple-500"
             >
               {saving ? "Selecionando..." : "Selecionar esta pasta"}
             </Button>
