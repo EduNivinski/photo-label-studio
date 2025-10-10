@@ -33,18 +33,18 @@ export function SelectionPanel({
           <span className="text-sm font-medium">
             arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
           </span>
-          
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onSelectAll}
-            className="ml-2 h-7 text-xs"
-          >
-            {selectedCount === totalCount ? 'Desmarcar todos' : 'Selecionar tudo'}
-          </Button>
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onSelectAll}
+            className="flex items-center gap-2"
+          >
+            {selectedCount === totalCount ? 'Desmarcar todos' : 'Selecionar tudo'}
+          </Button>
+
           {onCreateCollection && (
             <Button
               size="sm"
