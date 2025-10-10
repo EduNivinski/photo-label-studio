@@ -23,7 +23,7 @@ export function DriveFolderSelectionCard({
             : <>Nenhuma pasta selecionada</>}
         </div>
         <Button onClick={onChooseFolder} disabled={disabled}>
-          <Folder className="h-4 w-4 mr-1" /> Selecionar pasta
+          <Folder className="h-4 w-4 mr-1" /> Buscar pasta
         </Button>
       </div>
     </div>
