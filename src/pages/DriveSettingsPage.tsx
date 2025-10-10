@@ -419,7 +419,7 @@ export default function DriveSettingsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Button
               onClick={fetchStatus}
               variant="outline"
@@ -434,17 +434,18 @@ export default function DriveSettingsPage() {
               onClick={authorize}
               variant="outline"
               disabled={loading || busyRef.current}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
             >
               {(loading || busyRef.current) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-              {(status as any).connected ? 'Reconectar' : 'Conectar'}
+              Conectar
             </Button>
             
+            {/* Hidden reconnect with permissions button */}
             <Button
               onClick={reconnectHard}
               variant="outline"
               disabled={loading || busyRef.current}
-              className="flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+              className="hidden flex items-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
             >
               {(loading || busyRef.current) ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Reconectar com permissões
