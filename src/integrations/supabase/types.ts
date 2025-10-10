@@ -334,6 +334,30 @@ export type Database = {
           },
         ]
       }
+      oauth_state: {
+        Row: {
+          created_at: string
+          expires_at: string
+          provider: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          provider?: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          provider?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       photos: {
         Row: {
           alias: string | null
@@ -511,6 +535,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      cleanup_expired_oauth_states: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       gd_token_debug_insert: {
         Args: {
           p_err: string
@@ -566,6 +594,16 @@ export type Database = {
       sanitize_sensitive_data: {
         Args: { p_input: string }
         Returns: string
+      }
+      store_google_drive_tokens: {
+        Args: {
+          p_access_token: string
+          p_expires_in: number
+          p_refresh_token: string
+          p_scope?: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
       validate_google_drive_access: {
         Args: { p_user_id: string }

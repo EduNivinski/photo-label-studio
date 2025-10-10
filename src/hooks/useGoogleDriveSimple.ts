@@ -128,11 +128,9 @@ export function useGoogleDriveSimple() {
       
       console.log('🔗 Iniciando conexão Google Drive...');
       
+      // Call the new google-drive-auth endpoint (POST only)
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        body: { 
-          action: "authorize", 
-          redirect: window.location.origin + "/user" 
-        },
+        body: {}  // No body needed, user ID comes from JWT
       });
       
       if (error) {
@@ -149,11 +147,12 @@ export function useGoogleDriveSimple() {
         throw new Error('authorizeUrl não retornada pela função');
       }
       
-      console.log('✅ AuthorizeUrl obtida, redirecionando...');
+      console.log('✅ AuthorizeUrl obtida, redirecionando para Google...');
+      // Redirect to Google OAuth (not opening popup)
       window.location.href = data.authorizeUrl;
 
     } catch (error) {
-      console.error('Error connecting to Google Drive:', error);
+      console.error('❌ Error connecting to Google Drive:', error);
       
       toast({
         variant: 'destructive',
