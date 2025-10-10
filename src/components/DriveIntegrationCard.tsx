@@ -54,13 +54,15 @@ export function DriveIntegrationCard({
           variant="outline" 
           onClick={onReconnect}
           disabled={shouldDisableConnectButtons}
+          className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
         >
-          <PlugZap className="h-4 w-4 mr-1" /> Reconectar
+          <PlugZap className="h-4 w-4 mr-1" /> Conectar
         </Button>
         <Button 
           variant="outline" 
           onClick={onReconnectWithConsent}
           disabled={shouldDisableConnectButtons}
+          className="hidden"
         >
           <KeySquare className="h-4 w-4 mr-1" /> Reconectar com permissões
         </Button>
