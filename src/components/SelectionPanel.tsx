@@ -4,17 +4,21 @@ import { Card } from '@/components/ui/card';
 
 interface SelectionPanelProps {
   selectedCount: number;
+  totalCount: number;
   onManageLabels: () => void;
   onDeleteSelected: () => void;
   onClearSelection: () => void;
+  onSelectAll: () => void;
   onCreateCollection?: () => void;
 }
 
 export function SelectionPanel({
   selectedCount,
+  totalCount,
   onManageLabels,
   onDeleteSelected,
   onClearSelection,
+  onSelectAll,
   onCreateCollection
 }: SelectionPanelProps) {
   if (selectedCount === 0) return null;
@@ -29,6 +33,15 @@ export function SelectionPanel({
           <span className="text-sm font-medium">
             arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
           </span>
+          
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onSelectAll}
+            className="ml-2 h-7 text-xs"
+          >
+            {selectedCount === totalCount ? 'Desmarcar todos' : 'Selecionar tudo'}
+          </Button>
         </div>
 
         <div className="flex items-center gap-2">

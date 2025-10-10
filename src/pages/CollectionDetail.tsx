@@ -268,9 +268,17 @@ export default function CollectionDetail() {
       {/* Selection Panel */}
       <SelectionPanel
         selectedCount={selectedCount}
+        totalCount={collectionPhotos.length}
         onManageLabels={() => {/* TODO: implement bulk label management */}}
         onDeleteSelected={handleDeleteSelected}
         onClearSelection={clearSelection}
+        onSelectAll={() => {
+          if (selectedCount === collectionPhotos.length && collectionPhotos.length > 0) {
+            clearSelection();
+          } else {
+            selectAll(collectionPhotos);
+          }
+        }}
         onCreateCollection={() => {/* Already in a collection */}}
       />
 

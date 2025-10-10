@@ -294,10 +294,21 @@ const Index = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedCount === filteredPhotos.length && filteredPhotos.length > 0) {
+    if (selectedCount === filteredUnifiedItems.length && filteredUnifiedItems.length > 0) {
       clearSelection();
     } else {
-      selectAll(filteredPhotos);
+      // Convert MediaItems to Photo format for selection
+      const photosToSelect = filteredUnifiedItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        url: item.posterUrl || '',
+        labels: item.labels.map(l => l.id),
+        uploadDate: item.createdAt || new Date().toISOString(),
+        originalDate: item.createdAt,
+        alias: null,
+        mediaType: item.isVideo ? 'video' as const : 'photo' as const
+      }));
+      selectAll(photosToSelect);
     }
   };
 
@@ -659,9 +670,11 @@ const Index = () => {
       {selectedCount > 0 && (
         <SelectionPanel
           selectedCount={selectedCount}
+          totalCount={filteredUnifiedItems.length}
           onManageLabels={handleBulkLabelManage}
           onDeleteSelected={handleBulkDelete}
           onClearSelection={clearSelection}
+          onSelectAll={handleSelectAll}
           onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
         />
       )}
