@@ -96,6 +96,7 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
           </div>
           <Button
             onClick={handleSelectCurrentFolder}
+            variant="ghost"
             size="sm"
             disabled={saving}
             className="bg-purple-400 text-white hover:bg-purple-500"

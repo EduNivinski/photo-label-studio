@@ -119,7 +119,7 @@ export default function FolderBrowserCard({
             className="rounded-lg bg-purple-400 text-white px-3 py-1.5 text-xs hover:bg-purple-500"
             onClick={selectCurrent}
           >
-            Selecionar esta pasta
+            Selecionar pasta
           </button>
           <button className="text-xs text-gray-500 hover:underline" onClick={onClose}>Fechar</button>
         </div>

@@ -123,12 +123,12 @@ export default function FolderBrowser({ onSelect, defaultFolder }: Props) {
           Atualizar
         </button>
         <button
-          className="rounded-lg bg-blue-600 text-white px-3 py-2 text-sm hover:bg-blue-700"
+          className="rounded-lg bg-purple-400 text-white px-3 py-2 text-sm hover:bg-purple-500"
           onClick={selectCurrent}
           disabled={loading}
           aria-label="Selecionar pasta atual"
         >
-          Selecionar esta pasta
+          Selecionar pasta
         </button>
       </div>
 
