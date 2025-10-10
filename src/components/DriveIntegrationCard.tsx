@@ -7,6 +7,7 @@ type Props = {
   state: "connected" | "checking" | "disconnected" | "error";
   dedicatedFolderPath?: string | null;
   onCheck: () => void;
+  onConnect: () => void;
   onReconnect: () => void;
   onReconnectWithConsent: () => void;
   onDisconnect: () => void;
@@ -19,6 +20,7 @@ export function DriveIntegrationCard({
   state,
   dedicatedFolderPath,
   onCheck,
+  onConnect,
   onReconnect,
   onReconnectWithConsent,
   onDisconnect,
@@ -52,7 +54,7 @@ export function DriveIntegrationCard({
         <Button variant="outline" onClick={onCheck}><RefreshCcw className="h-4 w-4 mr-1" /> Verificar status</Button>
         <Button 
           variant="outline" 
-          onClick={onReconnect}
+          onClick={onConnect}
           disabled={shouldDisableConnectButtons}
           className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
         >

@@ -143,6 +143,7 @@ export default function GoogleDriveIntegration() {
         state={getStatusState()}
         dedicatedFolderPath={buildFolderPath()}
         onCheck={checkStatus}
+        onConnect={handleConnect}
         onReconnect={handleReconnect}
         onReconnectWithConsent={handleReconnectWithPermissions}
         onDisconnect={handleDisconnect}
