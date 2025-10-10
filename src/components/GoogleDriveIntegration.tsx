@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
 import { useToast } from "@/hooks/use-toast";
 import { DriveIntegrationCard } from "./DriveIntegrationCard";
+import { DriveFolderSelectionCard } from "./DriveFolderSelectionCard";
 import { DriveBrowserCard } from "./DriveBrowserCard";
 import { preflightDriveCallback } from "@/lib/drivePreflightCheck";
 
@@ -141,13 +142,11 @@ export default function GoogleDriveIntegration() {
     <div className="max-w-4xl mx-auto space-y-6">
       <DriveIntegrationCard
         state={getStatusState()}
-        dedicatedFolderPath={buildFolderPath()}
         onCheck={checkStatus}
         onConnect={handleConnect}
         onReconnect={handleReconnect}
         onReconnectWithConsent={handleReconnectWithPermissions}
         onDisconnect={handleDisconnect}
-        onChooseFolder={() => setShowFolderBrowser(true)}
         preflightResult={preflightResult}
         preflightLoading={preflightLoading}
       />
@@ -161,7 +160,15 @@ export default function GoogleDriveIntegration() {
         </div>
       )}
 
-      {/* Navegador de Pastas */}
+      {/* Seção de Seleção de Pasta - mostra apenas quando conectado */}
+      {status.isConnected && (
+        <DriveFolderSelectionCard
+          dedicatedFolderPath={buildFolderPath()}
+          onChooseFolder={() => setShowFolderBrowser(true)}
+        />
+      )}
+
+      {/* Navegador de Pastas - aparece abaixo da seção de seleção */}
       {showFolderBrowser && (
         <DriveBrowserCard
           onSelectCurrentFolder={handleSelectCurrentFolder}

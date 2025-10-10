@@ -5,26 +5,22 @@ import StatusPill from "./StatusPill";
 
 type Props = {
   state: "connected" | "checking" | "disconnected" | "error";
-  dedicatedFolderPath?: string | null;
   onCheck: () => void;
   onConnect: () => void;
   onReconnect: () => void;
   onReconnectWithConsent: () => void;
   onDisconnect: () => void;
-  onChooseFolder: () => void;
   preflightResult?: { ok: boolean; reason?: string } | null;
   preflightLoading?: boolean;
 };
 
 export function DriveIntegrationCard({
   state,
-  dedicatedFolderPath,
   onCheck,
   onConnect,
   onReconnect,
   onReconnectWithConsent,
   onDisconnect,
-  onChooseFolder,
   preflightResult,
   preflightLoading,
 }: Props) {
@@ -69,16 +65,6 @@ export function DriveIntegrationCard({
           <KeySquare className="h-4 w-4 mr-1" /> Reconectar com permissões
         </Button>
         <Button variant="destructive" onClick={onDisconnect}><Unlink className="h-4 w-4 mr-1" /> Desconectar</Button>
-      </div>
-
-      {/* Linha inferior: caminho (esq) + botão (dir) */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground truncate" title={dedicatedFolderPath || "Nenhuma pasta selecionada"}>
-          {dedicatedFolderPath
-            ? <>Pasta selecionada: <span className="font-medium text-foreground">{dedicatedFolderPath}</span></>
-            : <>Nenhuma pasta selecionada</>}
-        </div>
-        <Button onClick={onChooseFolder}><Folder className="h-4 w-4 mr-1" /> Selecionar pasta</Button>
       </div>
     </div>
   );
