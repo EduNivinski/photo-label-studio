@@ -94,30 +94,15 @@ export default function DriveBrowser({ onFolderSelected }: DriveBrowserProps) {
           <div className="text-sm text-muted-foreground flex-1">
             📁 {current.name}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleSelectCurrentFolder}
-              size="sm"
-              disabled={saving}
-              className="bg-purple-400 text-white hover:bg-purple-500"
-            >
-              {saving ? "Selecionando..." : "Selecionar esta pasta"}
-            </Button>
-            <Button
-              onClick={() => {
-                // Funcionalidade será implementada futuramente
-                toast({
-                  title: "Em breve",
-                  description: "Funcionalidade de sincronização de pasta em desenvolvimento",
-                });
-              }}
-              variant="outline"
-              size="sm"
-              className="border-green-200 text-green-700 hover:bg-green-50"
-            >
-              Sincronizar pasta
-            </Button>
-          </div>
+          <Button
+            onClick={handleSelectCurrentFolder}
+            size="sm"
+            disabled={saving}
+            className="bg-purple-400 text-white hover:bg-purple-500"
+          >
+            <Folder className="h-4 w-4 mr-1" />
+            {saving ? "Selecionando..." : "Selecionar pasta"}
+          </Button>
         </div>
 
         {/* Error States */}
