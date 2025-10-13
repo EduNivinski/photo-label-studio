@@ -1,0 +1,50 @@
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Image, Video } from "lucide-react";
+
+type MediaKind = "photo" | "video" | null | undefined;
+
+interface MediaTypeHeaderProps {
+  mediaKind?: MediaKind;
+  mimeType?: string;
+  originalTakenAt?: string | null;
+  createdAt?: string | null;
+  className?: string;
+}
+
+export function MediaTypeHeader({
+  mediaKind,
+  mimeType,
+  originalTakenAt,
+  createdAt,
+  className = "",
+}: MediaTypeHeaderProps) {
+  // Determinar o tipo
+  const kind = 
+    mediaKind === "video" ? "video" :
+    mediaKind === "photo" ? "photo" :
+    mimeType?.startsWith("video/") ? "video" :
+    mimeType?.startsWith("image/") ? "photo" :
+    undefined;
+
+  const kindLabel = kind === "video" ? "Vídeo" : kind === "photo" ? "Foto" : "Arquivo";
+  const Icon = kind === "video" ? Video : Image;
+
+  // Usar original_taken_at se disponível, senão fallback para created_at
+  const dateToDisplay = originalTakenAt || createdAt;
+  const dateLabel = dateToDisplay
+    ? format(new Date(dateToDisplay), "dd/MM/yyyy · HH:mm", { locale: ptBR })
+    : "—";
+
+  return (
+    <div
+      className={`flex items-center justify-between text-xs text-muted-foreground py-1 ${className}`}
+    >
+      <div className="flex items-center gap-1">
+        <Icon className="h-3 w-3" />
+        <span className="font-medium">{kindLabel}</span>
+      </div>
+      <span>{dateLabel}</span>
+    </div>
+  );
+}

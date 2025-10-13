@@ -122,9 +122,12 @@ export type Database = {
           image_meta: Json | null
           last_seen_at: string
           md5_checksum: string | null
+          media_kind: string | null
           mime_type: string
           modified_time: string | null
           name: string
+          original_taken_at: string | null
+          original_tz_offset_min: number | null
           parents: string[] | null
           path_cached: string | null
           size: number | null
@@ -148,9 +151,12 @@ export type Database = {
           image_meta?: Json | null
           last_seen_at?: string
           md5_checksum?: string | null
+          media_kind?: string | null
           mime_type: string
           modified_time?: string | null
           name: string
+          original_taken_at?: string | null
+          original_tz_offset_min?: number | null
           parents?: string[] | null
           path_cached?: string | null
           size?: number | null
@@ -174,9 +180,12 @@ export type Database = {
           image_meta?: Json | null
           last_seen_at?: string
           md5_checksum?: string | null
+          media_kind?: string | null
           mime_type?: string
           modified_time?: string | null
           name?: string
+          original_taken_at?: string | null
+          original_tz_offset_min?: number | null
           parents?: string[] | null
           path_cached?: string | null
           size?: number | null

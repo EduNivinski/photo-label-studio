@@ -11,6 +11,10 @@ export interface MediaItem {
   durationMs?: number | null; // vídeos
   createdAt?: string;         // ISO
   updatedAt?: string;         // ISO
+  
+  // Tipo de mídia e data original
+  mediaKind?: 'photo' | 'video' | null;
+  originalTakenAt?: string | null;  // Data original de captura (EXIF/metadata)
 
   // visual
   posterUrl?: string | null;  // URL (thumb) pronta p/ <img>, sem Header (assinada p/ gdrive)
