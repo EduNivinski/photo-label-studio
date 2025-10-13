@@ -105,10 +105,15 @@ export default function GoogleDriveIntegration() {
     return "connected";
   }, [loading, status.isConnected, status.isExpired]);
 
-  const handleSelectCurrentFolder = useCallback(async (id: string, name: string) => {
+  const handleSelectCurrentFolder = useCallback(async (id: string, name: string, path?: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        body: { action: "set_folder", folderId: id, folderName: name }
+        body: { 
+          action: "set_folder", 
+          folderId: id, 
+          folderName: name,
+          folderPath: path || name
+        }
       });
       
       if (error || !data?.ok) throw new Error(data?.reason || error?.message || "SET_FOLDER_FAILED");

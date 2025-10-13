@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type Props = {
   title?: string; // default: "Navegação no Google Drive"
-  onSelectCurrentFolder: (id: string, name: string) => void;
+  onSelectCurrentFolder: (id: string, name: string, path?: string) => void;
 };
 
 export function DriveBrowserCard({
@@ -34,7 +34,9 @@ export function DriveBrowserCard({
   };
 
   const handleSelectCurrentFolder = () => {
-    onSelectCurrentFolder(current.id, current.name);
+    // Construir o caminho completo concatenando os nomes do breadcrumb
+    const fullPath = path.map(p => p.name).join(" > ");
+    onSelectCurrentFolder(current.id, current.name, fullPath);
   };
 
   return (
