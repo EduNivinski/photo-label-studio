@@ -222,48 +222,10 @@ export default function GoogleDriveIntegration() {
         <DriveFolderSelectionCard
           dedicatedFolderPath={buildFolderPath()}
           onChooseFolder={() => setShowFolderBrowser(true)}
+          onSync={handleSyncClick}
+          syncing={syncing}
+          syncProgress={syncProgress}
         />
-      )}
-
-      {/* Nova seção: Sincronização - aparece somente quando a seção de pasta é visível e há pasta salva */}
-      {status.isConnected && Boolean(buildFolderPath()) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Sincronização</CardTitle>
-            <CardDescription>
-              Sincronize os arquivos da pasta selecionada
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {syncProgress && (
-                <div className="text-sm text-muted-foreground">
-                  Processando: {syncProgress.processedFolders} pastas, {syncProgress.updatedItems} arquivos
-                  {syncProgress.queued > 0 && ` (${syncProgress.queued} pendentes)`}
-                </div>
-              )}
-              <div className="flex items-center justify-end">
-                <Button
-                  onClick={handleSyncClick}
-                  disabled={syncing}
-                  className="shrink-0 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                >
-                  {syncing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      Sincronizando...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-1" />
-                      Sincronizar
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       )}
       {showFolderBrowser && (
         <DriveBrowserCard

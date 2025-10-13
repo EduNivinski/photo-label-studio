@@ -1,41 +1,81 @@
-import { Folder } from "lucide-react";
+import { Folder, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
   dedicatedFolderPath?: string | null;
   onChooseFolder: () => void;
   disabled?: boolean;
+  onSync?: () => void;
+  syncing?: boolean;
+  syncProgress?: {
+    processedFolders: number;
+    queued: number;
+    updatedItems: number;
+  } | null;
 };
 
 export function DriveFolderSelectionCard({
   dedicatedFolderPath,
   onChooseFolder,
   disabled = false,
+  onSync,
+  syncing = false,
+  syncProgress,
 }: Props) {
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
       <h3 className="text-lg font-semibold">Pasta de Backup</h3>
       
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground flex-1 min-w-0">
-          {dedicatedFolderPath ? (
-            <div className="flex items-center gap-1">
-              <span className="shrink-0">Pasta selecionada:</span>
-              <span 
-                className="font-medium text-foreground truncate block" 
-                style={{ direction: 'rtl', textAlign: 'left' }}
-                title={dedicatedFolderPath}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground flex-1 min-w-0">
+            {dedicatedFolderPath ? (
+              <div className="flex items-center gap-1">
+                <span className="shrink-0">Pasta selecionada:</span>
+                <span 
+                  className="font-medium text-foreground truncate block" 
+                  style={{ direction: 'rtl', textAlign: 'left' }}
+                  title={dedicatedFolderPath}
+                >
+                  {dedicatedFolderPath}
+                </span>
+              </div>
+            ) : (
+              <span>Nenhuma pasta selecionada</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {dedicatedFolderPath && onSync && (
+              <Button
+                onClick={onSync}
+                disabled={syncing}
+                className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
               >
-                {dedicatedFolderPath}
-              </span>
-            </div>
-          ) : (
-            <span>Nenhuma pasta selecionada</span>
-          )}
+                {syncing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Sincronizar
+                  </>
+                )}
+              </Button>
+            )}
+            <Button onClick={onChooseFolder} disabled={disabled}>
+              <Folder className="h-4 w-4 mr-1" /> Buscar pasta
+            </Button>
+          </div>
         </div>
-        <Button onClick={onChooseFolder} disabled={disabled} className="shrink-0">
-          <Folder className="h-4 w-4 mr-1" /> Buscar pasta
-        </Button>
+        
+        {syncProgress && (
+          <div className="text-sm text-muted-foreground">
+            Processando: {syncProgress.processedFolders} pastas, {syncProgress.updatedItems} arquivos
+            {syncProgress.queued > 0 && ` (${syncProgress.queued} pendentes)`}
+          </div>
+        )}
       </div>
     </div>
   );
