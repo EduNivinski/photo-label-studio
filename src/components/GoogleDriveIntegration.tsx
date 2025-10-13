@@ -114,10 +114,36 @@ export default function GoogleDriveIntegration() {
     try {
       setShowFolderBrowser(false);
       
-      // Use orchestrator to handle full flow: save → index → sync
-      await runFullSync(id, name, path);
+      // ONLY save folder - do NOT auto-index or sync
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const { data: saveData, error: saveError } = await supabase.functions.invoke('google-drive-auth', {
+        body: { 
+          action: "set_folder", 
+          folderId: id, 
+          folderName: name,
+          folderPath: path || name
+        },
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (saveError || !saveData?.ok) {
+        const errorMsg = saveData?.error || saveError?.message || "Erro ao salvar pasta";
+        throw new Error(errorMsg);
+      }
+
+      toast({
+        title: "Pasta salva",
+        description: `Pasta "${name}" configurada. Clique em Sincronizar para indexar.`,
+      });
       
-      // Refresh status after completion
+      // Refresh status to show new folder
       checkStatus();
     } catch (e: any) {
       toast({
@@ -126,7 +152,7 @@ export default function GoogleDriveIntegration() {
         variant: "destructive",
       });
     }
-  }, [runFullSync, toast, checkStatus]);
+  }, [toast, checkStatus]);
 
   const buildFolderPath = useCallback(() => {
     // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
@@ -139,38 +165,28 @@ export default function GoogleDriveIntegration() {
 
   const handleSyncClick = useCallback(async () => {
     try {
-      console.log("[SYNC_CLIENT] Calling drive-sync-now...");
+      // Get current folder from status
+      const folderData = typeof status.dedicatedFolder === 'string' 
+        ? { id: status.dedicatedFolder, name: status.dedicatedFolder }
+        : status.dedicatedFolder;
+      
+      const folderId = folderData?.id;
+      const folderName = folderData?.name;
+      const folderPath = status.dedicatedFolderPath;
 
-      // Usar a função orquestradora que já funcionava
-      const { data, error } = await supabase.functions.invoke("drive-sync-now");
-
-      if (error) {
-        console.error("[SYNC_CLIENT_ERROR] drive-sync-now failed:", error);
-        
-        // Parse error details if available
-        const errorMsg = error?.message || "Não foi possível sincronizar";
-        const hint = (error as any)?.hint || "";
-        
+      if (!folderId || !folderName) {
         toast({
-          title: "Erro na sincronização",
-          description: `${errorMsg}${hint ? '. ' + hint : ''}`,
-          variant: "destructive"
+          title: "Erro",
+          description: "Nenhuma pasta configurada. Selecione uma pasta primeiro.",
+          variant: "destructive",
         });
         return;
       }
 
-      console.log("[SYNC_CLIENT] Sync completed:", data);
+      // Use orchestrator for full flow: index → sync-run loop → changes-pull
+      await runFullSync(folderId, folderName, folderPath);
 
-      const summary = data?.summary || {};
-      const totalFiles = summary.totalFiles || 0;
-      const changesProcessed = summary.changesProcessed || 0;
-
-      toast({
-        title: "Sincronização concluída",
-        description: `${totalFiles} arquivos indexados, ${changesProcessed} mudanças aplicadas`
-      });
-
-      // Atualizar status e disparar evento de atualização
+      // Refresh status after completion
       checkStatus();
       window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
 
@@ -186,7 +202,7 @@ export default function GoogleDriveIntegration() {
         variant: "destructive"
       });
     }
-  }, [toast, checkStatus]);
+  }, [status, runFullSync, toast, checkStatus]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
