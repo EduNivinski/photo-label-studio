@@ -143,8 +143,10 @@ export default function GoogleDriveIntegration() {
         description: `Pasta "${name}" configurada. Clique em Sincronizar para indexar.`,
       });
       
-      // Refresh status to show new folder
-      checkStatus();
+      // Wait a moment then refresh status to show new folder
+      setTimeout(() => {
+        checkStatus();
+      }, 500);
     } catch (e: any) {
       toast({
         title: "Erro",
