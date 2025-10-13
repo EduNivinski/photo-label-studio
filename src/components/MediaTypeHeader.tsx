@@ -38,10 +38,10 @@ export function MediaTypeHeader({
 
   return (
     <div
-      className={`flex items-center justify-between text-xs text-muted-foreground py-1 ${className}`}
+      className={`flex items-center justify-between text-lg text-muted-foreground py-1 ${className}`}
     >
-      <div className="flex items-center gap-1">
-        <Icon className="h-3 w-3" />
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-5 w-5" />
         <span className="font-medium">{kindLabel}</span>
       </div>
       <span>{dateLabel}</span>
