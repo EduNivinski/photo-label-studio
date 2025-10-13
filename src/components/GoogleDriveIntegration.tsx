@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
+import { useDriveSyncOrchestrator } from "@/hooks/useDriveSyncOrchestrator";
 import { useToast } from "@/hooks/use-toast";
 import { DriveIntegrationCard } from "./DriveIntegrationCard";
 import { DriveFolderSelectionCard } from "./DriveFolderSelectionCard";
@@ -12,16 +13,11 @@ import { RefreshCw, Loader2 } from "lucide-react";
 
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
+  const { progress, runFullSync, reset: resetOrchestrator } = useDriveSyncOrchestrator();
   const { toast } = useToast();
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
   const [preflightResult, setPreflightResult] = useState<{ ok: boolean; reason?: string } | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<{
-    processedFolders: number;
-    queued: number;
-    updatedItems: number;
-  } | null>(null);
 
   // Preflight check on component mount
   useEffect(() => {
@@ -116,23 +112,12 @@ export default function GoogleDriveIntegration() {
 
   const handleSelectCurrentFolder = useCallback(async (id: string, name: string, path?: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        body: { 
-          action: "set_folder", 
-          folderId: id, 
-          folderName: name,
-          folderPath: path || name
-        }
-      });
-      
-      if (error || !data?.ok) throw new Error(data?.reason || error?.message || "SET_FOLDER_FAILED");
-
-      toast({
-        title: "Pasta selecionada",
-        description: `Pasta "${data.dedicatedFolderName}" configurada.`,
-      });
-
       setShowFolderBrowser(false);
+      
+      // Use orchestrator to handle full flow: save → index → sync
+      await runFullSync(id, name, path);
+      
+      // Refresh status after completion
       checkStatus();
     } catch (e: any) {
       toast({
@@ -141,7 +126,7 @@ export default function GoogleDriveIntegration() {
         variant: "destructive",
       });
     }
-  }, [toast, checkStatus]);
+  }, [runFullSync, toast, checkStatus]);
 
   const buildFolderPath = useCallback(() => {
     // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
@@ -154,9 +139,6 @@ export default function GoogleDriveIntegration() {
 
   const handleSyncClick = useCallback(async () => {
     try {
-      setSyncing(true);
-      setSyncProgress({ processedFolders: 0, queued: 0, updatedItems: 0 });
-
       console.log("[SYNC_CLIENT] Calling drive-sync-now...");
 
       // Usar a função orquestradora que já funcionava
@@ -164,7 +146,17 @@ export default function GoogleDriveIntegration() {
 
       if (error) {
         console.error("[SYNC_CLIENT_ERROR] drive-sync-now failed:", error);
-        throw error;
+        
+        // Parse error details if available
+        const errorMsg = error?.message || "Não foi possível sincronizar";
+        const hint = (error as any)?.hint || "";
+        
+        toast({
+          title: "Erro na sincronização",
+          description: `${errorMsg}${hint ? '. ' + hint : ''}`,
+          variant: "destructive"
+        });
+        return;
       }
 
       console.log("[SYNC_CLIENT] Sync completed:", data);
@@ -184,14 +176,15 @@ export default function GoogleDriveIntegration() {
 
     } catch (error: any) {
       console.error("[SYNC_CLIENT_ERROR] Final error:", error);
+      
+      const errorMsg = error?.message || "Não foi possível sincronizar";
+      const hint = error?.hint || "";
+      
       toast({
         title: "Erro na sincronização",
-        description: error.message || "Não foi possível sincronizar",
+        description: `${errorMsg}${hint ? '. ' + hint : ''}`,
         variant: "destructive"
       });
-    } finally {
-      setSyncing(false);
-      setSyncProgress(null);
     }
   }, [toast, checkStatus]);
 
@@ -223,9 +216,32 @@ export default function GoogleDriveIntegration() {
           dedicatedFolderPath={buildFolderPath()}
           onChooseFolder={() => setShowFolderBrowser(true)}
           onSync={handleSyncClick}
-          syncing={syncing}
-          syncProgress={syncProgress}
+          syncing={progress.phase === 'indexing' || progress.phase === 'syncing'}
+          syncProgress={progress.phase !== 'idle' ? {
+            processedFolders: progress.processedFolders || 0,
+            queued: progress.queuedFolders || 0,
+            updatedItems: progress.updatedItems || 0
+          } : null}
         />
+      )}
+      
+      {/* Progress indicator */}
+      {(progress.phase === 'indexing' || progress.phase === 'syncing') && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div className="flex-1">
+                <p className="font-medium">{progress.message}</p>
+                {progress.updatedItems !== undefined && (
+                  <p className="text-sm text-muted-foreground">
+                    {progress.updatedItems} arquivos • {progress.processedFolders || 0} pastas processadas
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
       {showFolderBrowser && (
         <DriveBrowserCard

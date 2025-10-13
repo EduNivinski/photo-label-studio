@@ -29,30 +29,42 @@ export async function requireAuth(req: Request): Promise<AuthResult> {
 }
 
 /**
- * Returns a JSON response with proper headers
+ * Returns a JSON response with proper headers and BigInt-safe serialization
  */
 export function httpJson(status: number, data: unknown, origin?: string | null): Response {
-  const allowedOrigin = origin && origin === "https://photo-label-studio.lovable.app" 
+  // Get allowed origins from environment or use defaults
+  const allowedOriginsEnv = Deno.env.get("CORS_ALLOWED_ORIGINS");
+  const allowedOrigins = allowedOriginsEnv 
+    ? allowedOriginsEnv.split(",").map(o => o.trim())
+    : ["https://photo-label-studio.lovable.app", "http://localhost:3000", "http://localhost:5173"];
+  
+  const allowedOrigin = origin && allowedOrigins.includes(origin)
     ? origin 
-    : "https://photo-label-studio.lovable.app";
+    : allowedOrigins[0];
 
-  return new Response(JSON.stringify(data), {
+  // BigInt-safe JSON serialization
+  const body = JSON.stringify(data, (_key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  );
+
+  return new Response(body, {
     status,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
       "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Vary": "Origin",
     },
   });
 }
 
 /**
- * Safe error handling - logs details but returns generic message
+ * Safe error handling - logs details but returns generic message with code hint
  */
 export function safeError(
   error: any,
-  options: { publicMessage?: string; logContext?: string } = {}
+  options: { publicMessage?: string; logContext?: string; hint?: string } = {}
 ): Response {
   const publicMessage = options.publicMessage || "Unable to process request.";
   const logContext = options.logContext || "ERROR";
@@ -64,8 +76,12 @@ export function safeError(
     timestamp: new Date().toISOString(),
   });
 
-  // Return generic error to client
-  return httpJson(500, { ok: false, error: publicMessage });
+  // Return generic error to client with optional hint
+  return httpJson(500, { 
+    ok: false, 
+    error: publicMessage,
+    hint: options.hint 
+  });
 }
 
 /**

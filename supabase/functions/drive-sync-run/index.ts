@@ -213,19 +213,26 @@ serve(async (req) => {
     }, req.headers.get('origin'));
     
   } catch (err: any) {
-    console.error("[SYNC_ERROR]", { cid, fn: "drive-sync-run", msg: String(err?.message ?? err) });
+    const errMsg = String(err?.message ?? err);
+    console.error("[SYNC_RUN_ERROR]", { 
+      cid, 
+      userId: err?.userId,
+      error: errMsg,
+      timestamp: new Date().toISOString() 
+    });
     
-    const publicMap: Record<string, string> = {
-      METHOD_NOT_ALLOWED: "METHOD",
-      VALIDATION_FAILED: "BAD_BODY",
-      RATE_LIMITED: "RL",
-      DRIVE_NOT_CONNECTED: "NO_DRIVE",
-      SYNC_NOT_INITIALIZED: "NO_STATE",
+    const publicMap: Record<string, { msg: string; hint: string }> = {
+      METHOD_NOT_ALLOWED: { msg: "Método não permitido (METHOD)", hint: "Use POST" },
+      VALIDATION_FAILED: { msg: "Dados inválidos (BAD_BODY)", hint: "Verifique os parâmetros" },
+      RATE_LIMITED: { msg: "Limite de requisições atingido (RL)", hint: "Aguarde alguns minutos" },
+      DRIVE_NOT_CONNECTED: { msg: "Google Drive não conectado (NO_DRIVE)", hint: "Conecte sua conta primeiro" },
+      SYNC_NOT_INITIALIZED: { msg: "Sincronização não inicializada (NO_STATE)", hint: "Selecione uma pasta primeiro" },
     };
     
-    const code = publicMap[String(err?.message)] ?? "SYNC_FAIL";
+    const mapped = publicMap[errMsg] ?? { msg: `Falha na sincronização (SYNC_FAIL)`, hint: "Tente novamente" };
     return safeError(err, { 
-      publicMessage: `Sync failed (${code})`,
+      publicMessage: mapped.msg,
+      hint: mapped.hint,
       logContext: `[${cid}]`
     });
   }
