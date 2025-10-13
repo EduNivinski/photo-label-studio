@@ -36,6 +36,8 @@ export function fromGDrive(row: any, thumbUrl?: string | null, downloadsEnabled?
     durationMs: row.video_duration_ms ?? null,
     createdAt: row.created_time || row.created_at || null,
     updatedAt: row.modified_time || row.updated_at || null,
+    mediaKind: row.media_kind ?? null,
+    originalTakenAt: row.original_taken_at ?? null,
     posterUrl: thumbUrl || row.thumbnail_link || null,
     previewUrl: null,
     openInDriveUrl: row.web_view_link || `https://drive.google.com/file/d/${row.item_key || row.file_id || row.id}/view`,

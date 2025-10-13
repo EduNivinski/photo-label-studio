@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { LabelChip } from './LabelChip';
 import { LabelManager } from './LabelManager';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { MediaTypeHeader } from './MediaTypeHeader';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import { supabase } from '@/integrations/supabase/client';
@@ -320,6 +321,17 @@ export function MediaModal({
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm" onClick={() => onClose()}>
       {/* Header Controls */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4" onClick={(e) => e.stopPropagation()}>
+        {/* Media Type and Date Header */}
+        <div className="mb-3">
+          <MediaTypeHeader
+            mediaKind={item.mediaKind}
+            mimeType={item.mimeType}
+            originalTakenAt={item.originalTakenAt}
+            createdAt={item.createdAt}
+            className="text-white bg-black/40 backdrop-blur-sm rounded px-3 py-2"
+          />
+        </div>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-white font-medium text-lg font-sans">
@@ -343,22 +355,6 @@ export function MediaModal({
                   className="h-8 bg-white/10 border-white/20 text-white placeholder:text-white/60 flex-1"
                   autoFocus
                 />
-                <div className="flex items-center gap-4 text-sm text-white bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-md border border-white/20 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <File className="h-4 w-4" />
-                    <span>{item.isVideo ? 'Vídeo' : 'Imagem'}</span>
-                  </div>
-                  {item.source === 'gdrive' && (
-                    <div className="flex items-center gap-1.5">
-                      <HardDrive className="h-4 w-4" />
-                      <span>Google Drive</span>
-                    </div>
-                  )}
-                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -380,6 +376,17 @@ export function MediaModal({
           </div>
           
           <div className="flex items-center gap-2">
+            {item.source === 'gdrive' && item.openInDriveUrl && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleOpenInDrive}
+                className="text-white/60 hover:text-white hover:bg-white/10"
+                title="Abrir no Google Drive"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"

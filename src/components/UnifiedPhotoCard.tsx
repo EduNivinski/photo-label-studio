@@ -6,7 +6,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
 import { MediaThumb } from './MediaThumb';
-import { MediaTypeHeader } from './MediaTypeHeader';
 import { MediaItem } from '@/types/media';
 import { formatDuration } from '@/lib/formatDuration';
 import type { Label } from '@/types/photo';
@@ -154,17 +153,6 @@ export function UnifiedPhotoCard({
       
       {/* Gradient overlay for content integration */}
       <div className="card-overlay absolute bottom-0 w-full bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
-        {/* Media Type and Date Header - Always visible at top of card */}
-        <div className="absolute top-[-4.5rem] left-3 right-3 bg-black/40 backdrop-blur-sm rounded px-2 py-1">
-          <MediaTypeHeader
-            mediaKind={item.mediaKind}
-            mimeType={item.mimeType}
-            originalTakenAt={item.originalTakenAt}
-            createdAt={item.createdAt}
-            className="text-white"
-          />
-        </div>
-
         <div className="labels mb-2 relative z-10 h-[3.25rem]">
           {/* Linha principal */}
           <div className="absolute bottom-7 left-0 right-0 h-6">

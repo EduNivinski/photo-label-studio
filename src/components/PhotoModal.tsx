@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LabelChip } from './LabelChip';
+import { MediaTypeHeader } from './MediaTypeHeader';
 import { getFileType } from '@/lib/fileUtils';
 import type { Photo, Label } from '@/types/photo';
 
@@ -173,6 +174,15 @@ export function PhotoModal({
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm">
       {/* Header Controls */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4">
+        {/* Media Type and Date Header */}
+        <div className="mb-3">
+          <MediaTypeHeader
+            mimeType={photo.url}
+            createdAt={photo.uploadDate}
+            className="text-white bg-black/40 backdrop-blur-sm rounded px-3 py-2"
+          />
+        </div>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-white font-medium text-lg font-sans">
@@ -196,16 +206,6 @@ export function PhotoModal({
                   className="h-8 bg-white/10 border-white/20 text-white placeholder:text-white/60 flex-1"
                   autoFocus
                 />
-                <div className="flex items-center gap-4 text-sm text-white bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-md border border-white/20 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(photo.uploadDate).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <File className="h-4 w-4" />
-                    <span>{isVideo ? 'Vídeo' : 'Foto'}</span>
-                  </div>
-                </div>
                 <Button
                   variant="ghost"
                   size="sm"
