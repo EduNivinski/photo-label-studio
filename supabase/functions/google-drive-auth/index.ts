@@ -247,7 +247,22 @@ async function handleSetFolder(userId: string, body: any) {
     throw new Error(`DB_UPDATE_FAILED: ${updateError.message}`);
   }
 
-  console.log("[google-drive-auth] Folder set successfully:", { userId, folderId, folderName: finalFolderName });
+  // Clear any existing sync state to force a fresh index on next sync
+  const { error: clearSyncError } = await admin
+    .from("drive_sync_state")
+    .delete()
+    .eq("user_id", userId);
+  
+  if (clearSyncError) {
+    console.warn("[google-drive-auth] Could not clear sync state:", clearSyncError);
+  }
+
+  console.log("[google-drive-auth] Folder set successfully:", { 
+    userId, 
+    folderId, 
+    folderName: finalFolderName,
+    folderPath: finalFolderPath 
+  });
 
   return httpJson(200, { 
     ok: true, 

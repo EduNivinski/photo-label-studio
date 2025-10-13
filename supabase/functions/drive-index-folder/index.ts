@@ -97,7 +97,12 @@ serve(async (req) => {
     const token = await ensureAccessToken(userId);
     const settings = await getSettings(userId);
 
-    console.log(`Starting full scan for user ${userId}, folder ${settings.drive_folder_id}`);
+    console.log(`[DRIVE-INDEX] Starting full scan for user ${userId}`);
+    console.log(`[DRIVE-INDEX] Using folder:`, {
+      folderId: settings.drive_folder_id,
+      folderName: settings.drive_folder_name,
+      folderPath: settings.drive_folder_path
+    });
 
     // BFS iterativa
     const queue: { id: string; name: string; path: string }[] = [{ 
