@@ -51,8 +51,6 @@ async function getUserDriveSettings(userId: string) {
     .from("user_drive_settings")
     .select("drive_folder_id, drive_folder_name, drive_folder_path, scope_granted, updated_at")
     .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
     .maybeSingle();
   if (error) throw new Error(`DB_GET_SETTINGS: ${error.message}`);
   return data || null;
@@ -73,7 +71,7 @@ async function handleStatus(userId: string) {
   try {
     const token = await ensureAccessToken(userId);
     if (!token) throw new Error("NO_ACCESS_TOKEN");
-    
+    console.log("[GDRIVE-STATUS]", { user_id: userId, dedicatedFolderId: settings?.drive_folder_id ?? null, stateRootFolderId: syncState?.root_folder_id ?? null });
     return httpJson(200, {
       ok: true,
       connected: true,
@@ -91,6 +89,7 @@ async function handleStatus(userId: string) {
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
+    console.log("[GDRIVE-STATUS]", { user_id: userId, dedicatedFolderId: settings?.drive_folder_id ?? null, stateRootFolderId: syncState?.root_folder_id ?? null, expired: true });
     return httpJson(200, {
       ok: true,
       connected: false,

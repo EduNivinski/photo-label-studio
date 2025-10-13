@@ -26,7 +26,8 @@ async function getUserIdFromJwt(req: Request): Promise<string | null> {
 async function getSettings(userId: string) {
   const { data, error } = await admin.from("user_drive_settings")
     .select("drive_folder_id, drive_folder_name, drive_folder_path")
-    .eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    .eq("user_id", userId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data?.drive_folder_id) throw new Error("NO_FOLDER_SELECTED");
   return data;
