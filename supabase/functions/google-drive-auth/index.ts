@@ -51,8 +51,6 @@ async function getUserDriveSettings(userId: string) {
     .from("user_drive_settings")
     .select("drive_folder_id, drive_folder_name, drive_folder_path, scope_granted, updated_at")
     .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-    .limit(1)
     .maybeSingle();
   if (error) throw new Error(`DB_GET_SETTINGS: ${error.message}`);
   return data || null;
