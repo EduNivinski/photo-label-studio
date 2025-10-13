@@ -128,9 +128,11 @@ export type Database = {
           name: string
           original_taken_at: string | null
           original_tz_offset_min: number | null
+          parent_id: string | null
           parents: string[] | null
           path_cached: string | null
           size: number | null
+          size_bigint: number | null
           status: string
           thumbnail_link: string | null
           trashed: boolean
@@ -157,9 +159,11 @@ export type Database = {
           name: string
           original_taken_at?: string | null
           original_tz_offset_min?: number | null
+          parent_id?: string | null
           parents?: string[] | null
           path_cached?: string | null
           size?: number | null
+          size_bigint?: number | null
           status?: string
           thumbnail_link?: string | null
           trashed?: boolean
@@ -186,9 +190,11 @@ export type Database = {
           name?: string
           original_taken_at?: string | null
           original_tz_offset_min?: number | null
+          parent_id?: string | null
           parents?: string[] | null
           path_cached?: string | null
           size?: number | null
+          size_bigint?: number | null
           status?: string
           thumbnail_link?: string | null
           trashed?: boolean
@@ -238,8 +244,12 @@ export type Database = {
           last_changes_at: string | null
           last_error: string | null
           last_full_scan_at: string | null
+          pending_folders: Json | null
+          root_folder_id: string | null
           running: boolean
           start_page_token: string | null
+          stats: Json | null
+          status: string | null
           updated_at: string
           user_id: string
         }
@@ -247,8 +257,12 @@ export type Database = {
           last_changes_at?: string | null
           last_error?: string | null
           last_full_scan_at?: string | null
+          pending_folders?: Json | null
+          root_folder_id?: string | null
           running?: boolean
           start_page_token?: string | null
+          stats?: Json | null
+          status?: string | null
           updated_at?: string
           user_id: string
         }
@@ -256,8 +270,12 @@ export type Database = {
           last_changes_at?: string | null
           last_error?: string | null
           last_full_scan_at?: string | null
+          pending_folders?: Json | null
+          root_folder_id?: string | null
           running?: boolean
           start_page_token?: string | null
+          stats?: Json | null
+          status?: string | null
           updated_at?: string
           user_id?: string
         }

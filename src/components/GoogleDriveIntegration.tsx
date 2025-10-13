@@ -8,7 +8,7 @@ import { DriveBrowserCard } from "./DriveBrowserCard";
 import { preflightDriveCallback } from "@/lib/drivePreflightCheck";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2 } from "lucide-react";
 
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
@@ -16,6 +16,12 @@ export default function GoogleDriveIntegration() {
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
   const [preflightResult, setPreflightResult] = useState<{ ok: boolean; reason?: string } | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{
+    processedFolders: number;
+    queued: number;
+    updatedItems: number;
+  } | null>(null);
 
   // Preflight check on component mount
   useEffect(() => {
@@ -146,6 +152,71 @@ export default function GoogleDriveIntegration() {
       : status.dedicatedFolder.name;
   }, [status.dedicatedFolderPath, status.dedicatedFolder]);
 
+  const handleSyncClick = useCallback(async () => {
+    try {
+      setSyncing(true);
+      setSyncProgress({ processedFolders: 0, queued: 0, updatedItems: 0 });
+
+      // Iniciar sincronização
+      const { error: startError } = await supabase.functions.invoke("drive-sync-start", {
+        body: { force: false }
+      });
+
+      if (startError) {
+        throw startError;
+      }
+
+      // Loop de sincronização
+      let done = false;
+      let totalProcessed = 0;
+      let totalItems = 0;
+
+      while (!done) {
+        const { data, error } = await supabase.functions.invoke("drive-sync-run", {
+          body: { budgetFolders: 5 }
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        done = data?.done || false;
+        totalProcessed += data?.processedFolders || 0;
+        totalItems += data?.updatedItems || 0;
+
+        setSyncProgress({
+          processedFolders: totalProcessed,
+          queued: data?.queued || 0,
+          updatedItems: totalItems
+        });
+
+        if (!done) {
+          await new Promise(r => setTimeout(r, 350));
+        }
+      }
+
+      toast({
+        title: "Sincronização concluída",
+        description: `${totalItems} arquivos processados em ${totalProcessed} pastas`
+      });
+
+      // Atualizar status e disparar evento de atualização
+      checkStatus();
+      window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
+
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      toast({
+        title: "Erro na sincronização",
+        description: error.message || "Não foi possível sincronizar",
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+      setSyncProgress(null);
+    }
+  }, [toast, checkStatus]);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <DriveIntegrationCard
@@ -186,16 +257,32 @@ export default function GoogleDriveIntegration() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-end">
-              <Button
-                onClick={() =>
-                  toast({ title: "Em breve", description: "Sincronização em desenvolvimento" })
-                }
-                className="shrink-0 bg-green-600 hover:bg-green-700 text-white"
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Sincronizar
-              </Button>
+            <div className="space-y-3">
+              {syncProgress && (
+                <div className="text-sm text-muted-foreground">
+                  Processando: {syncProgress.processedFolders} pastas, {syncProgress.updatedItems} arquivos
+                  {syncProgress.queued > 0 && ` (${syncProgress.queued} pendentes)`}
+                </div>
+              )}
+              <div className="flex items-center justify-end">
+                <Button
+                  onClick={handleSyncClick}
+                  disabled={syncing}
+                  className="shrink-0 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                >
+                  {syncing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Sincronizar
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
