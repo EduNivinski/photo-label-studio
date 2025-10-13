@@ -285,8 +285,14 @@ export default function DriveSettingsPage() {
 
   // Debug log para verificar o estado chosen
   useEffect(() => {
-    console.log("Estado chosen atualizado:", chosen);
-  }, [chosen]);
+    console.log("=== DEBUG SYNC SECTION ===");
+    console.log("Status:", status);
+    console.log("Chosen:", chosen);
+    console.log("hasSavedFolder:", hasSavedFolder);
+    console.log("savedFolderName:", savedFolderName);
+    console.log("Should show sync section:", (status.ok && (status as any).connected && hasSavedFolder));
+    console.log("========================");
+  }, [chosen, status, hasSavedFolder, savedFolderName]);
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
