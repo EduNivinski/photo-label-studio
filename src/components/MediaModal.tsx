@@ -83,39 +83,52 @@ export function MediaModal({
     const functionName = kind === "image" ? "drive-image-preview" : "drive-video-poster";
     const maxSize = kind === "image" ? 1600 : 1280;
     
-    console.log(`📡 Invoking ${functionName} for fileId: ${fileId}`);
+    console.log(`📡 Invoking ${functionName} with maxSize: ${maxSize}`);
     
     const controller = new AbortController();
     abortControllerRef.current = controller;
     
-    // Use Supabase client - it handles auth automatically
-    const { data: blobData, error: invokeError } = await supabase.functions.invoke(functionName, {
-      body: { fileId, max: maxSize },
-      // @ts-ignore - signal is supported but not in types
-      signal: controller.signal
-    });
-    
-    if (invokeError) {
-      throw new Error(`Failed to load preview: ${invokeError.message}`);
+    try {
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      
+      // Call edge function directly with fetch to get blob response
+      const supabaseUrl = 'https://tcupxcxyylxfgsbhfdhw.supabase.co';
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/${functionName}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fileId, max: maxSize }),
+          signal: controller.signal
+        }
+      );
+      
+      console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Preview failed: ${response.status} - ${errorText}`);
+      }
+      
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      
+      console.log(`✅ ${kind} preview blob created:`, {
+        size: blob.size,
+        type: blob.type,
+        url: objectUrl
+      });
+      
+      return objectUrl;
+    } catch (error) {
+      console.error(`❌ Error fetching ${kind} preview:`, error);
+      throw error;
     }
-    
-    // Convert the response to blob for display
-    const r = new Response(JSON.stringify(blobData));
-    
-    console.log(`📡 Response status: ${r.status} ${r.statusText}`);
-    
-    if (!r.ok) throw new Error(`preview_${kind}_failed: ${r.status} ${r.statusText}`);
-    
-    const blob = await r.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    
-    console.log(`✅ ${kind} preview blob created:`, {
-      size: blob.size,
-      type: blob.type,
-      url: objectUrl
-    });
-    
-    return objectUrl;
   };
 
   useEffect(() => {

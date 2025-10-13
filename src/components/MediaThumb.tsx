@@ -16,33 +16,20 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
   useEffect(() => { 
     setPoster(item.posterUrl || null); 
     retried.current = false;
-    
-    // Debug log for videos
-    if (item.isVideo && item.source === 'gdrive') {
-      console.log('🎬 Video MediaThumb:', {
-        name: item.name,
-        posterUrl: item.posterUrl,
-        poster: poster,
-        fileId: item.id.split(":")[1]
-      });
-    }
   }, [item.id, item.posterUrl]);
 
   const onPosterError = async () => {
-    console.log('❌ Poster error for:', item.name, 'source:', item.source, 'isVideo:', item.isVideo);
     if (item.source !== "gdrive" || retried.current) return;
     retried.current = true;
     try {
       const fileId = item.id.split(":")[1];
-      console.log('🔄 Retrying thumbnail for video:', fileId);
       const { data } = await supabase.functions.invoke("get-thumb-urls", { body:{ fileIds:[fileId] }});
       const fresh = data?.urls?.[fileId];
       if (fresh) {
-        console.log('✅ Got fresh poster URL for video:', fileId);
         setPoster(fresh + "&cb=" + Date.now());
       }
     } catch (err) {
-      console.error('❌ Failed to retry poster:', err);
+      console.error('Failed to retry thumbnail:', err);
     }
   };
 
