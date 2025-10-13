@@ -543,6 +543,35 @@ export default function DriveSettingsPage() {
         </Card>
       )}
 
+      {/* Sincronização da Pasta de Backup */}
+      {(status.ok && (status as any).connected && chosen) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Sincronização de Arquivos
+            </CardTitle>
+            <CardDescription>
+              Sincronize os arquivos da pasta de backup selecionada
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => {
+                toast({
+                  title: "Em breve",
+                  description: "Funcionalidade de sincronização em desenvolvimento",
+                });
+              }}
+              className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Sincronizar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Navegador de Pastas */}
       {(status.ok && (status as any).connected) && (
         <DriveBrowser onFolderSelected={(folder) => {
