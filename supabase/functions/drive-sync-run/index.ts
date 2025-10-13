@@ -137,6 +137,11 @@ serve(async (req) => {
               original_taken_at = new Date(f.videoMediaMetadata.creationTime).toISOString();
             }
 
+            // Converter size para string (seguro para BIGINT do Postgres)
+            const sizeStr = typeof f.size === "string" ? f.size :
+                            typeof f.size === "number" ? String(f.size) :
+                            f.size != null ? String(f.size) : null;
+
             const { error: upErr } = await admin
               .from("drive_items")
               .upsert({
@@ -147,6 +152,7 @@ serve(async (req) => {
                 mime_type: f.mimeType ?? null,
                 md5_checksum: f.md5Checksum ?? null,
                 size: f.size ? Number(f.size) : null,
+                size_bigint: sizeStr,
                 modified_time: f.modifiedTime ? new Date(f.modifiedTime).toISOString() : null,
                 created_time: f.createdTime ? new Date(f.createdTime).toISOString() : null,
                 media_kind,
