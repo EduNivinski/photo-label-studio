@@ -49,6 +49,16 @@ export default function DriveSettingsPage() {
     return r.includes("SCOPE");
   }, [status]);
 
+  const hasSavedFolder = useMemo(() => {
+    const s = status as any;
+    return !!(chosen?.id || s?.dedicatedFolderId || s?.dedicated_folder_id || s?.driveFolderId || s?.drive_folder_id);
+  }, [chosen, status]);
+
+  const savedFolderName = useMemo(() => {
+    const s = status as any;
+    return chosen?.name || s?.dedicatedFolderName || s?.dedicated_folder_name || s?.driveFolderName || s?.drive_folder_name;
+  }, [chosen, status]);
+
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
@@ -542,14 +552,14 @@ export default function DriveSettingsPage() {
               Pasta Dedicada para Backup
             </CardTitle>
             <CardDescription>
-              {chosen ? `Pasta atual: ${chosen.name}` : "Nenhuma pasta foi selecionada ainda"}
+              {savedFolderName ? `Pasta atual: ${savedFolderName}` : "Nenhuma pasta foi selecionada ainda"}
             </CardDescription>
           </CardHeader>
         </Card>
       )}
 
       {/* Sincronização da Pasta de Backup */}
-      {(status.ok && (status as any).connected && chosen) && (
+      {(status.ok && (status as any).connected && hasSavedFolder) && (
         <Card className="border-green-200 bg-green-50/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-800">
@@ -557,22 +567,21 @@ export default function DriveSettingsPage() {
               Sincronização de Arquivos
             </CardTitle>
             <CardDescription className="text-green-700">
-              Sincronize os arquivos da pasta de backup: <strong>{chosen.name}</strong>
+              Sincronize os arquivos da pasta de backup: <strong>{savedFolderName}</strong>
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button
               onClick={() => {
-                console.log("Botão Sincronizar clicado - Pasta:", chosen);
+                console.log("Botão Sincronizar clicado - Pasta:", savedFolderName);
                 toast({
                   title: "Em breve",
                   description: "Funcionalidade de sincronização em desenvolvimento",
                 });
               }}
-              size="lg"
-              className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 h-12"
+              className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
             >
-              <RefreshCw className="h-5 w-5" />
+              <RefreshCw className="h-4 w-4" />
               Sincronizar
             </Button>
           </CardContent>
