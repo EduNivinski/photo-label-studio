@@ -41,6 +41,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const cid = crypto.randomUUID();
+
   try {
     if (req.method !== "POST") throw new Error("METHOD_NOT_ALLOWED");
     
@@ -145,7 +147,6 @@ serve(async (req) => {
                 mime_type: f.mimeType ?? null,
                 md5_checksum: f.md5Checksum ?? null,
                 size: f.size ? Number(f.size) : null,
-                size_bigint: f.size ? BigInt(f.size) : null,
                 modified_time: f.modifiedTime ? new Date(f.modifiedTime).toISOString() : null,
                 created_time: f.createdTime ? new Date(f.createdTime).toISOString() : null,
                 media_kind,
@@ -201,11 +202,25 @@ serve(async (req) => {
       queued: pending.length, 
       processedFolders,
       updatedItems,
-      foundFolders
+      foundFolders,
+      cid
     }, req.headers.get('origin'));
     
   } catch (err: any) {
-    console.error("drive-sync-run error:", err);
-    return safeError(err, { publicMessage: "Falha ao sincronizar." });
+    console.error("[SYNC_ERROR]", { cid, fn: "drive-sync-run", msg: String(err?.message ?? err) });
+    
+    const publicMap: Record<string, string> = {
+      METHOD_NOT_ALLOWED: "METHOD",
+      VALIDATION_FAILED: "BAD_BODY",
+      RATE_LIMITED: "RL",
+      DRIVE_NOT_CONNECTED: "NO_DRIVE",
+      SYNC_NOT_INITIALIZED: "NO_STATE",
+    };
+    
+    const code = publicMap[String(err?.message)] ?? "SYNC_FAIL";
+    return safeError(err, { 
+      publicMessage: `Sync failed (${code})`,
+      logContext: `[${cid}]`
+    });
   }
 });

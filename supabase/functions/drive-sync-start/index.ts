@@ -16,6 +16,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const cid = crypto.randomUUID();
+
   try {
     if (req.method !== "POST") throw new Error("METHOD_NOT_ALLOWED");
     
@@ -69,9 +71,21 @@ serve(async (req) => {
 
     console.log(`Sync initialized for user ${userId}, root folder: ${rootFolderId}`);
 
-    return httpJson(200, { ok: true, rootFolderId }, req.headers.get('origin'));
+    return httpJson(200, { ok: true, rootFolderId, cid }, req.headers.get('origin'));
   } catch (err: any) {
-    console.error("drive-sync-start error:", err);
-    return safeError(err, { publicMessage: "Não foi possível iniciar a sincronização." });
+    console.error("[SYNC_ERROR]", { cid, fn: "drive-sync-start", msg: String(err?.message ?? err) });
+    
+    const publicMap: Record<string, string> = {
+      METHOD_NOT_ALLOWED: "METHOD",
+      VALIDATION_FAILED: "BAD_BODY",
+      RATE_LIMITED: "RL",
+      NO_ROOT_FOLDER: "NO_FOLDER",
+    };
+    
+    const code = publicMap[String(err?.message)] ?? "START_FAIL";
+    return safeError(err, { 
+      publicMessage: `Não foi possível iniciar a sincronização (${code})`,
+      logContext: `[${cid}]`
+    });
   }
 });

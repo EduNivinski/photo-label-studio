@@ -158,13 +158,16 @@ export default function GoogleDriveIntegration() {
       setSyncProgress({ processedFolders: 0, queued: 0, updatedItems: 0 });
 
       // Iniciar sincronização
-      const { error: startError } = await supabase.functions.invoke("drive-sync-start", {
+      const { data: startData, error: startError } = await supabase.functions.invoke("drive-sync-start", {
         body: { force: false }
       });
 
       if (startError) {
+        console.error("[SYNC_CLIENT_ERROR] start failed:", { cid: startData?.cid, error: startError });
         throw startError;
       }
+
+      console.log("[SYNC_CLIENT] Started:", { cid: startData?.cid });
 
       // Loop de sincronização
       let done = false;
@@ -177,12 +180,21 @@ export default function GoogleDriveIntegration() {
         });
 
         if (error) {
+          console.error("[SYNC_CLIENT_ERROR] run failed:", { cid: data?.cid, error });
           throw error;
         }
 
         done = data?.done || false;
         totalProcessed += data?.processedFolders || 0;
         totalItems += data?.updatedItems || 0;
+
+        console.log("[SYNC_CLIENT] Progress:", { 
+          cid: data?.cid, 
+          done, 
+          totalProcessed, 
+          totalItems,
+          queued: data?.queued 
+        });
 
         setSyncProgress({
           processedFolders: totalProcessed,
@@ -205,7 +217,7 @@ export default function GoogleDriveIntegration() {
       window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
 
     } catch (error: any) {
-      console.error("Sync error:", error);
+      console.error("[SYNC_CLIENT_ERROR] Final error:", error);
       toast({
         title: "Erro na sincronização",
         description: error.message || "Não foi possível sincronizar",
