@@ -112,6 +112,7 @@ export default function GoogleDriveIntegration() {
 
   const handleSelectCurrentFolder = useCallback(async (id: string, name: string, path?: string) => {
     try {
+      console.log('[FOLDER_SELECT] Starting folder selection:', { id, name, path });
       setShowFolderBrowser(false);
       
       // ONLY save folder - do NOT auto-index or sync
@@ -120,6 +121,7 @@ export default function GoogleDriveIntegration() {
         throw new Error('Not authenticated');
       }
 
+      console.log('[FOLDER_SELECT] Calling google-drive-auth with set_folder action');
       const { data: saveData, error: saveError } = await supabase.functions.invoke('google-drive-auth', {
         body: { 
           action: "set_folder", 
@@ -133,11 +135,15 @@ export default function GoogleDriveIntegration() {
         },
       });
 
+      console.log('[FOLDER_SELECT] Response:', { saveData, saveError });
+
       if (saveError || !saveData?.ok) {
         const errorMsg = saveData?.error || saveError?.message || "Erro ao salvar pasta";
+        console.error('[FOLDER_SELECT] Failed:', errorMsg);
         throw new Error(errorMsg);
       }
 
+      console.log('[FOLDER_SELECT] Folder saved successfully, waiting before status check');
       toast({
         title: "Pasta salva",
         description: `Pasta "${name}" configurada. Clique em Sincronizar para indexar.`,
@@ -145,9 +151,11 @@ export default function GoogleDriveIntegration() {
       
       // Wait a moment then refresh status to show new folder
       setTimeout(() => {
+        console.log('[FOLDER_SELECT] Refreshing status...');
         checkStatus();
       }, 500);
     } catch (e: any) {
+      console.error('[FOLDER_SELECT] Error:', e);
       toast({
         title: "Erro",
         description: `Não foi possível selecionar a pasta: ${e?.message || e}`,

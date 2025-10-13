@@ -81,6 +81,8 @@ export function useGoogleDriveSimple() {
       const isConnected = Boolean(statusData?.connected);
       const isExpired = statusData?.reason === "EXPIRED";
       
+      console.log('[DRIVE_STATUS] Raw status data:', statusData);
+      
       const newStatus = {
         isConnected,
         isExpired,
@@ -91,7 +93,7 @@ export function useGoogleDriveSimple() {
         dedicatedFolderPath: statusData?.dedicatedFolderPath || null,
       };
       
-      console.log('🔄 Updating status to:', newStatus);
+      console.log('[DRIVE_STATUS] Updating status to:', newStatus);
       setStatus(newStatus);
 
     } catch (error) {
