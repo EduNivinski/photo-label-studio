@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 import { requireAuth, httpJson, safeError, getClientIp } from "../_shared/http.ts";
 import { checkRateLimit, RATE_LIMITS } from "../_shared/rate-limit.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
@@ -164,6 +165,98 @@ async function handleDisconnect(userId: string) {
   return httpJson(200, { ok: true, message: "Disconnected successfully" });
 }
 
+// Zod schema for set_folder
+const SetFolderSchema = z.object({
+  folderId: z.string().min(5).max(256),
+  folderName: z.string().min(1).max(256).optional(),
+  folderPath: z.string().min(1).max(1024).optional(),
+});
+
+// Handle set_folder action
+async function handleSetFolder(userId: string, body: any) {
+  // Validate input with Zod
+  const parsed = SetFolderSchema.safeParse(body);
+  if (!parsed.success) {
+    console.error("[google-drive-auth] Validation failed:", parsed.error);
+    throw new Error("VALIDATION_FAILED");
+  }
+  
+  const { folderId, folderName, folderPath } = parsed.data;
+
+  // 1) Ensure user has a valid Drive connection
+  const admin = getAdmin();
+  
+  // Check if user has valid tokens
+  const { data: tokenData, error: tokenError } = await admin
+    .from("user_drive_tokens")
+    .select("access_token_enc, expires_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  
+  if (tokenError) throw new Error(`TOKEN_LOOKUP_FAILED: ${tokenError.message}`);
+  if (!tokenData) throw new Error("DRIVE_NOT_CONNECTED");
+  
+  // 2) Get a valid access token (auto-refresh if needed)
+  let accessToken: string;
+  try {
+    accessToken = await ensureAccessToken(userId);
+  } catch (e: any) {
+    console.error("[google-drive-auth] Token refresh failed:", e);
+    throw new Error("TOKEN_REFRESH_FAILED");
+  }
+
+  // 3) Verify the folder exists on Google Drive
+  const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType`;
+  const metaResp = await fetch(metaUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (metaResp.status === 401 || metaResp.status === 403) {
+    console.error("[google-drive-auth] Google API auth failed:", metaResp.status);
+    throw new Error("GOOGLE_FORBIDDEN");
+  }
+  if (!metaResp.ok) {
+    console.error("[google-drive-auth] Google API error:", metaResp.status);
+    throw new Error("GOOGLE_FOLDER_LOOKUP_FAILED");
+  }
+
+  const meta = await metaResp.json();
+  if (meta.mimeType !== "application/vnd.google-apps.folder") {
+    console.error("[google-drive-auth] Not a folder:", meta.mimeType);
+    throw new Error("NOT_A_FOLDER");
+  }
+
+  // 4) Persist the dedicated folder
+  const finalFolderName = folderName ?? meta.name ?? "Unknown";
+  const finalFolderPath = folderPath ?? finalFolderName;
+
+  const { error: updateError } = await admin
+    .from("user_drive_settings")
+    .upsert({
+      user_id: userId,
+      drive_folder_id: folderId,
+      drive_folder_name: finalFolderName,
+      drive_folder_path: finalFolderPath,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'user_id'
+    });
+
+  if (updateError) {
+    console.error("[google-drive-auth] DB update failed:", updateError);
+    throw new Error(`DB_UPDATE_FAILED: ${updateError.message}`);
+  }
+
+  console.log("[google-drive-auth] Folder set successfully:", { userId, folderId, folderName: finalFolderName });
+
+  return httpJson(200, { 
+    ok: true, 
+    folderId, 
+    dedicatedFolderName: finalFolderName,
+    dedicatedFolderPath: finalFolderPath 
+  });
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -205,6 +298,8 @@ serve(async (req: Request) => {
       return await handleAuthorize(userId);
     } else if (action === "disconnect") {
       return await handleDisconnect(userId);
+    } else if (action === "set_folder") {
+      return await handleSetFolder(userId, body);
     } else {
       return httpJson(400, { ok: false, error: "Invalid action" });
     }
