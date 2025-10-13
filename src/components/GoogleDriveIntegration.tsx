@@ -188,16 +188,8 @@ export default function GoogleDriveIntegration() {
 
   const handleSyncClick = useCallback(async () => {
     try {
-      // Get current folder from status
-      const folderData = typeof status.dedicatedFolder === 'string' 
-        ? { id: status.dedicatedFolder, name: status.dedicatedFolder }
-        : status.dedicatedFolder;
-      
-      const folderId = folderData?.id;
-      const folderName = folderData?.name;
-      const folderPath = status.dedicatedFolderPath;
-
-      if (!folderId || !folderName) {
+      // Verify folder is configured (UI should already show it)
+      if (!status.dedicatedFolder?.id) {
         toast({
           title: "Erro",
           description: "Nenhuma pasta configurada. Selecione uma pasta primeiro.",
@@ -206,8 +198,8 @@ export default function GoogleDriveIntegration() {
         return;
       }
 
-      // Use orchestrator for full flow: index → sync-run loop → changes-pull
-      await runFullSync(folderId, folderName, folderPath);
+      // Use orchestrator - it will read folder from DB via drive-sync-start
+      await runFullSync();
 
       // Refresh status after completion
       checkStatus();

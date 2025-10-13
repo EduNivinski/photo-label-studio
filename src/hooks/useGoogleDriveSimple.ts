@@ -18,13 +18,14 @@ export function useGoogleDriveSimple() {
     isExpired: false,
     dedicatedFolder: null,
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start as loading until first check
   const { toast } = useToast();
   const hasInitialized = useRef(false);
   const isCheckingStatus = useRef(false);
   const isConnecting = useRef(false);
   const optimisticUntil = useRef(0);
   const optimisticData = useRef<{ id: string; name: string; path?: string | null } | null>(null);
+  const lastStatusVersion = useRef<string | null>(null);
 
   const checkStatus = useCallback(async (showErrors = false) => {
     // Prevent multiple simultaneous calls
@@ -82,6 +83,7 @@ export function useGoogleDriveSimple() {
       const statusData = response.data;
       const isConnected = Boolean(statusData?.connected);
       const isExpired = statusData?.reason === "EXPIRED";
+      const incomingVersion = statusData?.statusVersion || statusData?.updatedAt;
       
       console.log('[DRIVE_STATUS] Raw status data:', statusData);
       
@@ -94,6 +96,16 @@ export function useGoogleDriveSimple() {
         } : null,
         dedicatedFolderPath: statusData?.dedicatedFolderPath || null,
       };
+      
+      // Only accept data if version is newer or equal (prevents stale cache)
+      const shouldAccept = !lastStatusVersion.current || 
+                          !incomingVersion ||
+                          incomingVersion >= lastStatusVersion.current;
+      
+      if (!shouldAccept) {
+        console.log('[DRIVE_STATUS] Ignoring stale status response');
+        return;
+      }
       
       // If we recently updated the folder optimistically and server is still stale, keep optimistic briefly
       const now = Date.now();
@@ -116,6 +128,10 @@ export function useGoogleDriveSimple() {
       } else {
         console.log('[DRIVE_STATUS] Updating status to:', newStatus);
         setStatus(newStatus);
+        lastStatusVersion.current = incomingVersion;
+        // Clear optimistic data once server confirms
+        optimisticData.current = null;
+        optimisticUntil.current = 0;
       }
 
     } catch (error) {
@@ -219,15 +235,57 @@ export function useGoogleDriveSimple() {
     }
   }, [toast]);
 
-  // Only initialize on first mount, no automatic checking
+  // Bootstrap: clean legacy storage and fetch fresh status on mount
   useEffect(() => {
     if (hasInitialized.current) {
       return;
     }
 
-    console.log('🚀 Google Drive hook initialized - call checkStatus manually to verify connection');
+    // Clear any legacy localStorage keys that might contain stale folder data
+    const legacyKeys = [
+      'driveFolderPath', 
+      'driveFolderName',
+      'googleDrive.dedicatedFolder', 
+      'pl_backup_path',
+      'drive_folder_id',
+    ];
+    legacyKeys.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {
+        console.warn('Failed to clear legacy key:', key);
+      }
+    });
+
+    console.log('🚀 Google Drive hook initialized - fetching fresh status from server');
     hasInitialized.current = true;
-  }, []); // Empty dependency array - only run once
+    
+    // Fetch fresh status on mount
+    checkStatus(false);
+  }, [checkStatus]);
+
+  // Revalidate on focus/visibility change to ensure fresh data
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('🔄 Window focused - revalidating Drive status');
+      checkStatus(false);
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('🔄 Tab visible - revalidating Drive status');
+        checkStatus(false);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkStatus]);
 
   // Listen for status change events from OAuth callback
   useEffect(() => {
