@@ -49,10 +49,9 @@ export function MediaTypeHeader({
         <Icon className="h-5 w-5" />
         <span className="font-medium">{kindLabel}</span>
         {fileFormat && (
-          <>
-            <span className="text-muted-foreground/50">·</span>
-            <span className="text-sm">{fileFormat}</span>
-          </>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-white/10 text-white border border-white/20">
+            {fileFormat}
+          </span>
         )}
       </div>
       <span>{dateLabel}</span>
