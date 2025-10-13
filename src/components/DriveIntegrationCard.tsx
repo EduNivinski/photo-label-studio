@@ -48,14 +48,19 @@ export function DriveIntegrationCard({
       {/* Ações secundárias */}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" onClick={onCheck}><RefreshCcw className="h-4 w-4 mr-1" /> Verificar status</Button>
-        <Button 
-          variant="outline" 
-          onClick={onConnect}
-          disabled={shouldDisableConnectButtons}
-          className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
-        >
-          <PlugZap className="h-4 w-4 mr-1" /> Conectar
-        </Button>
+        
+        {/* Mostrar botão Conectar apenas se NÃO estiver conectado */}
+        {state !== "connected" && (
+          <Button 
+            variant="outline" 
+            onClick={onConnect}
+            disabled={shouldDisableConnectButtons}
+            className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+          >
+            <PlugZap className="h-4 w-4 mr-1" /> Conectar
+          </Button>
+        )}
+        
         <Button 
           variant="outline" 
           onClick={onReconnectWithConsent}
@@ -64,7 +69,11 @@ export function DriveIntegrationCard({
         >
           <KeySquare className="h-4 w-4 mr-1" /> Reconectar com permissões
         </Button>
-        <Button variant="destructive" onClick={onDisconnect}><Unlink className="h-4 w-4 mr-1" /> Desconectar</Button>
+        
+        {/* Mostrar botão Desconectar apenas se estiver conectado */}
+        {state === "connected" && (
+          <Button variant="destructive" onClick={onDisconnect}><Unlink className="h-4 w-4 mr-1" /> Desconectar</Button>
+        )}
       </div>
     </div>
   );
