@@ -40,28 +40,34 @@ export function DriveBrowserCard({
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
       {/* Header: Voltar + Breadcrumb */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={goBack} disabled={!canGoBack} title="Voltar">
-          <ChevronLeft className="h-4 w-4" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={goBack} disabled={!canGoBack} title="Voltar">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <nav className="text-sm text-muted-foreground flex items-center gap-1">
+            {path.map((p, i) => (
+              <span key={p.id} className="flex items-center">
+                <button
+                  className={`truncate max-w-[160px] ${
+                    i === path.length - 1 
+                      ? "text-foreground font-medium cursor-default" 
+                      : "hover:underline"
+                  }`}
+                  onClick={() => i !== path.length - 1 && goToCrumb(i)}
+                  title={p.name}
+                >
+                  {p.name}
+                </button>
+                {i !== path.length - 1 && <ChevronRight className="h-3 w-3 mx-1 opacity-60" />}
+              </span>
+            ))}
+          </nav>
+        </div>
+        <Button onClick={handleSelectCurrentFolder} size="sm" className="bg-purple-400 text-white hover:bg-purple-500">
+          <Folder className="h-4 w-4 mr-1" />
+          Selecionar pasta
         </Button>
-        <nav className="text-sm text-muted-foreground flex items-center gap-1">
-          {path.map((p, i) => (
-            <span key={p.id} className="flex items-center">
-              <button
-                className={`truncate max-w-[160px] ${
-                  i === path.length - 1 
-                    ? "text-foreground font-medium cursor-default" 
-                    : "hover:underline"
-                }`}
-                onClick={() => i !== path.length - 1 && goToCrumb(i)}
-                title={p.name}
-              >
-                {p.name}
-              </button>
-              {i !== path.length - 1 && <ChevronRight className="h-3 w-3 mx-1 opacity-60" />}
-            </span>
-          ))}
-        </nav>
       </div>
 
       {/* Listagem */}
