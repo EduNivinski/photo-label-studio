@@ -66,6 +66,13 @@ serve(async (req) => {
     // Obter token de acesso
     const token = await ensureAccessToken(userId);
 
+    // Read settings to verify root folder
+    const { data: settings } = await admin
+      .from("user_drive_settings")
+      .select("drive_folder_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     // Carregar estado
     const { data: st, error: stErr } = await admin
       .from("drive_sync_state")
@@ -74,6 +81,18 @@ serve(async (req) => {
       .single();
     
     if (stErr || !st) throw new Error("SYNC_NOT_INITIALIZED");
+
+    // Verify root_folder_id matches settings (alert on mismatch)
+    if (settings?.drive_folder_id && st.root_folder_id !== settings.drive_folder_id) {
+      console.warn(`[SYNC-RUN] Root mismatch: state=${st.root_folder_id}, settings=${settings.drive_folder_id}`);
+      return httpJson(409, { 
+        ok: false, 
+        code: 'ROOT_MISMATCH',
+        message: 'Folder changed. Click Sync again to re-arm the new root.',
+        stateRoot: st.root_folder_id,
+        settingsRoot: settings.drive_folder_id
+      }, req.headers.get('origin'));
+    }
 
     let pending: string[] = Array.isArray(st.pending_folders) ? st.pending_folders.slice() : [];
     

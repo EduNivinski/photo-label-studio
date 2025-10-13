@@ -38,40 +38,61 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Buscar pasta dedicada
+    // 1) Read current folder from settings (source of truth)
     const { data: settings, error: settingsErr } = await admin
       .from("user_drive_settings")
-      .select("drive_folder_id")
+      .select("drive_folder_id, drive_folder_name, drive_folder_path")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
     
     if (settingsErr || !settings?.drive_folder_id) {
       throw new Error("NO_ROOT_FOLDER");
     }
 
-    const rootFolderId = settings.drive_folder_id;
+    const currentFolderId = settings.drive_folder_id;
 
-    // Iniciar/reiniciar estado
-    const pending = [rootFolderId];
-    const upsertData = {
-      user_id: userId,
-      root_folder_id: rootFolderId,
-      pending_folders: pending,
-      status: 'idle',
-      last_error: null,
-      stats: {},
-      updated_at: new Date().toISOString()
-    };
-
-    const { error: upErr } = await admin
+    // 2) Read current sync state
+    const { data: state } = await admin
       .from("drive_sync_state")
-      .upsert(upsertData, { onConflict: "user_id" });
-    
-    if (upErr) throw upErr;
+      .select("root_folder_id, pending_folders, status, start_page_token")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    console.log(`Sync initialized for user ${userId}, root folder: ${rootFolderId}`);
+    // 3) Auto-heal if root_folder_id differs from settings
+    if (!state?.root_folder_id || state.root_folder_id !== currentFolderId) {
+      console.log(`[SYNC-START] Auto-healing: old root=${state?.root_folder_id}, new root=${currentFolderId}`);
+      
+      const pending = [currentFolderId];
+      const upsertData = {
+        user_id: userId,
+        root_folder_id: currentFolderId,
+        pending_folders: pending,
+        status: 'idle',
+        last_error: null,
+        start_page_token: null, // Reset token for new root
+        last_full_scan_at: null,
+        last_changes_at: null,
+        stats: {},
+        updated_at: new Date().toISOString()
+      };
 
-    return httpJson(200, { ok: true, rootFolderId, cid }, req.headers.get('origin'));
+      const { error: upErr } = await admin
+        .from("drive_sync_state")
+        .upsert(upsertData, { onConflict: "user_id" });
+      
+      if (upErr) throw upErr;
+      
+      console.log(`[SYNC-START] State reset for new root folder: ${currentFolderId}`);
+    } else {
+      console.log(`[SYNC-START] Root folder unchanged: ${currentFolderId}`);
+    }
+
+    return httpJson(200, { 
+      ok: true, 
+      effectiveRootFolderId: currentFolderId,
+      message: 'Sync start armed with latest folder',
+      cid 
+    }, req.headers.get('origin'));
   } catch (err: any) {
     console.error("[SYNC_ERROR]", { cid, fn: "drive-sync-start", msg: String(err?.message ?? err) });
     

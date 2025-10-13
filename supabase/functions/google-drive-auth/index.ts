@@ -60,6 +60,14 @@ async function getUserDriveSettings(userId: string) {
 async function handleStatus(userId: string) {
   const settings = await getUserDriveSettings(userId);
   
+  // Read sync state for diagnostics
+  const admin = getAdmin();
+  const { data: syncState } = await admin
+    .from("drive_sync_state")
+    .select("root_folder_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  
   try {
     const token = await ensureAccessToken(userId);
     if (!token) throw new Error("NO_ACCESS_TOKEN");
@@ -75,6 +83,9 @@ async function handleStatus(userId: string) {
       dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
       updatedAt: settings?.updated_at ?? null,
       statusVersion: settings?.updated_at ?? null,
+      // Diagnostics
+      settingsFolderId: settings?.drive_folder_id ?? null,
+      stateRootFolderId: syncState?.root_folder_id ?? null,
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
@@ -90,6 +101,9 @@ async function handleStatus(userId: string) {
       dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
       updatedAt: settings?.updated_at ?? null,
       statusVersion: settings?.updated_at ?? null,
+      // Diagnostics
+      settingsFolderId: settings?.drive_folder_id ?? null,
+      stateRootFolderId: syncState?.root_folder_id ?? null,
     });
   }
 }
