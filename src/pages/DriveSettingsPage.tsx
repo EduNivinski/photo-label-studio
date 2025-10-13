@@ -273,6 +273,11 @@ export default function DriveSettingsPage() {
     }
   }, [fetchStatus, peekChanges, status]);
 
+  // Debug log para verificar o estado chosen
+  useEffect(() => {
+    console.log("Estado chosen atualizado:", chosen);
+  }, [chosen]);
+
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e?.data?.type === "drive_connected") {
@@ -545,27 +550,29 @@ export default function DriveSettingsPage() {
 
       {/* Sincronização da Pasta de Backup */}
       {(status.ok && (status as any).connected && chosen) && (
-        <Card>
+        <Card className="border-green-200 bg-green-50/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-green-800">
               <RefreshCw className="h-5 w-5" />
               Sincronização de Arquivos
             </CardTitle>
-            <CardDescription>
-              Sincronize os arquivos da pasta de backup selecionada
+            <CardDescription className="text-green-700">
+              Sincronize os arquivos da pasta de backup: <strong>{chosen.name}</strong>
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button
               onClick={() => {
+                console.log("Botão Sincronizar clicado - Pasta:", chosen);
                 toast({
                   title: "Em breve",
                   description: "Funcionalidade de sincronização em desenvolvimento",
                 });
               }}
-              className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+              size="lg"
+              className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 h-12"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-5 w-5" />
               Sincronizar
             </Button>
           </CardContent>
