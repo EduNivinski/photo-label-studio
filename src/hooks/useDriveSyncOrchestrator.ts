@@ -25,27 +25,30 @@ export function useDriveSyncOrchestrator() {
     };
   }, []);
 
-  const runFullSync = useCallback(async () => {
+  const runFullSync = useCallback(async (folderId: string, folderName: string, folderPath?: string) => {
     try {
-      const headers = await getAuthHeaders();
+      setProgress({ phase: 'indexing', message: 'Salvando pasta selecionada...' });
 
-      // Step 1: Arm sync with latest folder from DB (auto-heals if mismatch)
-      setProgress({ phase: 'indexing', message: 'Preparando sincronização...' });
-      
-      const { data: startData, error: startError } = await supabase.functions.invoke('drive-sync-start', {
+      // Step 1: Save folder
+      const headers = await getAuthHeaders();
+      const { data: saveData, error: saveError } = await supabase.functions.invoke('google-drive-auth', {
+        body: { 
+          action: "set_folder", 
+          folderId, 
+          folderName,
+          folderPath: folderPath || folderName
+        },
         headers,
       });
 
-      if (startError || !startData?.ok) {
-        const errorMsg = startData?.error || startError?.message || "Erro ao iniciar sincronização";
+      if (saveError || !saveData?.ok) {
+        const errorMsg = saveData?.error || saveError?.message || "Erro ao salvar pasta";
         throw new Error(errorMsg);
       }
 
-      console.log('[ORCHESTRATOR] Sync armed with root:', startData.effectiveRootFolderId);
-
-      // Step 2: Index folder (seed drive_sync_state with files)
       setProgress({ phase: 'indexing', message: 'Indexando pasta...' });
 
+      // Step 2: Index folder (seed drive_sync_state)
       const { data: indexData, error: indexError } = await supabase.functions.invoke('drive-index-folder', {
         headers,
       });
