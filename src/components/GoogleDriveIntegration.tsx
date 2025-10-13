@@ -6,6 +6,9 @@ import { DriveIntegrationCard } from "./DriveIntegrationCard";
 import { DriveFolderSelectionCard } from "./DriveFolderSelectionCard";
 import { DriveBrowserCard } from "./DriveBrowserCard";
 import { preflightDriveCallback } from "@/lib/drivePreflightCheck";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
@@ -173,7 +176,30 @@ export default function GoogleDriveIntegration() {
         />
       )}
 
-      {/* Navegador de Pastas - aparece abaixo da seção de seleção */}
+      {/* Nova seção: Sincronização - aparece somente quando a seção de pasta é visível e há pasta salva */}
+      {status.isConnected && Boolean(buildFolderPath()) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sincronização</CardTitle>
+            <CardDescription>
+              Sincronize os arquivos da pasta selecionada
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-end">
+              <Button
+                variant="create"
+                onClick={() =>
+                  toast({ title: "Em breve", description: "Sincronização em desenvolvimento" })
+                }
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Sincronizar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {showFolderBrowser && (
         <DriveBrowserCard
           onSelectCurrentFolder={handleSelectCurrentFolder}
