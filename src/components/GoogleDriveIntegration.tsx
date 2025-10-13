@@ -188,10 +188,10 @@ export default function GoogleDriveIntegration() {
           <CardContent>
             <div className="flex items-center justify-end">
               <Button
-                variant="create"
                 onClick={() =>
                   toast({ title: "Em breve", description: "Sincronização em desenvolvimento" })
                 }
+                className="shrink-0 bg-green-600 hover:bg-green-700 text-white"
               >
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Sincronizar
