@@ -430,15 +430,18 @@ export default function DriveSettingsPage() {
               Verificar Status
             </Button>
             
-            <Button
-              onClick={authorize}
-              variant="outline"
-              disabled={loading || busyRef.current}
-              className="flex items-center gap-2 border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
-            >
-              {(loading || busyRef.current) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-              Conectar
-            </Button>
+            {/* Mostrar botão Conectar apenas se NÃO estiver conectado */}
+            {!(status.ok && (status as any).connected) && (
+              <Button
+                onClick={authorize}
+                variant="outline"
+                disabled={loading || busyRef.current}
+                className="flex items-center gap-2 border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+              >
+                {(loading || busyRef.current) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+                Conectar
+              </Button>
+            )}
             
             {/* Hidden reconnect with permissions button */}
             <Button
@@ -476,15 +479,18 @@ export default function DriveSettingsPage() {
               Sincronizar pasta
             </Button>
             
-            <Button
-              onClick={disconnect}
-              variant="outline"
-              disabled={loading || !status.ok || !(status as any).connected}
-              className="flex items-center gap-2"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
-              Desconectar
-            </Button>
+            {/* Mostrar botão Desconectar apenas se estiver conectado */}
+            {(status.ok && (status as any).connected) && (
+              <Button
+                onClick={disconnect}
+                variant="outline"
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
+                Desconectar
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
