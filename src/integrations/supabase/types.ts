@@ -373,6 +373,7 @@ export type Database = {
           id: string
           labels: string[] | null
           media_type: string
+          mime_type: string | null
           name: string
           original_date: string | null
           upload_date: string
@@ -384,6 +385,7 @@ export type Database = {
           id?: string
           labels?: string[] | null
           media_type?: string
+          mime_type?: string | null
           name: string
           original_date?: string | null
           upload_date?: string
@@ -395,6 +397,7 @@ export type Database = {
           id?: string
           labels?: string[] | null
           media_type?: string
+          mime_type?: string | null
           name?: string
           original_date?: string | null
           upload_date?: string

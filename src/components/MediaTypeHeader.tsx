@@ -30,6 +30,11 @@ export function MediaTypeHeader({
   const kindLabel = kind === "video" ? "Vídeo" : kind === "photo" ? "Foto" : "Arquivo";
   const Icon = kind === "video" ? Video : Image;
 
+  // Extrair formato do mime_type (ex: image/jpeg -> JPEG, video/mp4 -> MP4)
+  const fileFormat = mimeType 
+    ? mimeType.split('/')[1]?.toUpperCase().replace('JPEG', 'JPG')
+    : null;
+
   // Usar original_taken_at se disponível, senão fallback para created_at
   const dateToDisplay = originalTakenAt || createdAt;
   const dateLabel = dateToDisplay
@@ -40,9 +45,15 @@ export function MediaTypeHeader({
     <div
       className={`flex items-center justify-between text-lg text-muted-foreground py-1 ${className}`}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <Icon className="h-5 w-5" />
         <span className="font-medium">{kindLabel}</span>
+        {fileFormat && (
+          <>
+            <span className="text-muted-foreground/50">·</span>
+            <span className="text-sm">{fileFormat}</span>
+          </>
+        )}
       </div>
       <span>{dateLabel}</span>
     </div>

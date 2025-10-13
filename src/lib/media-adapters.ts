@@ -1,12 +1,13 @@
 import { MediaItem } from "@/types/media";
 
 export function fromDB(row: any): MediaItem {
+  const isVideo = row.media_type === 'video';
   return {
     id: `db:${row.id}`,
     source: "db",
     name: row.name,
-    mimeType: row.media_type === 'video' ? 'video/mp4' : 'image/jpeg', // adaptação do campo media_type
-    isVideo: row.media_type === 'video',
+    mimeType: row.mime_type || (isVideo ? 'video/mp4' : 'image/jpeg'), // usa mime_type real, com fallback
+    isVideo,
     width: row.width ?? null,
     height: row.height ?? null,
     durationMs: row.duration_ms ?? null,
