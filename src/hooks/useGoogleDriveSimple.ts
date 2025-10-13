@@ -23,6 +23,8 @@ export function useGoogleDriveSimple() {
   const hasInitialized = useRef(false);
   const isCheckingStatus = useRef(false);
   const isConnecting = useRef(false);
+  const optimisticUntil = useRef(0);
+  const optimisticData = useRef<{ id: string; name: string; path?: string | null } | null>(null);
 
   const checkStatus = useCallback(async (showErrors = false) => {
     // Prevent multiple simultaneous calls
@@ -93,8 +95,28 @@ export function useGoogleDriveSimple() {
         dedicatedFolderPath: statusData?.dedicatedFolderPath || null,
       };
       
-      console.log('[DRIVE_STATUS] Updating status to:', newStatus);
-      setStatus(newStatus);
+      // If we recently updated the folder optimistically and server is still stale, keep optimistic briefly
+      const now = Date.now();
+      if (
+        optimisticData.current && now < optimisticUntil.current &&
+        (
+          !newStatus.dedicatedFolder ||
+          newStatus.dedicatedFolder.id !== optimisticData.current.id ||
+          newStatus.dedicatedFolderPath !== (optimisticData.current.path ?? optimisticData.current.name)
+        )
+      ) {
+        console.log('[DRIVE_STATUS] Server appears stale; keeping optimistic folder for a short period');
+        setStatus(prev => ({
+          ...prev,
+          isConnected: newStatus.isConnected,
+          isExpired: newStatus.isExpired,
+          dedicatedFolder: { id: optimisticData.current!.id, name: optimisticData.current!.name },
+          dedicatedFolderPath: optimisticData.current!.path ?? optimisticData.current!.name,
+        }));
+      } else {
+        console.log('[DRIVE_STATUS] Updating status to:', newStatus);
+        setStatus(newStatus);
+      }
 
     } catch (error) {
       console.error('💥 Error checking Google Drive status:', error);
@@ -214,8 +236,43 @@ export function useGoogleDriveSimple() {
       checkStatus(false);
     };
 
+    const handleFolderUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        dedicatedFolderId: string;
+        dedicatedFolderName: string;
+        dedicatedFolderPath?: string | null;
+      } | undefined;
+
+      if (!detail) return;
+      console.log('📁 Optimistic folder update received:', detail);
+
+      // hold optimistic state for a short window to avoid server race
+      optimisticData.current = {
+        id: detail.dedicatedFolderId,
+        name: detail.dedicatedFolderName,
+        path: detail.dedicatedFolderPath ?? detail.dedicatedFolderName,
+      };
+      optimisticUntil.current = Date.now() + 5000; // 5s hold
+
+      setStatus((prev) => ({
+        ...prev,
+        dedicatedFolder: {
+          id: detail.dedicatedFolderId,
+          name: detail.dedicatedFolderName,
+        },
+        dedicatedFolderPath: detail.dedicatedFolderPath ?? detail.dedicatedFolderName,
+      }));
+
+      // Also schedule a server-confirmed status refresh
+      setTimeout(() => checkStatus(false), 800);
+    };
+
     window.addEventListener('google-drive-status-changed', handleStatusChange);
-    return () => window.removeEventListener('google-drive-status-changed', handleStatusChange);
+    window.addEventListener('google-drive-folder-updated', handleFolderUpdated as EventListener);
+    return () => {
+      window.removeEventListener('google-drive-status-changed', handleStatusChange);
+      window.removeEventListener('google-drive-folder-updated', handleFolderUpdated as EventListener);
+    };
   }, [checkStatus]);
 
   return {

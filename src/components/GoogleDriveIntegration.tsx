@@ -143,17 +143,27 @@ export default function GoogleDriveIntegration() {
         throw new Error(errorMsg);
       }
 
-      console.log('[FOLDER_SELECT] Folder saved successfully, waiting before status check');
+      console.log('[FOLDER_SELECT] Folder saved successfully, preparing UI update');
       toast({
         title: "Pasta salva",
         description: `Pasta "${name}" configurada. Clique em Sincronizar para indexar.`,
       });
+
+      // Optimistically update UI with new folder info
+      const updatedPath = saveData?.dedicatedFolderPath || path || name;
+      window.dispatchEvent(new CustomEvent('google-drive-folder-updated', {
+        detail: {
+          dedicatedFolderId: id,
+          dedicatedFolderName: name,
+          dedicatedFolderPath: updatedPath,
+        }
+      }));
       
-      // Wait a moment then refresh status to show new folder
+      // Wait a moment then refresh status to show new folder from server
       setTimeout(() => {
         console.log('[FOLDER_SELECT] Refreshing status...');
         checkStatus();
-      }, 500);
+      }, 800);
     } catch (e: any) {
       console.error('[FOLDER_SELECT] Error:', e);
       toast({
