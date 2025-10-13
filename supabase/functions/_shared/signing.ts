@@ -29,6 +29,6 @@ export async function verifyPayload(sig: string) {
   if (mac.length !== macRecv.length || !mac.every((b, i) => b === macRecv[i])) throw new Error("BAD_SIG");
   const obj = JSON.parse(new TextDecoder().decode(payload));
   if (!obj || typeof obj !== "object") throw new Error("BAD_PAYLOAD");
-  if (obj.exp && Date.now() > obj.exp) throw new Error("EXPIRED");
+  if (obj.exp && Date.now() / 1000 > obj.exp) throw new Error("EXPIRED");
   return obj as { uid: string; fileId: string; exp: number };
 }
