@@ -17,12 +17,23 @@ export function DriveFolderSelectionCard({
       <h3 className="text-lg font-semibold">Pasta de Backup</h3>
       
       <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground truncate flex-1" title={dedicatedFolderPath || "Nenhuma pasta selecionada"}>
-          {dedicatedFolderPath
-            ? <>Pasta selecionada: <span className="font-medium text-foreground">{dedicatedFolderPath}</span></>
-            : <>Nenhuma pasta selecionada</>}
+        <div className="text-sm text-muted-foreground flex-1 min-w-0">
+          {dedicatedFolderPath ? (
+            <div className="flex items-center gap-1">
+              <span className="shrink-0">Pasta selecionada:</span>
+              <span 
+                className="font-medium text-foreground truncate block" 
+                style={{ direction: 'rtl', textAlign: 'left' }}
+                title={dedicatedFolderPath}
+              >
+                {dedicatedFolderPath}
+              </span>
+            </div>
+          ) : (
+            <span>Nenhuma pasta selecionada</span>
+          )}
         </div>
-        <Button onClick={onChooseFolder} disabled={disabled}>
+        <Button onClick={onChooseFolder} disabled={disabled} className="shrink-0">
           <Folder className="h-4 w-4 mr-1" /> Buscar pasta
         </Button>
       </div>
