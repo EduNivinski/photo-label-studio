@@ -51,6 +51,7 @@ export function httpJson(status: number, data: unknown, origin?: string | null):
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
       "Access-Control-Allow-Methods": "POST, GET, OPTIONS",

@@ -159,6 +159,9 @@ export default function GoogleDriveIntegration() {
         }
       }));
       
+      // Immediate refresh to avoid stale UI
+      await checkStatus();
+      
       // Wait a moment then refresh status to show new folder from server
       setTimeout(() => {
         console.log('[FOLDER_SELECT] Refreshing status...');

@@ -49,7 +49,7 @@ async function getUserDriveSettings(userId: string) {
   const admin = getAdmin();
   const { data, error } = await admin
     .from("user_drive_settings")
-    .select("drive_folder_id, drive_folder_name, drive_folder_path")
+    .select("drive_folder_id, drive_folder_name, drive_folder_path, scope_granted, updated_at")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(`DB_GET_SETTINGS: ${error.message}`);
@@ -69,9 +69,12 @@ async function handleStatus(userId: string) {
       connected: true,
       hasConnection: true,
       isExpired: false,
+      isConnected: Boolean(settings?.scope_granted),
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       dedicatedFolderName: settings?.drive_folder_name ?? null,
-      dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null)
+      dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
+      updatedAt: settings?.updated_at ?? null,
+      statusVersion: settings?.updated_at ?? null,
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
@@ -81,9 +84,12 @@ async function handleStatus(userId: string) {
       hasConnection: false,
       isExpired: true,
       reason: reason || "EXPIRED_OR_INVALID",
+      isConnected: false,
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       dedicatedFolderName: settings?.drive_folder_name ?? null,
-      dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null)
+      dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
+      updatedAt: settings?.updated_at ?? null,
+      statusVersion: settings?.updated_at ?? null,
     });
   }
 }
@@ -267,8 +273,10 @@ async function handleSetFolder(userId: string, body: any) {
   return httpJson(200, { 
     ok: true, 
     folderId, 
+    dedicatedFolderId: folderId,
     dedicatedFolderName: finalFolderName,
-    dedicatedFolderPath: finalFolderPath 
+    dedicatedFolderPath: finalFolderPath,
+    message: "Folder saved. Click Sync to start."
   });
 }
 
@@ -313,7 +321,7 @@ serve(async (req: Request) => {
       return await handleAuthorize(userId);
     } else if (action === "disconnect") {
       return await handleDisconnect(userId);
-    } else if (action === "set_folder") {
+    } else if (action === "set_folder" || action === "save-folder") {
       return await handleSetFolder(userId, body);
     } else {
       return httpJson(400, { ok: false, error: "Invalid action" });
