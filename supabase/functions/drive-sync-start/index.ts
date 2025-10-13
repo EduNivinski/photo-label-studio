@@ -43,6 +43,8 @@ serve(async (req) => {
       .from("user_drive_settings")
       .select("drive_folder_id, drive_folder_name, drive_folder_path")
       .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
     
     if (settingsErr || !settings?.drive_folder_id) {
@@ -87,7 +89,6 @@ serve(async (req) => {
       console.log(`[SYNC-START] Root folder unchanged: ${currentFolderId}`);
     }
 
-    console.log(`[SYNC-START] Summary`, { user_id: userId, settingsFolderId: currentFolderId, stateRootFolderId: state?.root_folder_id ?? null, effectiveRoot: currentFolderId });
     return httpJson(200, { 
       ok: true, 
       effectiveRootFolderId: currentFolderId,
