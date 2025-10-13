@@ -157,59 +157,25 @@ export default function GoogleDriveIntegration() {
       setSyncing(true);
       setSyncProgress({ processedFolders: 0, queued: 0, updatedItems: 0 });
 
-      // Iniciar sincronização
-      const { data: startData, error: startError } = await supabase.functions.invoke("drive-sync-start", {
-        body: { force: false }
-      });
+      console.log("[SYNC_CLIENT] Calling drive-sync-now...");
 
-      if (startError) {
-        console.error("[SYNC_CLIENT_ERROR] start failed:", { cid: startData?.cid, error: startError });
-        throw startError;
+      // Usar a função orquestradora que já funcionava
+      const { data, error } = await supabase.functions.invoke("drive-sync-now");
+
+      if (error) {
+        console.error("[SYNC_CLIENT_ERROR] drive-sync-now failed:", error);
+        throw error;
       }
 
-      console.log("[SYNC_CLIENT] Started:", { cid: startData?.cid });
+      console.log("[SYNC_CLIENT] Sync completed:", data);
 
-      // Loop de sincronização
-      let done = false;
-      let totalProcessed = 0;
-      let totalItems = 0;
-
-      while (!done) {
-        const { data, error } = await supabase.functions.invoke("drive-sync-run", {
-          body: { budgetFolders: 5 }
-        });
-
-        if (error) {
-          console.error("[SYNC_CLIENT_ERROR] run failed:", { cid: data?.cid, error });
-          throw error;
-        }
-
-        done = data?.done || false;
-        totalProcessed += data?.processedFolders || 0;
-        totalItems += data?.updatedItems || 0;
-
-        console.log("[SYNC_CLIENT] Progress:", { 
-          cid: data?.cid, 
-          done, 
-          totalProcessed, 
-          totalItems,
-          queued: data?.queued 
-        });
-
-        setSyncProgress({
-          processedFolders: totalProcessed,
-          queued: data?.queued || 0,
-          updatedItems: totalItems
-        });
-
-        if (!done) {
-          await new Promise(r => setTimeout(r, 350));
-        }
-      }
+      const summary = data?.summary || {};
+      const totalFiles = summary.totalFiles || 0;
+      const changesProcessed = summary.changesProcessed || 0;
 
       toast({
         title: "Sincronização concluída",
-        description: `${totalItems} arquivos processados em ${totalProcessed} pastas`
+        description: `${totalFiles} arquivos indexados, ${changesProcessed} mudanças aplicadas`
       });
 
       // Atualizar status e disparar evento de atualização
