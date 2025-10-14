@@ -220,6 +220,7 @@ async function handleSetFolder(userId: string, body: any) {
   }
   
   const { folderId, folderName, folderPath } = parsed.data;
+  const traceId = crypto.randomUUID();
 
   // 1) Ensure user has a valid Drive connection
   const admin = getAdmin();
@@ -264,21 +265,24 @@ async function handleSetFolder(userId: string, body: any) {
     throw new Error("NOT_A_FOLDER");
   }
 
-  // 4) Persist the dedicated folder
-  const finalFolderName = folderName ?? meta.name ?? "Unknown";
-  const finalFolderPath = folderPath ?? finalFolderName;
+// 4) Persist the dedicated folder
+const finalFolderName = folderName ?? meta.name ?? "Unknown";
+const finalFolderPath = folderPath ?? finalFolderName;
 
-  const { error: updateError } = await admin
-    .from("user_drive_settings")
-    .upsert({
-      user_id: userId,
-      drive_folder_id: folderId,
-      drive_folder_name: finalFolderName,
-      drive_folder_path: finalFolderPath,
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: 'user_id'
-    });
+console.log("[set-folder]", { traceId, user_id: userId, newId: folderId, newName: finalFolderName, newPath: finalFolderPath });
+console.log("[uds-write]", { traceId, user_id: userId, fieldsTouched: ["drive_folder_id","drive_folder_name","drive_folder_path","updated_at"], caller: "google-drive-auth.set_folder" });
+
+const { error: updateError } = await admin
+  .from("user_drive_settings")
+  .upsert({
+    user_id: userId,
+    drive_folder_id: folderId,
+    drive_folder_name: finalFolderName,
+    drive_folder_path: finalFolderPath,
+    updated_at: new Date().toISOString(),
+  }, {
+    onConflict: 'user_id'
+  });
 
   if (updateError) {
     console.error("[google-drive-auth] DB update failed:", updateError);
@@ -307,12 +311,13 @@ async function handleSetFolder(userId: string, body: any) {
     console.warn("[google-drive-auth] Could not reset sync state:", resetSyncError);
   }
 
-  console.log("[google-drive-auth] Folder set successfully:", { 
-    userId, 
-    folderId, 
-    folderName: finalFolderName,
-    folderPath: finalFolderPath 
-  });
+console.log("[google-drive-auth] Folder set successfully:", { 
+  traceId,
+  userId, 
+  folderId, 
+  folderName: finalFolderName,
+  folderPath: finalFolderPath 
+});
 
   return httpJson(200, { 
     ok: true, 

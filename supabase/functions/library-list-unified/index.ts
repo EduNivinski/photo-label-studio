@@ -78,40 +78,52 @@ serve(async (req) => {
       }
     }
 
-    // Get items from Google Drive
-    if (source === "all" || source === "gdrive") {
-      let driveQuery = supabase
-        .from('drive_items')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('trashed', false)
-        .neq('status', 'deleted'); // Filter out deleted items
+// Get items from Google Drive
+if (source === "all" || source === "gdrive") {
+  // Read current root folder id to enforce single-root listing
+  const { data: syncState } = await supabase
+    .from('drive_sync_state')
+    .select('root_folder_id')
+    .eq('user_id', userId)
+    .maybeSingle();
 
-      // Apply mime type filter
-      if (mimeClass === "image") {
-        driveQuery = driveQuery.like('mime_type', 'image/%');
-      } else if (mimeClass === "video") {
-        driveQuery = driveQuery.like('mime_type', 'video/%');
-      }
+  let driveQuery = supabase
+    .from('drive_items')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('trashed', false)
+    .neq('status', 'deleted'); // Filter out deleted items
 
-      // Apply search filter
-      if (q) {
-        driveQuery = driveQuery.ilike('name', `%${q}%`);
-      }
+  // Restrict to current root if available (items whose parents include root)
+  if (syncState?.root_folder_id) {
+    driveQuery = driveQuery.contains('parents', [syncState.root_folder_id]);
+  }
 
-      const { data: driveItems, error: driveError } = await driveQuery;
-      
-      if (driveError) {
-        console.error('Drive query error:', driveError);
-      } else if (driveItems) {
-        items.push(...driveItems.map(item => ({
-          ...item,
-          source: 'gdrive',
-          id: `gdrive:${item.file_id}`,
-          item_key: item.file_id
-        })));
-      }
-    }
+  // Apply mime type filter
+  if (mimeClass === "image") {
+    driveQuery = driveQuery.like('mime_type', 'image/%');
+  } else if (mimeClass === "video") {
+    driveQuery = driveQuery.like('mime_type', 'video/%');
+  }
+
+  // Apply search filter
+  if (q) {
+    driveQuery = driveQuery.ilike('name', `%${q}%`);
+  }
+
+  const { data: driveItems, error: driveError } = await driveQuery;
+  
+  if (driveError) {
+    console.error('Drive query error:', driveError);
+  } else if (driveItems) {
+    items.push(...driveItems.map(item => ({
+      ...item,
+      source: 'gdrive',
+      id: `gdrive:${item.file_id}`,
+      item_key: item.file_id
+    })));
+  }
+}
 
     // Sort items by modified time (newest first)
     items.sort((a, b) => {

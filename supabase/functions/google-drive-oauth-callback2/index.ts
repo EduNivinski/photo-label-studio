@@ -27,6 +27,7 @@ serve(async (req) => {
   }
 
   try {
+    const traceId = crypto.randomUUID();
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
@@ -129,15 +130,19 @@ serve(async (req) => {
 
     console.log("[callback] Tokens stored successfully");
 
-    // Update user_drive_settings with granted scope
+    // Update user_drive_settings with granted scope only (do not touch drive_folder_*)
     if (tokens.scope) {
-      await admin
+      console.log("[uds-write]", { traceId, user_id: stateData.user_id, fieldsTouched: ["scope_granted","updated_at"], caller: "google-drive-oauth-callback2" });
+      const { error: udsErr } = await admin
         .from("user_drive_settings")
-        .upsert({
-          user_id: stateData.user_id,
+        .update({
           scope_granted: tokens.scope,
           updated_at: new Date().toISOString()
-        }, { onConflict: "user_id" });
+        })
+        .eq("user_id", stateData.user_id);
+      if (udsErr) {
+        console.warn("[callback] Failed to update scope_granted:", udsErr.message);
+      }
     }
 
     // Clean up used state
