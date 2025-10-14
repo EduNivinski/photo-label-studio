@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -96,28 +95,6 @@ serve(async (req) => {
         rowsAffected: updateResult?.length ?? 0,
         updatedItem: updateResult?.[0] ?? null
       });
-
-      // Additionally, attempt to move the file to trash in Google Drive (best-effort)
-      try {
-        const accessToken = await ensureAccessToken(user.id);
-        const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(key)}`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ trashed: true })
-        });
-
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => '');
-          console.warn('⚠️ Drive API trash failed', { status: resp.status, body: errText });
-        } else {
-          console.log('🗂️ Drive API: file moved to trash successfully', { file_id: key });
-        }
-      } catch (driveApiErr) {
-        console.warn('⚠️ Skipping Drive API trash due to error:', driveApiErr);
-      }
     }
 
     // Clean up label assignments for this item
