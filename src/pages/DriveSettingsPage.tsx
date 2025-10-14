@@ -247,6 +247,25 @@ export default function DriveSettingsPage() {
           body: { budgetFolders: 5 }
         });
         
+        // Tratar 401 TOKEN_EXPIRED - disparar reauth
+        if (runErr && (runErr.message?.includes("401") || runErr.message?.includes("TOKEN_EXPIRED"))) {
+          console.warn("🔑 Token expired, triggering reauth...");
+          toast({
+            title: "Token expirado",
+            description: "Reconectando sua conta do Google Drive...",
+          });
+          
+          // Disparar fluxo OAuth novamente
+          const { data: authData } = await supabase.functions.invoke("google-drive-auth", {
+            body: { action: "authorize", redirect: window.location.origin + "/settings/drive" }
+          });
+          
+          if (authData?.authorizeUrl) {
+            window.open(authData.authorizeUrl, "_blank", "width=520,height=720");
+          }
+          throw new Error("Token expirado. Por favor, reconecte sua conta.");
+        }
+        
         // Tratar 409 ROOT_MISMATCH
         if (runErr && runErr.message?.includes("409")) {
           console.warn("⚠️ ROOT_MISMATCH detected, re-arming...");

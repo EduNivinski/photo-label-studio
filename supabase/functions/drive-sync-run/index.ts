@@ -63,8 +63,23 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Obter token de acesso
-    const token = await ensureAccessToken(userId);
+    // Obter token de acesso (map token errors to 401)
+    let token: string;
+    try {
+      token = await ensureAccessToken(userId);
+    } catch (tokenErr: any) {
+      const msg = String(tokenErr?.message || "").toUpperCase();
+      if (msg.includes("NEEDS_RECONSENT") || msg.includes("NO_TOKENS") || msg.includes("NO_REFRESH_TOKEN")) {
+        console.error("[SYNC_RUN_TOKEN_ERROR]", { cid, userId, error: msg });
+        return httpJson(401, {
+          ok: false,
+          code: 'TOKEN_EXPIRED',
+          message: 'Token expirado ou inválido. Reconecte sua conta do Google Drive.',
+          traceId: cid
+        }, req.headers.get('origin'));
+      }
+      throw tokenErr;
+    }
 
     // Read settings to verify root folder
     const { data: settings } = await admin
@@ -161,12 +176,22 @@ serve(async (req) => {
               media_kind = "photo";
             }
 
-            // Extrair data original de imageMediaMetadata ou videoMediaMetadata
+            // Extrair data original de imageMediaMetadata ou videoMediaMetadata (safe parsing)
             let original_taken_at = null;
-            if (f.imageMediaMetadata?.time) {
-              original_taken_at = new Date(f.imageMediaMetadata.time).toISOString();
-            } else if (f.videoMediaMetadata?.creationTime) {
-              original_taken_at = new Date(f.videoMediaMetadata.creationTime).toISOString();
+            try {
+              if (f.imageMediaMetadata?.time) {
+                const d = new Date(f.imageMediaMetadata.time);
+                if (!isNaN(d.getTime())) {
+                  original_taken_at = d.toISOString();
+                }
+              } else if (f.videoMediaMetadata?.creationTime) {
+                const d = new Date(f.videoMediaMetadata.creationTime);
+                if (!isNaN(d.getTime())) {
+                  original_taken_at = d.toISOString();
+                }
+              }
+            } catch (dateErr) {
+              console.warn(`Invalid date in metadata for ${f.id}:`, dateErr);
             }
 
             // Converter size para string (seguro para BIGINT do Postgres)
@@ -185,8 +210,18 @@ serve(async (req) => {
                 md5_checksum: f.md5Checksum ?? null,
                 size: f.size ? Number(f.size) : null,
                 size_bigint: sizeStr,
-                modified_time: f.modifiedTime ? new Date(f.modifiedTime).toISOString() : null,
-                created_time: f.createdTime ? new Date(f.createdTime).toISOString() : null,
+                modified_time: f.modifiedTime ? (() => {
+                  try {
+                    const d = new Date(f.modifiedTime!);
+                    return !isNaN(d.getTime()) ? d.toISOString() : null;
+                  } catch { return null; }
+                })() : null,
+                created_time: f.createdTime ? (() => {
+                  try {
+                    const d = new Date(f.createdTime!);
+                    return !isNaN(d.getTime()) ? d.toISOString() : null;
+                  } catch { return null; }
+                })() : null,
                 media_kind,
                 original_taken_at,
                 image_meta: f.imageMediaMetadata ?? null,
@@ -259,6 +294,9 @@ serve(async (req) => {
       RATE_LIMITED: { msg: "Limite de requisições atingido (RL)", hint: "Aguarde alguns minutos" },
       DRIVE_NOT_CONNECTED: { msg: "Google Drive não conectado (NO_DRIVE)", hint: "Conecte sua conta primeiro" },
       SYNC_NOT_INITIALIZED: { msg: "Sincronização não inicializada (NO_STATE)", hint: "Selecione uma pasta primeiro" },
+      NEEDS_RECONSENT: { msg: "Token expirado (TOKEN_EXPIRED)", hint: "Reconecte sua conta do Google Drive" },
+      NO_TOKENS: { msg: "Sem tokens (NO_TOKENS)", hint: "Conecte sua conta do Google Drive" },
+      NO_REFRESH_TOKEN: { msg: "Token inválido (NO_REFRESH)", hint: "Reconecte sua conta do Google Drive" },
     };
     
     const mapped = publicMap[errMsg] ?? { msg: `Falha na sincronização (SYNC_FAIL)`, hint: "Tente novamente" };
