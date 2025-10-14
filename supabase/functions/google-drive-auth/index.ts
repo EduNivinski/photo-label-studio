@@ -72,6 +72,11 @@ async function handleStatus(userId: string) {
     const token = await ensureAccessToken(userId);
     if (!token) throw new Error("NO_ACCESS_TOKEN");
     
+    console.log("[google-drive-auth][status]", {
+      userId,
+      dedicatedFolderId: settings?.drive_folder_id ?? null,
+      stateRootFolderId: syncState?.root_folder_id ?? null,
+    });
     return httpJson(200, {
       ok: true,
       connected: true,
@@ -89,6 +94,11 @@ async function handleStatus(userId: string) {
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
+    console.log("[google-drive-auth][status]", {
+      userId,
+      dedicatedFolderId: settings?.drive_folder_id ?? null,
+      stateRootFolderId: syncState?.root_folder_id ?? null,
+    });
     return httpJson(200, {
       ok: true,
       connected: false,

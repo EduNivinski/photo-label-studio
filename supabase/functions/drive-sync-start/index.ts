@@ -87,6 +87,13 @@ serve(async (req) => {
       console.log(`[SYNC-START] Root folder unchanged: ${currentFolderId}`);
     }
 
+    console.log("[SYNC-START][diag]", {
+      userId,
+      settingsFolderId: currentFolderId,
+      stateRootFolderId: state?.root_folder_id ?? null,
+      effectiveRootFolderId: currentFolderId,
+    });
+
     return httpJson(200, { 
       ok: true, 
       effectiveRootFolderId: currentFolderId,
