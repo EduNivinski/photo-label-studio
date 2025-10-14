@@ -75,11 +75,12 @@ serve(async (req) => {
       // Delete from drive_items table (marks as deleted/trashed)
       console.log(`📁 Marking drive item as deleted: file_id=${key}, user_id=${user.id}`);
       
-      const { error: deleteDriveError } = await supabase
+      const { data: updateResult, error: deleteDriveError } = await supabase
         .from('drive_items')
-        .update({ status: 'deleted', trashed: true })
+        .update({ status: 'deleted', trashed: true, updated_at: new Date().toISOString() })
         .eq('file_id', key)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select();
 
       if (deleteDriveError) {
         console.error('❌ Error marking drive item as deleted:', deleteDriveError);
@@ -89,7 +90,11 @@ serve(async (req) => {
         );
       }
 
-      console.log(`✅ Marked drive item as deleted: ${key}`);
+      console.log(`✅ Marked drive item as deleted:`, {
+        key,
+        rowsAffected: updateResult?.length ?? 0,
+        updatedItem: updateResult?.[0] ?? null
+      });
     }
 
     // Clean up label assignments for this item

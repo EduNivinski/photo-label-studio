@@ -84,7 +84,8 @@ serve(async (req) => {
         .from('drive_items')
         .select('*')
         .eq('user_id', userId)
-        .eq('trashed', false);
+        .eq('trashed', false)
+        .neq('status', 'deleted'); // Filter out deleted items
 
       // Apply mime type filter
       if (mimeClass === "image") {
