@@ -97,9 +97,9 @@ serve(async (req) => {
     const token = await ensureAccessToken(userId);
     const settings = await getSettings(userId);
 
-    console.log(`[DRIVE-INDEX] Starting full scan for user ${userId}`);
-    console.log(`[DRIVE-INDEX] Using folder:`, {
-      folderId: settings.drive_folder_id,
+    console.log(`[drive-index-folder][start]`, {
+      user_id: userId,
+      settingsFolderId: settings.drive_folder_id,
       folderName: settings.drive_folder_name,
       folderPath: settings.drive_folder_path
     });

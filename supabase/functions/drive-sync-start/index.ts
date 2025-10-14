@@ -58,43 +58,40 @@ serve(async (req) => {
       .eq("user_id", userId)
       .maybeSingle();
 
-    // 3) Auto-heal if root_folder_id differs from settings
-    if (!state?.root_folder_id || state.root_folder_id !== currentFolderId) {
-      console.log(`[SYNC-START] Auto-healing: old root=${state?.root_folder_id}, new root=${currentFolderId}`);
-      
-      const pending = [currentFolderId];
-      const upsertData = {
-        user_id: userId,
-        root_folder_id: currentFolderId,
-        pending_folders: pending,
-        status: 'idle',
-        last_error: null,
-        start_page_token: null, // Reset token for new root
-        last_full_scan_at: null,
-        last_changes_at: null,
-        stats: {},
-        updated_at: new Date().toISOString()
-      };
-
-      const { error: upErr } = await admin
-        .from("drive_sync_state")
-        .upsert(upsertData, { onConflict: "user_id" });
-      
-      if (upErr) throw upErr;
-      
-      console.log(`[SYNC-START] State reset for new root folder: ${currentFolderId}`);
-    } else {
-      console.log(`[SYNC-START] Root folder unchanged: ${currentFolderId}`);
-    }
-
-    console.log("[SYNC-START][diag]", {
-      userId,
+    // 3) ALWAYS re-arm state with current folder (unconditional reset)
+    console.log(`[sync-start][before]`, {
+      user_id: userId,
       settingsFolderId: currentFolderId,
-      stateRootFolderId: state?.root_folder_id ?? null,
+      stateRootBefore: state?.root_folder_id ?? null
+    });
+    
+    const pending = [currentFolderId];
+    const upsertData = {
+      user_id: userId,
+      root_folder_id: currentFolderId,
+      pending_folders: pending,
+      status: 'idle',
+      last_error: null,
+      start_page_token: null, // Reset token when re-arming
+      last_full_scan_at: null,
+      last_changes_at: null,
+      stats: {},
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: upErr } = await admin
+      .from("drive_sync_state")
+      .upsert(upsertData, { onConflict: "user_id" });
+    
+    if (upErr) throw upErr;
+    
+    console.log(`[sync-start][after]`, {
+      user_id: userId,
       effectiveRootFolderId: currentFolderId,
+      rearmed: true
     });
 
-    return httpJson(200, { 
+    return httpJson(200, {
       ok: true, 
       effectiveRootFolderId: currentFolderId,
       message: 'Sync start armed with latest folder',

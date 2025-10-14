@@ -82,13 +82,23 @@ serve(async (req) => {
     
     if (stErr || !st) throw new Error("SYNC_NOT_INITIALIZED");
 
-    // Verify root_folder_id matches settings (alert on mismatch)
+    // Verify root_folder_id matches settings (block mismatch with clear error)
+    console.log(`[sync-run][start]`, {
+      user_id: userId,
+      settingsFolderId: settings?.drive_folder_id ?? null,
+      stateRootFolderId: st.root_folder_id
+    });
+    
     if (settings?.drive_folder_id && st.root_folder_id !== settings.drive_folder_id) {
-      console.warn(`[SYNC-RUN] Root mismatch: state=${st.root_folder_id}, settings=${settings.drive_folder_id}`);
+      console.error(`[sync-run][ROOT_MISMATCH]`, {
+        user_id: userId,
+        stateRoot: st.root_folder_id,
+        settingsRoot: settings.drive_folder_id
+      });
       return httpJson(409, { 
         ok: false, 
         code: 'ROOT_MISMATCH',
-        message: 'Folder changed. Click Sync again to re-arm the new root.',
+        message: 'Pasta alterada. Clique em Sincronizar novamente para rearmar o root.',
         stateRoot: st.root_folder_id,
         settingsRoot: settings.drive_folder_id
       }, req.headers.get('origin'));
