@@ -32,7 +32,8 @@ serve(async (req) => {
     let q = getAdmin().from("drive_items")
       .select("file_id,name,mime_type,modified_time,created_time,web_view_link,thumbnail_link,path_cached,size,status,video_duration_ms,video_width,video_height", { count: "exact" })
       .eq("user_id", uid)
-      .eq("trashed", false);
+      .eq("trashed", false)
+      .neq("status", "deleted");
 
     if (mimeClass === "image") q = q.ilike("mime_type", "image/%");
     if (mimeClass === "video") q = q.ilike("mime_type", "video/%");
