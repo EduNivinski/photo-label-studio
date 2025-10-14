@@ -16,7 +16,10 @@ serve(async (req) => {
   const projectUrl = Deno.env.get("SUPABASE_URL");
 
   try {
-    if (req.method !== "GET") throw new Error("METHOD_NOT_ALLOWED");
+    // Accept both GET and POST (supabase.functions.invoke uses POST by default)
+    if (req.method !== "GET" && req.method !== "POST") {
+      throw new Error("METHOD_NOT_ALLOWED");
+    }
     
     const { userId } = await requireAuth(req);
     

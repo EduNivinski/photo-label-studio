@@ -254,27 +254,196 @@ async function handleSetFolder(userId: string, body: any) {
     }
 
     // 3) Verify the folder exists on Google Drive
-    const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType`;
-    const metaResp = await fetch(metaUrl, {
+    // Use supportsAllDrives=true to support Shared Drives
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?` +
+      `fields=id,name,mimeType,trashed,parents,driveId,shortcutDetails&supportsAllDrives=true`;
+    
+    let metaResp = await fetch(metaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
 
-    if (metaResp.status === 401 || metaResp.status === 403) {
-      console.error("[set-folder][google-forbidden]", { traceId, status: metaResp.status });
-      throw new Error("GOOGLE_FORBIDDEN");
-    }
+    // Map Google Drive API errors
     if (!metaResp.ok) {
-      console.error("[set-folder][google-error]", { traceId, status: metaResp.status });
-      throw new Error("GOOGLE_FOLDER_LOOKUP_FAILED");
+      const googleError = await metaResp.json().catch(() => ({}));
+      const googleStatus = metaResp.status;
+      
+      console.error("[set-folder.lookup]", { 
+        traceId, 
+        user_id: userId,
+        incomingFolderId: folderId,
+        googleStatus, 
+        googleError 
+      });
+      
+      // 401: Token expired or invalid
+      if (googleStatus === 401) {
+        return httpJson(401, {
+          ok: false,
+          persisted: false,
+          code: "TOKEN_EXPIRED",
+          error: "Access token expired",
+          traceId
+        });
+      }
+      
+      // 403: Insufficient permissions or scopes
+      if (googleStatus === 403) {
+        const errorReason = googleError?.error?.message || "";
+        const requiredScopes = errorReason.includes("scope") 
+          ? ["https://www.googleapis.com/auth/drive.readonly"]
+          : [];
+        
+        return httpJson(403, {
+          ok: false,
+          persisted: false,
+          code: "INSUFFICIENT_SCOPE",
+          error: "Insufficient permissions to access folder",
+          requiredScopes,
+          traceId
+        });
+      }
+      
+      // 404: Folder not found
+      if (googleStatus === 404) {
+        return httpJson(404, {
+          ok: false,
+          persisted: false,
+          code: "FOLDER_NOT_FOUND",
+          error: "Folder not found in Google Drive",
+          traceId
+        });
+      }
+      
+      // 429: Rate limit
+      if (googleStatus === 429) {
+        const retryAfter = metaResp.headers.get("Retry-After") || "60";
+        return httpJson(429, {
+          ok: false,
+          persisted: false,
+          code: "RETRYABLE",
+          error: "Rate limit exceeded",
+          retryAfter: parseInt(retryAfter),
+          traceId
+        });
+      }
+      
+      // 503: Service unavailable
+      if (googleStatus === 503) {
+        return httpJson(503, {
+          ok: false,
+          persisted: false,
+          code: "RETRYABLE",
+          error: "Google Drive temporarily unavailable",
+          traceId
+        });
+      }
+      
+      // Other errors
+      return httpJson(500, {
+        ok: false,
+        persisted: false,
+        code: "DRIVE_LOOKUP_ERROR",
+        error: "Failed to verify folder with Google Drive",
+        googleError,
+        traceId
+      });
     }
 
-    const meta = await metaResp.json();
-    if (meta.mimeType !== "application/vnd.google-apps.folder") {
-      console.error("[set-folder][not-folder]", { traceId, mimeType: meta.mimeType });
-      throw new Error("NOT_A_FOLDER");
+    let meta = await metaResp.json();
+    
+    // Resolve shortcuts
+    let isShortcut = false;
+    let resolvedId = meta.id;
+    
+    if (meta.mimeType === "application/vnd.google-apps.shortcut") {
+      isShortcut = true;
+      const targetId = meta.shortcutDetails?.targetId;
+      
+      if (!targetId) {
+        console.error("[set-folder][shortcut-no-target]", { traceId, folderId });
+        return httpJson(400, {
+          ok: false,
+          persisted: false,
+          code: "INVALID_FOLDER_TYPE",
+          error: "Shortcut has no target",
+          traceId
+        });
+      }
+      
+      console.log("[set-folder.lookup][resolving-shortcut]", { 
+        traceId, 
+        shortcutId: folderId,
+        targetId 
+      });
+      
+      // Fetch the target
+      const targetUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(targetId)}?` +
+        `fields=id,name,mimeType,trashed,parents,driveId&supportsAllDrives=true`;
+      
+      const targetResp = await fetch(targetUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      
+      if (!targetResp.ok) {
+        console.error("[set-folder][shortcut-target-failed]", { 
+          traceId, 
+          status: targetResp.status 
+        });
+        return httpJson(400, {
+          ok: false,
+          persisted: false,
+          code: "INVALID_FOLDER_TYPE",
+          error: "Failed to resolve shortcut target",
+          traceId
+        });
+      }
+      
+      meta = await targetResp.json();
+      resolvedId = meta.id;
     }
+    
+    // Validate folder type
+    if (meta.mimeType !== "application/vnd.google-apps.folder") {
+      console.error("[set-folder][not-folder]", { 
+        traceId, 
+        mimeType: meta.mimeType,
+        isShortcut 
+      });
+      return httpJson(400, {
+        ok: false,
+        persisted: false,
+        code: "INVALID_FOLDER_TYPE",
+        error: `Not a folder (mimeType: ${meta.mimeType})`,
+        traceId
+      });
+    }
+    
+    // Check if trashed
+    if (meta.trashed === true) {
+      console.error("[set-folder][folder-trashed]", { traceId });
+      return httpJson(400, {
+        ok: false,
+        persisted: false,
+        code: "FOLDER_TRASHED",
+        error: "Folder is in trash",
+        traceId
+      });
+    }
+    
+    console.log("[set-folder.lookup]", {
+      traceId,
+      user_id: userId,
+      incomingFolderId: folderId,
+      googleStatus: 200,
+      isShortcut,
+      resolvedId,
+      mimeType: meta.mimeType,
+      driveId: meta.driveId || null
+    });
 
     // 4) Transactional persist with read-back
+    // Use resolved folder ID (in case it was a shortcut)
+    const finalFolderId = resolvedId;
     const finalFolderName = folderName ?? meta.name ?? "Unknown";
     const finalFolderPath = folderPath ?? finalFolderName;
 
@@ -291,6 +460,7 @@ async function handleSetFolder(userId: string, body: any) {
       traceId, 
       user_id: userId, 
       incomingFolderId: folderId,
+      resolvedFolderId: finalFolderId,
       oldFolderId
     });
 
@@ -306,7 +476,7 @@ async function handleSetFolder(userId: string, body: any) {
       .from("user_drive_settings")
       .upsert({
         user_id: userId,
-        drive_folder_id: folderId,
+        drive_folder_id: finalFolderId,
         drive_folder_name: finalFolderName,
         drive_folder_path: finalFolderPath,
         updated_at: new Date().toISOString(),
@@ -382,10 +552,11 @@ async function handleSetFolder(userId: string, body: any) {
     const savedFolderPath = savedSettings.drive_folder_path;
 
     // Verify that saved values match what we tried to save
-    if (savedFolderId !== folderId) {
+    if (savedFolderId !== finalFolderId) {
       console.error("[set-folder][save-mismatch]", {
         traceId,
         incomingFolderId: folderId,
+        resolvedFolderId: finalFolderId,
         savedFolderId
       });
       return httpJson(500, {
@@ -393,15 +564,16 @@ async function handleSetFolder(userId: string, body: any) {
         persisted: false,
         code: "SAVE_MISMATCH",
         error: "Saved folder ID does not match",
-        details: `Expected ${folderId}, got ${savedFolderId}`,
+        details: `Expected ${finalFolderId}, got ${savedFolderId}`,
         traceId
       });
     }
 
-    console.log("[set-folder][success]", { 
+    console.log("[set-folder.persist]", { 
       traceId,
       user_id: userId, 
       incomingFolderId: folderId,
+      resolvedFolderId: finalFolderId,
       oldFolderId,
       savedFolderId,
       savedFolderName,
