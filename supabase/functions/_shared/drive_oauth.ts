@@ -85,10 +85,19 @@ export async function exchangeCodeAndUpsert({ code, state }: ExchangeCodeParams)
 }
 
 async function saveGrantedScope(userId: string, scope: string) {
+  const traceId = crypto.randomUUID();
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+  
+  console.log("[uds-write]", { 
+    traceId, 
+    user_id: userId, 
+    fieldsTouched: ["scope_granted","updated_at"], 
+    caller: "_shared/drive_oauth.saveGrantedScope" 
+  });
+  
   const { error } = await admin
     .from("user_drive_settings")
     .update({
@@ -96,5 +105,5 @@ async function saveGrantedScope(userId: string, scope: string) {
       updated_at: new Date().toISOString()
     })
     .eq("user_id", userId);
-  if (error) console.warn("WARN saveGrantedScope:", error.message);
+  if (error) console.warn("WARN saveGrantedScope:", { traceId, error: error.message });
 }

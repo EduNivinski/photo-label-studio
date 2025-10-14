@@ -17,11 +17,14 @@ serve(async (req) => {
   }
 
   const cid = crypto.randomUUID();
+  const projectUrl = Deno.env.get("SUPABASE_URL");
 
   try {
     if (req.method !== "POST") throw new Error("METHOD_NOT_ALLOWED");
     
     const { userId } = await requireAuth(req);
+    
+    console.log("[sync-start][env]", { traceId: cid, projectUrl, user_id: userId });
     
     await checkRateLimit({
       userId,

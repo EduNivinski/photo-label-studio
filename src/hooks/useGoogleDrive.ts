@@ -591,15 +591,18 @@ export function useGoogleDrive() {
     }
   }, [getAuthHeaders, toast]);
 
-  const setDedicatedFolder = useCallback(async (folderId: string, folderName: string) => {
+  const setDedicatedFolder = useCallback(async (folderId: string, folderName: string, folderPath?: string) => {
     try {
       const headers = await getAuthHeaders();
-      console.log('🔧 Setting dedicated folder:', { folderId, folderName });
+      console.log('🔧 Setting dedicated folder:', { folderId, folderName, folderPath });
       
-      const response = await supabase.functions.invoke('google-drive-api/set-folder', {
+      // Call unified google-drive-auth endpoint with set_folder action
+      const response = await supabase.functions.invoke('google-drive-auth', {
         body: {
+          action: 'set_folder',
           folderId,
           folderName,
+          folderPath,
         },
         headers,
       });
@@ -611,15 +614,80 @@ export function useGoogleDrive() {
         throw new Error(response.error.message);
       }
 
+      const data = response.data;
+      
+      // Check if persisted
+      if (data?.persisted === false || data?.code === 'SET_FOLDER_FAIL') {
+        console.error('❌ Folder not persisted:', data);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao salvar pasta',
+          description: `Falha na persistência: ${data.error || 'Unknown'} (traceId: ${data.traceId || 'N/A'})`,
+        });
+        return;
+      }
+
+      // Optimistic update
       setStatus(prev => ({
         ...prev,
         dedicatedFolder: { id: folderId, name: folderName },
       }));
 
+      // Immediately verify with status + diagnostics
+      console.log('✅ Folder saved, verifying with status...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for DB propagation
+      
+      const statusResponse = await supabase.functions.invoke('google-drive-auth', {
+        body: { action: "status" },
+        headers,
+      });
+
+      const diagResponse = await supabase.functions.invoke('drive-sync-diagnostics', {
+        headers,
+      });
+
+      console.log('📊 Post-save verification:', {
+        status: statusResponse.data,
+        diagnostics: diagResponse.data
+      });
+
+      const statusFolderId = statusResponse.data?.dedicatedFolderId;
+      const diagFolderId = diagResponse.data?.settings?.folderId;
+      
+      if (statusFolderId !== folderId) {
+        console.warn('⚠️ Status folder ID mismatch, retrying set_folder once...');
+        
+        // Retry once with backoff
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        const retryResponse = await supabase.functions.invoke('google-drive-auth', {
+          body: {
+            action: 'set_folder',
+            folderId,
+            folderName,
+            folderPath,
+          },
+          headers,
+        });
+        
+        if (retryResponse.error || retryResponse.data?.persisted === false) {
+          console.error('❌ Retry failed:', retryResponse);
+          toast({
+            variant: 'destructive',
+            title: 'Erro após retry',
+            description: `Pasta não foi salva corretamente. TraceId: ${retryResponse.data?.traceId || 'N/A'}`,
+          });
+          return;
+        }
+        
+        console.log('✅ Retry successful:', retryResponse.data);
+      }
+
       toast({
         title: 'Pasta configurada',
         description: `Pasta dedicada: ${folderName}`,
       });
+      
     } catch (error) {
       console.error('💥 Error setting dedicated folder:', error);
       toast({

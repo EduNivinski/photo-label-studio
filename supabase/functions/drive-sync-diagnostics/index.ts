@@ -13,11 +13,14 @@ serve(async (req) => {
   }
 
   const traceId = crypto.randomUUID();
+  const projectUrl = Deno.env.get("SUPABASE_URL");
 
   try {
     if (req.method !== "GET") throw new Error("METHOD_NOT_ALLOWED");
     
     const { userId } = await requireAuth(req);
+    
+    console.log("[diagnostics][env]", { traceId, projectUrl, user_id: userId });
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,

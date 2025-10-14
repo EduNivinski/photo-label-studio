@@ -59,6 +59,10 @@ async function getUserDriveSettings(userId: string) {
 // Handle status check
 async function handleStatus(userId: string) {
   const traceId = crypto.randomUUID();
+  const projectUrl = Deno.env.get("SUPABASE_URL");
+  
+  console.log("[status][env]", { traceId, projectUrl, user_id: userId });
+  
   const settings = await getUserDriveSettings(userId);
   
   // Read sync state for diagnostics
@@ -212,121 +216,227 @@ const SetFolderSchema = z.object({
 
 // Handle set_folder action
 async function handleSetFolder(userId: string, body: any) {
-  // Validate input with Zod
-  const parsed = SetFolderSchema.safeParse(body);
-  if (!parsed.success) {
-    console.error("[google-drive-auth] Validation failed:", parsed.error);
-    throw new Error("VALIDATION_FAILED");
-  }
-  
-  const { folderId, folderName, folderPath } = parsed.data;
   const traceId = crypto.randomUUID();
-
-  // 1) Ensure user has a valid Drive connection
-  const admin = getAdmin();
+  const projectUrl = Deno.env.get("SUPABASE_URL");
   
-  // Check if user has valid tokens
-  const { data: tokenData, error: tokenError } = await admin
-    .from("user_drive_tokens")
-    .select("access_token_enc, expires_at")
-    .eq("user_id", userId)
-    .maybeSingle();
+  console.log("[set-folder][env]", { traceId, projectUrl, user_id: userId });
   
-  if (tokenError) throw new Error(`TOKEN_LOOKUP_FAILED: ${tokenError.message}`);
-  if (!tokenData) throw new Error("DRIVE_NOT_CONNECTED");
-  
-  // 2) Get a valid access token (auto-refresh if needed)
-  let accessToken: string;
   try {
-    accessToken = await ensureAccessToken(userId);
-  } catch (e: any) {
-    console.error("[google-drive-auth] Token refresh failed:", e);
-    throw new Error("TOKEN_REFRESH_FAILED");
-  }
+    // Validate input with Zod
+    const parsed = SetFolderSchema.safeParse(body);
+    if (!parsed.success) {
+      console.error("[set-folder][validation-failed]", { traceId, errors: parsed.error });
+      throw new Error("VALIDATION_FAILED");
+    }
+    
+    const { folderId, folderName, folderPath } = parsed.data;
 
-  // 3) Verify the folder exists on Google Drive
-  const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType`;
-  const metaResp = await fetch(metaUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+    // 1) Ensure user has a valid Drive connection
+    const admin = getAdmin();
+    
+    // Check if user has valid tokens
+    const { data: tokenData, error: tokenError } = await admin
+      .from("user_drive_tokens")
+      .select("access_token_enc, expires_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    
+    if (tokenError) throw new Error(`TOKEN_LOOKUP_FAILED: ${tokenError.message}`);
+    if (!tokenData) throw new Error("DRIVE_NOT_CONNECTED");
+    
+    // 2) Get a valid access token (auto-refresh if needed)
+    let accessToken: string;
+    try {
+      accessToken = await ensureAccessToken(userId);
+    } catch (e: any) {
+      console.error("[set-folder][token-refresh-failed]", { traceId, error: e.message });
+      throw new Error("TOKEN_REFRESH_FAILED");
+    }
 
-  if (metaResp.status === 401 || metaResp.status === 403) {
-    console.error("[google-drive-auth] Google API auth failed:", metaResp.status);
-    throw new Error("GOOGLE_FORBIDDEN");
-  }
-  if (!metaResp.ok) {
-    console.error("[google-drive-auth] Google API error:", metaResp.status);
-    throw new Error("GOOGLE_FOLDER_LOOKUP_FAILED");
-  }
-
-  const meta = await metaResp.json();
-  if (meta.mimeType !== "application/vnd.google-apps.folder") {
-    console.error("[google-drive-auth] Not a folder:", meta.mimeType);
-    throw new Error("NOT_A_FOLDER");
-  }
-
-// 4) Persist the dedicated folder
-const finalFolderName = folderName ?? meta.name ?? "Unknown";
-const finalFolderPath = folderPath ?? finalFolderName;
-
-console.log("[set-folder]", { traceId, user_id: userId, newId: folderId, newName: finalFolderName, newPath: finalFolderPath });
-console.log("[uds-write]", { traceId, user_id: userId, fieldsTouched: ["drive_folder_id","drive_folder_name","drive_folder_path","updated_at"], caller: "google-drive-auth.set_folder" });
-
-const { error: updateError } = await admin
-  .from("user_drive_settings")
-  .upsert({
-    user_id: userId,
-    drive_folder_id: folderId,
-    drive_folder_name: finalFolderName,
-    drive_folder_path: finalFolderPath,
-    updated_at: new Date().toISOString(),
-  }, {
-    onConflict: 'user_id'
-  });
-
-  if (updateError) {
-    console.error("[google-drive-auth] DB update failed:", updateError);
-    throw new Error(`DB_UPDATE_FAILED: ${updateError.message}`);
-  }
-
-  // Reset drive_sync_state completely (including start_page_token)
-  const { error: resetSyncError } = await admin
-    .from("drive_sync_state")
-    .upsert({
-      user_id: userId,
-      root_folder_id: null,
-      pending_folders: [],
-      status: 'idle',
-      last_error: null,
-      start_page_token: null,
-      last_full_scan_at: null,
-      last_changes_at: null,
-      stats: {},
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: 'user_id'
+    // 3) Verify the folder exists on Google Drive
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType`;
+    const metaResp = await fetch(metaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` }
     });
-  
-  if (resetSyncError) {
-    console.warn("[google-drive-auth] Could not reset sync state:", resetSyncError);
+
+    if (metaResp.status === 401 || metaResp.status === 403) {
+      console.error("[set-folder][google-forbidden]", { traceId, status: metaResp.status });
+      throw new Error("GOOGLE_FORBIDDEN");
+    }
+    if (!metaResp.ok) {
+      console.error("[set-folder][google-error]", { traceId, status: metaResp.status });
+      throw new Error("GOOGLE_FOLDER_LOOKUP_FAILED");
+    }
+
+    const meta = await metaResp.json();
+    if (meta.mimeType !== "application/vnd.google-apps.folder") {
+      console.error("[set-folder][not-folder]", { traceId, mimeType: meta.mimeType });
+      throw new Error("NOT_A_FOLDER");
+    }
+
+    // 4) Transactional persist with read-back
+    const finalFolderName = folderName ?? meta.name ?? "Unknown";
+    const finalFolderPath = folderPath ?? finalFolderName;
+
+    // 4.1) SELECT old values
+    const { data: oldSettings } = await admin
+      .from("user_drive_settings")
+      .select("drive_folder_id, drive_folder_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const oldFolderId = oldSettings?.drive_folder_id ?? null;
+    
+    console.log("[set-folder][before-upsert]", { 
+      traceId, 
+      user_id: userId, 
+      incomingFolderId: folderId,
+      oldFolderId
+    });
+
+    // 4.2) UPSERT
+    console.log("[uds-write]", { 
+      traceId, 
+      user_id: userId, 
+      fieldsTouched: ["drive_folder_id","drive_folder_name","drive_folder_path","updated_at"], 
+      caller: "google-drive-auth.set_folder" 
+    });
+
+    const { error: updateError } = await admin
+      .from("user_drive_settings")
+      .upsert({
+        user_id: userId,
+        drive_folder_id: folderId,
+        drive_folder_name: finalFolderName,
+        drive_folder_path: finalFolderPath,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (updateError) {
+      console.error("[set-folder][upsert-failed]", { traceId, error: updateError.message });
+      return httpJson(500, {
+        ok: false,
+        persisted: false,
+        code: "SET_FOLDER_FAIL",
+        error: "Failed to save folder settings",
+        details: updateError.message,
+        traceId
+      });
+    }
+
+    // 4.3) RESET drive_sync_state
+    const { error: resetSyncError } = await admin
+      .from("drive_sync_state")
+      .upsert({
+        user_id: userId,
+        root_folder_id: null,
+        pending_folders: [],
+        status: 'idle',
+        last_error: null,
+        start_page_token: null,
+        last_full_scan_at: null,
+        last_changes_at: null,
+        stats: {},
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id'
+      });
+    
+    if (resetSyncError) {
+      console.warn("[set-folder][reset-sync-failed]", { traceId, error: resetSyncError.message });
+      return httpJson(500, {
+        ok: false,
+        persisted: false,
+        code: "SET_FOLDER_FAIL",
+        error: "Failed to reset sync state",
+        details: resetSyncError.message,
+        traceId
+      });
+    }
+
+    // 4.4) READ-BACK to confirm persistence
+    const { data: savedSettings, error: readbackError } = await admin
+      .from("user_drive_settings")
+      .select("drive_folder_id, drive_folder_name, drive_folder_path")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (readbackError || !savedSettings) {
+      console.error("[set-folder][readback-failed]", { 
+        traceId, 
+        error: readbackError?.message 
+      });
+      return httpJson(500, {
+        ok: false,
+        persisted: false,
+        code: "SET_FOLDER_FAIL",
+        error: "Failed to verify saved folder",
+        traceId
+      });
+    }
+
+    const savedFolderId = savedSettings.drive_folder_id;
+    const savedFolderName = savedSettings.drive_folder_name;
+    const savedFolderPath = savedSettings.drive_folder_path;
+
+    // Verify that saved values match what we tried to save
+    if (savedFolderId !== folderId) {
+      console.error("[set-folder][save-mismatch]", {
+        traceId,
+        incomingFolderId: folderId,
+        savedFolderId
+      });
+      return httpJson(500, {
+        ok: false,
+        persisted: false,
+        code: "SAVE_MISMATCH",
+        error: "Saved folder ID does not match",
+        details: `Expected ${folderId}, got ${savedFolderId}`,
+        traceId
+      });
+    }
+
+    console.log("[set-folder][success]", { 
+      traceId,
+      user_id: userId, 
+      incomingFolderId: folderId,
+      oldFolderId,
+      savedFolderId,
+      savedFolderName,
+      savedFolderPath
+    });
+
+    return httpJson(200, { 
+      ok: true,
+      persisted: true,
+      folderId: savedFolderId, 
+      dedicatedFolderId: savedFolderId,
+      dedicatedFolderName: savedFolderName,
+      dedicatedFolderPath: savedFolderPath,
+      savedFolderId,
+      savedFolderName,
+      savedFolderPath,
+      message: "Folder saved and verified. Click Sync to start.",
+      traceId
+    });
+
+  } catch (err: any) {
+    console.error("[set-folder][error]", {
+      traceId,
+      user_id: userId,
+      error: err?.message || String(err)
+    });
+    
+    return httpJson(500, {
+      ok: false,
+      persisted: false,
+      code: "SET_FOLDER_FAIL",
+      error: err?.message || "Unknown error",
+      traceId
+    });
   }
-
-console.log("[google-drive-auth] Folder set successfully:", { 
-  traceId,
-  userId, 
-  folderId, 
-  folderName: finalFolderName,
-  folderPath: finalFolderPath 
-});
-
-  return httpJson(200, { 
-    ok: true, 
-    folderId, 
-    dedicatedFolderId: folderId,
-    dedicatedFolderName: finalFolderName,
-    dedicatedFolderPath: finalFolderPath,
-    message: "Folder saved. Click Sync to start."
-  });
 }
 
 serve(async (req: Request) => {
