@@ -619,10 +619,65 @@ export function useGoogleDrive() {
       // Check if persisted
       if (data?.persisted === false || data?.code === 'SET_FOLDER_FAIL') {
         console.error('❌ Folder not persisted:', data);
+        
+        const errorCode = data?.code;
+        const traceId = data?.traceId || 'N/A';
+        
+        // Handle specific error codes
+        if (errorCode === 'TOKEN_EXPIRED') {
+          toast({
+            variant: 'destructive',
+            title: 'Token expirado',
+            description: 'Sua sessão expirou. Reconectando...',
+          });
+          // Auto-reconnect
+          await connect();
+          return;
+        }
+        
+        if (errorCode === 'INSUFFICIENT_SCOPE') {
+          toast({
+            variant: 'destructive',
+            title: 'Permissões insuficientes',
+            description: 'É necessário reconectar com permissões adicionais.',
+          });
+          // Auto-reconnect with broader scopes
+          await connect();
+          return;
+        }
+        
+        if (errorCode === 'SHORTCUT_ID_PROVIDED') {
+          const targetId = data?.targetId;
+          if (targetId) {
+            toast({
+              title: 'Atalho detectado',
+              description: 'Tentando resolver o atalho automaticamente...',
+            });
+            // Retry with target ID
+            return setDedicatedFolder(targetId, folderName, folderPath);
+          }
+        }
+        
+        if (errorCode === 'FOLDER_NOT_FOUND') {
+          const candidates = data?.candidates;
+          const hint = data?.hint;
+          
+          toast({
+            variant: 'destructive',
+            title: 'Pasta não encontrada',
+            description: hint || `Pasta não acessível. TraceId: ${traceId}`,
+          });
+          
+          if (candidates && candidates.length > 0) {
+            console.log('📁 Suggested folders:', candidates);
+          }
+          return;
+        }
+        
         toast({
           variant: 'destructive',
           title: 'Erro ao salvar pasta',
-          description: `Falha na persistência: ${data.error || 'Unknown'} (traceId: ${data.traceId || 'N/A'})`,
+          description: `${data.error || 'Unknown'} (traceId: ${traceId})`,
         });
         return;
       }

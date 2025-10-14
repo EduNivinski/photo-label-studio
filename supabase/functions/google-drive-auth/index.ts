@@ -258,6 +258,13 @@ async function handleSetFolder(userId: string, body: any) {
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?` +
       `fields=id,name,mimeType,trashed,parents,driveId,shortcutDetails&supportsAllDrives=true`;
     
+    console.log("[set-folder.lookup][request]", {
+      traceId,
+      user_id: userId,
+      incomingFolderId: folderId,
+      request: { supportsAllDrives: true }
+    });
+    
     let metaResp = await fetch(metaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
@@ -267,12 +274,13 @@ async function handleSetFolder(userId: string, body: any) {
       const googleError = await metaResp.json().catch(() => ({}));
       const googleStatus = metaResp.status;
       
-      console.error("[set-folder.lookup]", { 
+      console.error("[set-folder.lookup][failed]", { 
         traceId, 
         user_id: userId,
         incomingFolderId: folderId,
-        googleStatus, 
-        googleError 
+        httpStatus: googleStatus,
+        googleError,
+        request: { supportsAllDrives: true }
       });
       
       // 401: Token expired or invalid
@@ -289,27 +297,82 @@ async function handleSetFolder(userId: string, body: any) {
       // 403: Insufficient permissions or scopes
       if (googleStatus === 403) {
         const errorReason = googleError?.error?.message || "";
-        const requiredScopes = errorReason.includes("scope") 
-          ? ["https://www.googleapis.com/auth/drive.readonly"]
-          : [];
+        const errorCode = googleError?.error?.errors?.[0]?.reason || "";
+        
+        // Check if it's a scope issue
+        if (errorCode === "insufficientFilePermissions" || errorReason.toLowerCase().includes("scope")) {
+          return httpJson(403, {
+            ok: false,
+            persisted: false,
+            code: "INSUFFICIENT_SCOPE",
+            error: "Insufficient permissions to access folder",
+            requiredScopes: [
+              "https://www.googleapis.com/auth/drive.metadata.readonly",
+              "https://www.googleapis.com/auth/drive.readonly"
+            ],
+            hint: "Please reconnect with broader scopes",
+            traceId
+          });
+        }
         
         return httpJson(403, {
           ok: false,
           persisted: false,
-          code: "INSUFFICIENT_SCOPE",
-          error: "Insufficient permissions to access folder",
-          requiredScopes,
+          code: "GOOGLE_FORBIDDEN",
+          error: "Access denied to folder",
           traceId
         });
       }
       
-      // 404: Folder not found
+      // 404: Folder not found - try fallback search
       if (googleStatus === 404) {
+        console.log("[set-folder.lookup][404-fallback-search]", { 
+          traceId, 
+          folderName 
+        });
+        
+        // Try to find folder by name as fallback
+        const searchUrl = new URL("https://www.googleapis.com/drive/v3/files");
+        searchUrl.searchParams.set("q", `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+        searchUrl.searchParams.set("corpora", "allDrives");
+        searchUrl.searchParams.set("includeItemsFromAllDrives", "true");
+        searchUrl.searchParams.set("supportsAllDrives", "true");
+        searchUrl.searchParams.set("fields", "files(id,name,driveId,mimeType,trashed,shortcutDetails)");
+        
+        const searchResp = await fetch(searchUrl.toString(), {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        
+        const candidates: any[] = [];
+        if (searchResp.ok) {
+          const searchData = await searchResp.json();
+          if (searchData.files && searchData.files.length > 0) {
+            candidates.push(...searchData.files.map((f: any) => ({
+              id: f.id,
+              name: f.name,
+              driveId: f.driveId || null,
+              isShortcut: f.mimeType === "application/vnd.google-apps.shortcut",
+              targetId: f.shortcutDetails?.targetId || null
+            })));
+            
+            console.log("[set-folder.lookup][404-candidates-found]", {
+              traceId,
+              count: candidates.length,
+              candidates
+            });
+          }
+        }
+        
         return httpJson(404, {
           ok: false,
           persisted: false,
           code: "FOLDER_NOT_FOUND",
           error: "Folder not found in Google Drive",
+          incomingFolderId: folderId,
+          candidates: candidates.length > 0 ? candidates : undefined,
+          hint: candidates.length > 0 
+            ? "Similar folders found. Check if you have the correct folder ID."
+            : "No accessible folders with this name found. Check permissions and folder ID.",
           traceId
         });
       }
@@ -351,6 +414,16 @@ async function handleSetFolder(userId: string, body: any) {
 
     let meta = await metaResp.json();
     
+    console.log("[set-folder.lookup][success]", {
+      traceId,
+      user_id: userId,
+      incomingFolderId: folderId,
+      httpStatus: 200,
+      mimeType: meta.mimeType,
+      driveId: meta.driveId || null,
+      isShortcut: meta.mimeType === "application/vnd.google-apps.shortcut"
+    });
+    
     // Resolve shortcuts
     let isShortcut = false;
     let resolvedId = meta.id;
@@ -364,8 +437,9 @@ async function handleSetFolder(userId: string, body: any) {
         return httpJson(400, {
           ok: false,
           persisted: false,
-          code: "INVALID_FOLDER_TYPE",
-          error: "Shortcut has no target",
+          code: "SHORTCUT_ID_PROVIDED",
+          error: "Folder ID is a shortcut without target",
+          hint: "Please provide the target folder ID instead",
           traceId
         });
       }
@@ -376,30 +450,16 @@ async function handleSetFolder(userId: string, body: any) {
         targetId 
       });
       
-      // Fetch the target
-      const targetUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(targetId)}?` +
-        `fields=id,name,mimeType,trashed,parents,driveId&supportsAllDrives=true`;
-      
-      const targetResp = await fetch(targetUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+      // Suggest using targetId directly
+      return httpJson(400, {
+        ok: false,
+        persisted: false,
+        code: "SHORTCUT_ID_PROVIDED",
+        error: "Folder ID is a shortcut",
+        targetId,
+        hint: "Please retry with the target folder ID",
+        traceId
       });
-      
-      if (!targetResp.ok) {
-        console.error("[set-folder][shortcut-target-failed]", { 
-          traceId, 
-          status: targetResp.status 
-        });
-        return httpJson(400, {
-          ok: false,
-          persisted: false,
-          code: "INVALID_FOLDER_TYPE",
-          error: "Failed to resolve shortcut target",
-          traceId
-        });
-      }
-      
-      meta = await targetResp.json();
-      resolvedId = meta.id;
     }
     
     // Validate folder type
@@ -430,12 +490,10 @@ async function handleSetFolder(userId: string, body: any) {
       });
     }
     
-    console.log("[set-folder.lookup]", {
+    console.log("[set-folder.lookup][validated]", {
       traceId,
       user_id: userId,
       incomingFolderId: folderId,
-      googleStatus: 200,
-      isShortcut,
       resolvedId,
       mimeType: meta.mimeType,
       driveId: meta.driveId || null
