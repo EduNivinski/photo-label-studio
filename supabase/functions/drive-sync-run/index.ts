@@ -84,6 +84,7 @@ serve(async (req) => {
 
     // Verify root_folder_id matches settings (block mismatch with clear error)
     console.log(`[sync-run][start]`, {
+      traceId: cid,
       user_id: userId,
       settingsFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: st.root_folder_id
@@ -91,6 +92,7 @@ serve(async (req) => {
     
     if (settings?.drive_folder_id && st.root_folder_id !== settings.drive_folder_id) {
       console.error(`[sync-run][ROOT_MISMATCH]`, {
+        traceId: cid,
         user_id: userId,
         stateRoot: st.root_folder_id,
         settingsRoot: settings.drive_folder_id
@@ -100,7 +102,8 @@ serve(async (req) => {
         code: 'ROOT_MISMATCH',
         message: 'Pasta alterada. Clique em Sincronizar novamente para rearmar o root.',
         stateRoot: st.root_folder_id,
-        settingsRoot: settings.drive_folder_id
+        settingsRoot: settings.drive_folder_id,
+        traceId: cid
       }, req.headers.get('origin'));
     }
 
@@ -238,7 +241,7 @@ serve(async (req) => {
       processedFolders,
       updatedItems,
       foundFolders,
-      cid
+      traceId: cid
     }, req.headers.get('origin'));
     
   } catch (err: any) {

@@ -58,6 +58,7 @@ async function getUserDriveSettings(userId: string) {
 
 // Handle status check
 async function handleStatus(userId: string) {
+  const traceId = crypto.randomUUID();
   const settings = await getUserDriveSettings(userId);
   
   // Read sync state for diagnostics
@@ -72,11 +73,13 @@ async function handleStatus(userId: string) {
     const token = await ensureAccessToken(userId);
     if (!token) throw new Error("NO_ACCESS_TOKEN");
     
-    console.log("[google-drive-auth][status]", {
-      userId,
+    console.log("[status]", {
+      traceId,
+      user_id: userId,
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
     });
+    
     return httpJson(200, {
       ok: true,
       connected: true,
@@ -91,14 +94,18 @@ async function handleStatus(userId: string) {
       // Diagnostics
       settingsFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
+      traceId,
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
-    console.log("[google-drive-auth][status]", {
-      userId,
+    console.log("[status]", {
+      traceId,
+      user_id: userId,
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
+      error: reason,
     });
+    
     return httpJson(200, {
       ok: true,
       connected: false,
@@ -114,6 +121,7 @@ async function handleStatus(userId: string) {
       // Diagnostics
       settingsFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
+      traceId,
     });
   }
 }
@@ -277,14 +285,26 @@ async function handleSetFolder(userId: string, body: any) {
     throw new Error(`DB_UPDATE_FAILED: ${updateError.message}`);
   }
 
-  // Clear any existing sync state to force a fresh index on next sync
-  const { error: clearSyncError } = await admin
+  // Reset drive_sync_state completely (including start_page_token)
+  const { error: resetSyncError } = await admin
     .from("drive_sync_state")
-    .delete()
-    .eq("user_id", userId);
+    .upsert({
+      user_id: userId,
+      root_folder_id: null,
+      pending_folders: [],
+      status: 'idle',
+      last_error: null,
+      start_page_token: null,
+      last_full_scan_at: null,
+      last_changes_at: null,
+      stats: {},
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'user_id'
+    });
   
-  if (clearSyncError) {
-    console.warn("[google-drive-auth] Could not clear sync state:", clearSyncError);
+  if (resetSyncError) {
+    console.warn("[google-drive-auth] Could not reset sync state:", resetSyncError);
   }
 
   console.log("[google-drive-auth] Folder set successfully:", { 

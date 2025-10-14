@@ -94,10 +94,12 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
+    const traceId = crypto.randomUUID();
     const token = await ensureAccessToken(userId);
     const settings = await getSettings(userId);
 
     console.log(`[drive-index-folder][start]`, {
+      traceId,
       user_id: userId,
       settingsFolderId: settings.drive_folder_id,
       folderName: settings.drive_folder_name,
@@ -156,10 +158,11 @@ serve(async (req) => {
       ok: true, 
       totalFiles, 
       totalFolders, 
-      startPageToken: spt.startPageToken 
+      startPageToken: spt.startPageToken,
+      traceId
     }), { 
       status: 200, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } 
     });
     
   } catch (e: any) {

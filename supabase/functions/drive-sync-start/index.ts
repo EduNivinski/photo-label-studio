@@ -60,6 +60,7 @@ serve(async (req) => {
 
     // 3) ALWAYS re-arm state with current folder (unconditional reset)
     console.log(`[sync-start][before]`, {
+      traceId: cid,
       user_id: userId,
       settingsFolderId: currentFolderId,
       stateRootBefore: state?.root_folder_id ?? null
@@ -86,6 +87,7 @@ serve(async (req) => {
     if (upErr) throw upErr;
     
     console.log(`[sync-start][after]`, {
+      traceId: cid,
       user_id: userId,
       effectiveRootFolderId: currentFolderId,
       rearmed: true
@@ -95,7 +97,7 @@ serve(async (req) => {
       ok: true, 
       effectiveRootFolderId: currentFolderId,
       message: 'Sync start armed with latest folder',
-      cid 
+      traceId: cid
     }, req.headers.get('origin'));
   } catch (err: any) {
     console.error("[SYNC_ERROR]", { cid, fn: "drive-sync-start", msg: String(err?.message ?? err) });

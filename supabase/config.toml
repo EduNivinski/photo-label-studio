@@ -54,6 +54,15 @@ verify_jwt = true
 [functions."drive-sync-now"]
 verify_jwt = true
 
+[functions."drive-sync-start"]
+verify_jwt = true
+
+[functions."drive-sync-run"]
+verify_jwt = true
+
+[functions."drive-sync-diagnostics"]
+verify_jwt = true
+
 [functions."drive-thumb"]           # proxy com JWT do usuário
 verify_jwt = true
 
