@@ -46,9 +46,21 @@ export function useDriveSyncOrchestrator() {
         throw new Error(errorMsg);
       }
 
+      setProgress({ phase: 'indexing', message: 'Preparando sincronização...' });
+
+      // Step 2: Align root state with current settings
+      const { data: startData, error: startError } = await supabase.functions.invoke('drive-sync-start', {
+        headers,
+        body: { force: true },
+      });
+      if (startError || !startData?.ok) {
+        const errorMsg = startData?.error || startError?.message || 'Erro ao preparar sincronização';
+        throw new Error(errorMsg);
+      }
+
       setProgress({ phase: 'indexing', message: 'Indexando pasta...' });
 
-      // Step 2: Index folder (seed drive_sync_state)
+      // Step 3: Index folder (seed drive_sync_state)
       const { data: indexData, error: indexError } = await supabase.functions.invoke('drive-index-folder', {
         headers,
       });

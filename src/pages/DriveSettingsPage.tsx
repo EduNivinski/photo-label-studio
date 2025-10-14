@@ -175,6 +175,9 @@ export default function DriveSettingsPage() {
     
     setSyncing(true);
     try {
+      // Align root with current settings before delta sync
+      try { await supabase.functions.invoke("drive-sync-start"); } catch (_) {}
+
       const { data, error } = await supabase.functions.invoke("drive-changes-pull");
       if (error || !data) {
         throw new Error(error?.message || "Sync failed");
