@@ -170,22 +170,118 @@ export default function DriveSettingsPage() {
     }
   }, [status]);
 
+  // Diagnóstico temporário
+  const runDiagnostics = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("drive-sync-diagnostics");
+      if (error) throw error;
+      
+      const diag = data as any;
+      console.log("🔍 DIAGNOSTICS", diag);
+      
+      toast({
+        title: "Diagnóstico",
+        description: (
+          <div className="space-y-1 text-xs">
+            <div><strong>Settings:</strong> {diag.settings?.folderId || 'null'}</div>
+            <div><strong>State Root:</strong> {diag.state?.rootFolderId || 'null'}</div>
+            <div><strong>Pending:</strong> {diag.state?.pending?.length || 0}</div>
+            <div><strong>Status:</strong> {diag.state?.status || 'null'}</div>
+            <div className="text-muted-foreground mt-2">TraceID: {diag.traceId}</div>
+          </div>
+        ),
+        duration: 8000,
+      });
+      
+      return diag;
+    } catch (e) {
+      toast({
+        title: "Erro no diagnóstico",
+        description: e instanceof Error ? e.message : "Falha ao obter diagnóstico",
+        variant: "destructive",
+      });
+      return null;
+    }
+  }, [toast]);
+
   const syncNow = useCallback(async () => {
     if (!status.ok || !(status as any).connected) return;
     
     setSyncing(true);
+    let totalProcessed = 0;
+    
     try {
-      // Align root with current settings before delta sync
-      try { await supabase.functions.invoke("drive-sync-start"); } catch (_) {}
-
-      const { data, error } = await supabase.functions.invoke("drive-changes-pull");
-      if (error || !data) {
-        throw new Error(error?.message || "Sync failed");
+      // (a) SEMPRE rearmar o root com drive-sync-start
+      console.log("🔄 Step 1: Starting sync (drive-sync-start)...");
+      const { data: startData, error: startErr } = await supabase.functions.invoke("drive-sync-start");
+      if (startErr) throw new Error(`Falha ao iniciar sync: ${startErr.message}`);
+      console.log("✅ Sync started:", startData);
+      
+      // (b) Verificar se precisa indexar (diagnostics.pending === 0)
+      console.log("🔍 Step 2: Checking if indexing is needed...");
+      const diag = await runDiagnostics();
+      const needsIndex = !diag?.state?.pending || diag.state.pending.length === 0;
+      
+      if (needsIndex) {
+        console.log("📁 Step 2b: Running initial index (drive-index-folder)...");
+        toast({
+          title: "Indexando pasta...",
+          description: "Primeira sincronização, indexando conteúdo da pasta",
+        });
+        
+        const { data: indexData, error: indexErr } = await supabase.functions.invoke("drive-index-folder");
+        if (indexErr) throw new Error(`Falha na indexação: ${indexErr.message}`);
+        console.log("✅ Index completed:", indexData);
+      }
+      
+      // (c) Loop drive-sync-run até zerar pending
+      console.log("⚙️ Step 3: Running sync batches (drive-sync-run)...");
+      let attempts = 0;
+      const MAX_ATTEMPTS = 50; // Limite de segurança
+      
+      while (attempts < MAX_ATTEMPTS) {
+        attempts++;
+        console.log(`📦 Sync run attempt ${attempts}...`);
+        
+        const { data: runData, error: runErr } = await supabase.functions.invoke("drive-sync-run", {
+          body: { budgetFolders: 5 }
+        });
+        
+        // Tratar 409 ROOT_MISMATCH
+        if (runErr && runErr.message?.includes("409")) {
+          console.warn("⚠️ ROOT_MISMATCH detected, re-arming...");
+          toast({
+            title: "Pasta alterada",
+            description: "Rearmando sincronização...",
+          });
+          
+          // Rearmar e tentar novamente (com backoff curto)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await supabase.functions.invoke("drive-sync-start");
+          continue;
+        }
+        
+        if (runErr) throw new Error(`Falha no sync run: ${runErr.message}`);
+        
+        const processed = (runData as any)?.updatedItems || 0;
+        const queued = (runData as any)?.queued || 0;
+        const done = (runData as any)?.done || false;
+        
+        totalProcessed += processed;
+        console.log(`✅ Batch ${attempts}: processed=${processed}, queued=${queued}, done=${done}`);
+        
+        if (done || queued === 0) {
+          console.log("🎉 Sync complete!");
+          break;
+        }
+        
+        // Small delay between batches
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
       toast({
         title: "Sincronização concluída",
-        description: `${data.processed} itens processados`,
+        description: `${totalProcessed} itens processados em ${attempts} lotes`,
       });
       
       // Reset count after sync
@@ -203,7 +299,7 @@ export default function DriveSettingsPage() {
     } finally {
       setSyncing(false);
     }
-  }, [status, toast]);
+  }, [status, toast, runDiagnostics]);
 
   const disconnect = useCallback(async () => {
     setLoading(true);
@@ -419,6 +515,17 @@ export default function DriveSettingsPage() {
                 </p>
               </div>
               <div className="flex gap-2">
+                <Button
+                  onClick={runDiagnostics}
+                  variant="ghost"
+                  size="sm"
+                  disabled={syncing}
+                  className="flex items-center gap-2"
+                  title="Diagnóstico técnico (temporário)"
+                >
+                  <Settings className="h-4 w-4" />
+                  Diagnóstico
+                </Button>
                 <Button
                   onClick={peekChanges}
                   variant="outline"
