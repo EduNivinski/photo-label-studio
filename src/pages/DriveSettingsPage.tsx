@@ -266,17 +266,31 @@ export default function DriveSettingsPage() {
           throw new Error("Token expirado. Por favor, reconecte sua conta.");
         }
         
-        // Tratar 409 ROOT_MISMATCH
-        if (runErr && runErr.message?.includes("409")) {
-          console.warn("⚠️ ROOT_MISMATCH detected, re-arming...");
+        // Tratar 409 ROOT_MISMATCH - rearmar automaticamente
+        if (runErr && (runErr.message?.includes("409") || runErr.message?.includes("ROOT_MISMATCH"))) {
+          console.warn("⚠️ ROOT_MISMATCH detected, re-arming with backoff...");
+          
+          // Máximo 3 tentativas de re-arm
+          if (attempts >= 3) {
+            throw new Error("Falha ao rearmar sincronização após 3 tentativas");
+          }
+          
           toast({
-            title: "Pasta alterada",
-            description: "Rearmando sincronização...",
+            title: "Pasta alterada detectada",
+            description: `Rearmando sincronização (tentativa ${attempts}/3)...`,
           });
           
-          // Rearmar e tentar novamente (com backoff curto)
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          await supabase.functions.invoke("drive-sync-start");
+          // Backoff exponencial: 1s, 2s, 4s
+          const backoffMs = 1000 * Math.pow(2, attempts - 1);
+          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          
+          const { error: rearmErr } = await supabase.functions.invoke("drive-sync-start");
+          if (rearmErr) {
+            console.error("Failed to re-arm:", rearmErr);
+            throw new Error(`Falha ao rearmar: ${rearmErr.message}`);
+          }
+          
+          console.log("✅ Re-armed successfully, retrying sync...");
           continue;
         }
         

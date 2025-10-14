@@ -129,7 +129,6 @@ serve(async (req) => {
         .from("drive_sync_state")
         .update({ 
           status: 'idle', 
-          last_sync_at: new Date().toISOString(), 
           updated_at: new Date().toISOString() 
         })
         .eq("user_id", userId);
@@ -260,7 +259,6 @@ serve(async (req) => {
         pending_folders: pending,
         status: pending.length ? 'running' : 'idle',
         stats: newStats,
-        last_sync_at: pending.length ? st.last_sync_at : new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq("user_id", userId);
