@@ -230,8 +230,8 @@ const Index = () => {
 
   const handleUnifiedItemClick = async (item: MediaItem) => {
     if (selectedCount > 0) {
-      const { source, key } = extractSourceAndKey(item.id);
-      toggleSelection(source === 'db' ? key : item.id);
+      // Always use full item.id for consistent selection
+      toggleSelection(item.id);
     } else {
       console.log('🔍 Opening MediaModal for item:', {
         id: item.id,
@@ -297,9 +297,9 @@ const Index = () => {
     if (selectedCount === filteredUnifiedItems.length && filteredUnifiedItems.length > 0) {
       clearSelection();
     } else {
-      // Convert MediaItems to Photo format for selection
+      // Convert MediaItems to Photo format for selection - use full item.id
       const photosToSelect = filteredUnifiedItems.map(item => ({
-        id: item.id,
+        id: item.id, // Full ID with prefix (db:xxx or gdrive:xxx)
         name: item.name,
         url: item.posterUrl || '',
         labels: item.labels.map(l => l.id),
@@ -327,6 +327,12 @@ const Index = () => {
       return selectedPhotoIds.has(item.id);
     });
 
+    console.log('🗑️ Delete operation:', {
+      selectedPhotoIds: Array.from(selectedPhotoIds),
+      selectedItems: selectedItems.map(i => ({ id: i.id, name: i.name, source: i.source })),
+      totalUnifiedItems: unifiedItems.length
+    });
+
     if (selectedItems.length === 0) {
       toast.error("Nenhum item selecionado para deletar");
       return;
@@ -337,17 +343,19 @@ const Index = () => {
 
     for (const item of selectedItems) {
       try {
+        console.log('🗑️ Deleting item:', item.id, item.source);
         const { data, error } = await supabase.functions.invoke('delete-unified-item', {
           body: { itemId: item.id }
         });
 
         if (error) {
-          console.error('Error deleting item:', error);
+          console.error('❌ Error deleting item:', item.id, error);
         } else {
+          console.log('✅ Item deleted:', item.id);
           successCount++;
         }
       } catch (error) {
-        console.error('Error deleting item:', error);
+        console.error('❌ Exception deleting item:', item.id, error);
       }
     }
 

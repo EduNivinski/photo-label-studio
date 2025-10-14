@@ -51,6 +51,8 @@ serve(async (req) => {
 
     // Parse itemId to determine source and key
     const [source, key] = itemId.includes(':') ? itemId.split(':', 2) : ['db', itemId];
+    
+    console.log(`📍 Parsed: source=${source}, key=${key}`);
 
     if (source === 'db') {
       // Delete from photos table
@@ -71,6 +73,8 @@ serve(async (req) => {
       console.log(`✅ Deleted photo from DB: ${key}`);
     } else if (source === 'gdrive') {
       // Delete from drive_items table (marks as deleted/trashed)
+      console.log(`📁 Marking drive item as deleted: file_id=${key}, user_id=${user.id}`);
+      
       const { error: deleteDriveError } = await supabase
         .from('drive_items')
         .update({ status: 'deleted', trashed: true })
@@ -80,7 +84,7 @@ serve(async (req) => {
       if (deleteDriveError) {
         console.error('❌ Error marking drive item as deleted:', deleteDriveError);
         return new Response(
-          JSON.stringify({ error: 'Failed to delete drive item' }),
+          JSON.stringify({ error: 'Failed to delete drive item', details: deleteDriveError }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
