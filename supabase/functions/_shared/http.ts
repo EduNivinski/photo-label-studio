@@ -53,8 +53,9 @@ export function httpJson(status: number, data: unknown, origin?: string | null):
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       "Access-Control-Allow-Origin": allowedOrigin,
-      "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+      "Access-Control-Allow-Headers": "authorization, apikey, content-type, cache-control, x-client-info, x-supabase-authorization",
       "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Access-Control-Max-Age": "86400",
       "Vary": "Origin",
     },
   });

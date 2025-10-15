@@ -153,7 +153,6 @@ export default function GoogleDriveIntegration() {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'apikey': SUPABASE_ANON,
-            'Cache-Control': 'no-store'
           }
         };
         

@@ -21,8 +21,9 @@ function corsHeaders(req: Request) {
   const allowed = origin && ALLOW.has(origin) ? origin : "https://photo-label-studio.lovable.app";
   return {
     "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, cache-control, x-client-info, x-supabase-authorization",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   } as const;
 }
