@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL, SUPABASE_ANON } from "@/integrations/supabase/client";
 import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
 import { useDriveSyncOrchestrator } from "@/hooks/useDriveSyncOrchestrator";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2 } from "lucide-react";
 
-type FolderSelectionState = "idle" | "verifying" | "saving" | "refreshing" | "ready" | "error";
+type FolderSelectionState = "idle" | "verifying" | "saving" | "confirming" | "ready" | "error";
 
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
@@ -22,6 +22,17 @@ export default function GoogleDriveIntegration() {
   const [preflightLoading, setPreflightLoading] = useState(true);
   const [folderSelectionState, setFolderSelectionState] = useState<FolderSelectionState>("idle");
   const [selectionMutex, setSelectionMutex] = useState(false);
+  const [statusCheckMutex, setStatusCheckMutex] = useState(false);
+
+  const serializedCheckStatus = useCallback(async () => {
+    if (statusCheckMutex) return;
+    setStatusCheckMutex(true);
+    try {
+      await checkStatus();
+    } finally {
+      setStatusCheckMutex(false);
+    }
+  }, [statusCheckMutex, checkStatus]);
 
   // Preflight check on component mount
   useEffect(() => {
@@ -103,8 +114,8 @@ export default function GoogleDriveIntegration() {
       title: "Pasta selecionada",
       description: `Pasta "${folder.name}" configurada para backup.`,
     });
-    // Atualizar status após seleção
-    checkStatus();
+    // Atualizar status após seleção (serializado)
+    serializedCheckStatus();
   }, [toast, checkStatus]);
 
   const getStatusState = useCallback(() => {
@@ -220,7 +231,7 @@ export default function GoogleDriveIntegration() {
       console.log('[FOLDER_SELECT][save] OK:', saveData);
 
       // ========== STATE: REFRESHING ==========
-      setFolderSelectionState("refreshing");
+      setFolderSelectionState("confirming");
       console.log('[FOLDER_SELECT][refresh] Validating consistency...');
       
       // Fetch status (no-store)
@@ -344,7 +355,7 @@ export default function GoogleDriveIntegration() {
       await runFullSync(folderId, folderName, folderPath);
 
       // Refresh status after completion
-      checkStatus();
+      serializedCheckStatus();
       window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
 
     } catch (error: any) {
@@ -395,13 +406,13 @@ export default function GoogleDriveIntegration() {
                   <p className="font-medium text-blue-900">
                     {folderSelectionState === "verifying" && "Verificando pasta no Google Drive..."}
                     {folderSelectionState === "saving" && "Salvando configuração..."}
-                    {folderSelectionState === "refreshing" && "Confirmando consistência..."}
+                    {folderSelectionState === "confirming" && "Confirmando consistência..."}
                     {folderSelectionState === "error" && "Erro ao selecionar pasta"}
                   </p>
                   <p className="text-sm text-blue-700 mt-1">
                     {folderSelectionState === "verifying" && "Validando acesso e permissões"}
                     {folderSelectionState === "saving" && "Persistindo configuração no servidor"}
-                    {folderSelectionState === "refreshing" && "Validando configuração salva"}
+                    {folderSelectionState === "confirming" && "Validando configuração salva"}
                     {folderSelectionState === "error" && "Verifique os erros acima"}
                   </p>
                 </div>
@@ -422,7 +433,7 @@ export default function GoogleDriveIntegration() {
               progress.phase === 'syncing' || 
               folderSelectionState === 'verifying' || 
               folderSelectionState === 'saving' || 
-              folderSelectionState === 'refreshing'
+              folderSelectionState === 'confirming'
             }
             syncProgress={progress.phase !== 'idle' ? {
               processedFolders: progress.processedFolders || 0,
@@ -432,7 +443,7 @@ export default function GoogleDriveIntegration() {
             disabled={
               folderSelectionState === 'verifying' || 
               folderSelectionState === 'saving' || 
-              folderSelectionState === 'refreshing'
+              folderSelectionState === 'confirming'
             }
           />
         </>
