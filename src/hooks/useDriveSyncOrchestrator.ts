@@ -29,11 +29,11 @@ export function useDriveSyncOrchestrator() {
     try {
       const headers = await getAuthHeaders();
       const traceId = crypto.randomUUID();
-      console.log('[ORCHESTRATOR] Starting full sync:', { traceId, folderId, folderName });
+      console.log('[SYNC] Starting full sync:', { traceId, folderId, folderName, folderPath });
 
       // Step 1: Align root state with current settings (drive-sync-start)
       setProgress({ phase: 'indexing', message: 'Preparando sincronização...' });
-      console.log('[ORCHESTRATOR][start] Calling drive-sync-start to align root...');
+      console.log('[SYNC][start] Calling drive-sync-start to align root...', { traceId });
       
       const { data: startData, error: startError } = await supabase.functions.invoke('drive-sync-start', {
         headers,
@@ -41,11 +41,11 @@ export function useDriveSyncOrchestrator() {
       
       if (startError || !startData?.ok) {
         const errorMsg = startData?.error || startError?.message || 'Erro ao preparar sincronização';
-        console.error('[ORCHESTRATOR][start] Failed:', errorMsg);
+        console.error('[SYNC][start] Failed:', { traceId, error: errorMsg });
         throw new Error(errorMsg);
       }
 
-      console.log('[ORCHESTRATOR][start] OK:', startData);
+      console.log('[SYNC][start] OK:', { traceId, rearmed: startData.rearmed, rootFolderId: startData.rootFolderId });
 
       // Step 2: Validate that root_folder_id matches folderId
       const { data: diagData, error: diagError } = await supabase.functions.invoke('drive-sync-diagnostics', {
@@ -53,36 +53,37 @@ export function useDriveSyncOrchestrator() {
       });
 
       if (diagError || !diagData?.ok) {
-        console.error('[ORCHESTRATOR][diag] Failed to get diagnostics:', diagError);
+        console.error('[SYNC][diag] Failed to get diagnostics:', { traceId, error: diagError });
         throw new Error('Falha ao validar estado de sincronização');
       }
 
       const currentRoot = diagData.state?.rootFolderId;
-      console.log('[ORCHESTRATOR][diag] Root validation:', { expected: folderId, actual: currentRoot });
+      const pending = diagData.state?.pending?.length || 0;
+      console.log('[SYNC][diag] Root validation:', { traceId, expected: folderId, actual: currentRoot, pending });
 
       if (currentRoot !== folderId) {
-        console.error('[ORCHESTRATOR][diag] ROOT_MISMATCH detected!', { expected: folderId, actual: currentRoot });
+        console.error('[SYNC][diag] ROOT_MISMATCH detected!', { traceId, expected: folderId, actual: currentRoot });
         throw new Error(`Pasta configurada não corresponde ao estado de sincronização (esperado: ${folderId}, atual: ${currentRoot || 'null'})`);
       }
 
       setProgress({ phase: 'indexing', message: 'Indexando pasta...' });
 
       // Step 3: Check if indexing is needed (pending === 0)
-      const needsIndex = !diagData.state?.pending || diagData.state.pending.length === 0;
+      const needsIndex = pending === 0;
       
       if (needsIndex) {
-        console.log('[ORCHESTRATOR][index] First sync for this folder, indexing...');
+        console.log('[SYNC][index] First sync for this folder, indexing...', { traceId });
         const { data: indexData, error: indexError } = await supabase.functions.invoke('drive-index-folder', {
           headers,
         });
 
         if (indexError || !indexData?.ok) {
           const errorMsg = indexData?.error || indexError?.message || "Erro ao indexar pasta";
-          console.error('[ORCHESTRATOR][index] Failed:', errorMsg);
+          console.error('[SYNC][index] Failed:', { traceId, error: errorMsg });
           throw new Error(errorMsg);
         }
 
-        console.log('[ORCHESTRATOR][index] OK:', indexData);
+        console.log('[SYNC][index] OK:', { traceId, totalFiles: indexData.totalFiles, totalFolders: indexData.totalFolders });
         setProgress({ 
           phase: 'syncing', 
           message: `Sincronizando arquivos...`,
@@ -90,11 +91,11 @@ export function useDriveSyncOrchestrator() {
           queuedFolders: indexData.totalFolders || 0
         });
       } else {
-        console.log('[ORCHESTRATOR][index] Skipping index, pending folders already exist');
+        console.log('[SYNC][index] Skipping index, pending folders already exist', { traceId, pending });
         setProgress({ 
           phase: 'syncing', 
           message: `Processando pastas pendentes...`,
-          queuedFolders: diagData.state.pending.length
+          queuedFolders: pending
         });
       }
 
@@ -109,7 +110,7 @@ export function useDriveSyncOrchestrator() {
 
       while (!done && iterations < MAX_ITERATIONS) {
         iterations++;
-        console.log(`[ORCHESTRATOR][run] Iteration ${iterations}...`);
+        console.log(`[SYNC][run] Iteration ${iterations}...`, { traceId });
         
         const { data: syncData, error: syncError } = await supabase.functions.invoke('drive-sync-run', {
           body: { budgetFolders: 10 },
@@ -119,12 +120,12 @@ export function useDriveSyncOrchestrator() {
         // Handle ROOT_MISMATCH (409) - re-arm and retry
         if (syncError?.message?.includes('409') || syncError?.message?.includes('ROOT_MISMATCH')) {
           if (rearmRetries >= MAX_REARM_RETRIES) {
-            console.error('[ORCHESTRATOR][run] Max rearm retries reached');
+            console.error('[SYNC][run] Max rearm retries reached', { traceId });
             throw new Error('Falha ao rearmar sincronização após múltiplas tentativas');
           }
 
           rearmRetries++;
-          console.warn(`[ORCHESTRATOR][run] ROOT_MISMATCH detected, re-arming (attempt ${rearmRetries}/${MAX_REARM_RETRIES})...`);
+          console.warn(`[SYNC][run] ROOT_MISMATCH detected, re-arming (attempt ${rearmRetries}/${MAX_REARM_RETRIES})...`, { traceId });
           
           // Backoff
           const backoffMs = 1000 * Math.pow(2, rearmRetries - 1);
@@ -133,16 +134,16 @@ export function useDriveSyncOrchestrator() {
           // Re-arm
           const { error: rearmError } = await supabase.functions.invoke('drive-sync-start', { headers });
           if (rearmError) {
-            console.error('[ORCHESTRATOR][run] Rearm failed:', rearmError);
+            console.error('[SYNC][run] Rearm failed:', { traceId, error: rearmError });
             throw new Error(`Falha ao rearmar: ${rearmError.message}`);
           }
 
-          console.log('[ORCHESTRATOR][run] Re-armed successfully, retrying...');
+          console.log('[SYNC][run] Re-armed successfully, retrying...', { traceId });
           continue;
         }
 
         if (syncError || !syncData?.ok) {
-          console.error('[ORCHESTRATOR][run] Sync run failed:', syncError || syncData);
+          console.error('[SYNC][run] Sync run failed:', { traceId, error: syncError || syncData });
           // Don't throw - we may have partial progress
           break;
         }
@@ -151,7 +152,13 @@ export function useDriveSyncOrchestrator() {
         totalProcessed += syncData.processedFolders || 0;
         totalItems += syncData.updatedItems || 0;
 
-        console.log(`[ORCHESTRATOR][run] Batch ${iterations}: processed=${syncData.processedFolders}, queued=${syncData.queued}, done=${done}`);
+        console.log(`[SYNC][run] Batch ${iterations}:`, { 
+          traceId, 
+          processedFolders: syncData.processedFolders, 
+          queued: syncData.queued, 
+          updatedItems: syncData.updatedItems,
+          done 
+        });
 
         setProgress({ 
           phase: 'syncing', 
@@ -168,15 +175,15 @@ export function useDriveSyncOrchestrator() {
       }
 
       // Step 5: Run delta sync (changes-pull)
-      console.log('[ORCHESTRATOR][delta] Running changes-pull...');
+      console.log('[SYNC][delta] Running changes-pull...', { traceId });
       const { data: deltaData, error: deltaError } = await supabase.functions.invoke('drive-changes-pull', {
         headers,
       });
 
       if (!deltaError && deltaData?.ok) {
-        console.log('[ORCHESTRATOR][delta] OK:', deltaData);
+        console.log('[SYNC][delta] OK:', { traceId, changes: deltaData.changes });
       } else {
-        console.warn('[ORCHESTRATOR][delta] Failed:', deltaError);
+        console.warn('[SYNC][delta] Failed:', { traceId, error: deltaError });
       }
 
       setProgress({ 
@@ -186,7 +193,7 @@ export function useDriveSyncOrchestrator() {
         processedFolders: totalProcessed
       });
 
-      console.log('[ORCHESTRATOR] Full sync complete:', { traceId, totalItems, totalProcessed, iterations });
+      console.log('[SYNC] Full sync complete:', { traceId, totalItems, totalProcessed, iterations });
 
       toast({
         title: "Sincronização completa",
@@ -202,7 +209,7 @@ export function useDriveSyncOrchestrator() {
       return { success: true, totalItems, totalProcessed };
 
     } catch (error: any) {
-      console.error('[ORCHESTRATOR] Error:', error);
+      console.error('[SYNC] Error:', error);
       
       const errorMessage = error?.message || 'Erro desconhecido';
       const hint = error?.hint || '';

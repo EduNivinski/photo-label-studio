@@ -139,176 +139,244 @@ export default function GoogleDriveIntegration() {
       const traceId = crypto.randomUUID();
       console.log('[FOLDER_SELECT] Starting FSM flow:', { traceId, id, name, path });
 
-      // ========== STATE: VERIFYING ==========
-      setFolderSelectionState("verifying");
+      // ========== AUTH ==========
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error('Not authenticated');
       }
 
-      const headers = {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
+      // Helper to call edge functions with proper error parsing
+      const callEdge = async (fn: string, method: 'GET' | 'POST', body?: any) => {
+        const url = `${SUPABASE_URL}/functions/v1/${fn}`;
+        const opts: RequestInit = {
+          method,
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': SUPABASE_ANON,
+            'Cache-Control': 'no-store'
+          }
+        };
+        
+        if (method === 'POST' && body) {
+          opts.headers = { ...opts.headers, 'Content-Type': 'application/json' };
+          opts.body = JSON.stringify(body);
+        }
+
+        const resp = await fetch(url, opts);
+        let json: any = null;
+        try {
+          json = await resp.json();
+        } catch (e) {
+          console.error(`[callEdge][${fn}] Failed to parse JSON:`, e);
+        }
+
+        return { resp, json };
       };
 
-      console.log('[FOLDER_SELECT][verify] Calling drive-folder-verify...');
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('drive-folder-verify', {
-        body: { folderId: id },
-        headers,
+      // ========== STATE: VERIFYING ==========
+      setFolderSelectionState('verifying');
+      console.log('[FOLDER_SELECT][verify] payload:', { folderId: id });
+
+      const { resp: vResp, json: vJson } = await callEdge('drive-folder-verify', 'POST', { folderId: id });
+
+      console.log('[FOLDER_SELECT][verify] response:', {
+        status: vResp.status,
+        ok: vResp.ok,
+        code: vJson?.code,
+        traceId: vJson?.traceId
       });
 
-      // Handle specific verify errors
-      if (verifyError || !verifyData?.ok) {
-        const code = verifyData?.code || verifyError?.message || "";
-        const errorMsg = verifyData?.error || verifyError?.message || "Pasta não encontrada no Google Drive";
-        console.error('[FOLDER_SELECT][verify] Failed:', { code, errorMsg, traceId: verifyData?.traceId });
-        setFolderSelectionState("error");
+      if (!vResp.ok || !vJson?.ok) {
+        const code = vJson?.code || 'VERIFY_FAILED';
+        const message = vJson?.error || vJson?.message || 'Falha ao verificar pasta';
+        const vTraceId = vJson?.traceId || traceId;
+        
+        console.error('[FOLDER_SELECT][verify] Failed:', { status: vResp.status, code, message, traceId: vTraceId });
+        setFolderSelectionState('error');
 
-        // Specific error handling
-        if (code.includes("401") || code.includes("TOKEN_EXPIRED")) {
+        // Handle specific codes
+        if (code === 'TOKEN_EXPIRED' || code.includes('401')) {
           toast({
-            title: "Token expirado",
-            description: "Reconectando sua conta do Google Drive...",
+            title: 'Token expirado',
+            description: 'Reconectando sua conta do Google Drive...',
           });
-          await connect(); // Auto-reconnect
+          await connect();
           return;
         }
 
-        if (code.includes("403") || code.includes("INSUFFICIENT_SCOPE")) {
+        if (code === 'INSUFFICIENT_SCOPE' || code.includes('403')) {
           toast({
-            title: "Permissões insuficientes",
-            description: "Reconectando para obter permissões necessárias...",
+            title: 'Permissões insuficientes',
+            description: 'Reconectando para obter as permissões necessárias (drive.metadata.readonly)...',
           });
-          await connect(); // Reconnect with broader scopes
+          await connect();
           return;
         }
 
-        if (code.includes("404") || code.includes("FOLDER_NOT_FOUND")) {
+        if (code === 'SHORTCUT_ID_PROVIDED' && vJson?.targetId) {
+          toast({
+            title: 'Atalho detectado',
+            description: 'A pasta escolhida era um atalho. Resolvendo para a pasta de destino automaticamente.',
+          });
+          setSelectionMutex(false);
+          return handleSelectCurrentFolder(vJson.targetId, name, path);
+        }
+
+        if (code === 'NOT_A_FOLDER') {
+          toast({
+            title: 'Não é uma pasta',
+            description: `O item selecionado não é uma pasta válida do Google Drive. • TraceID: ${vTraceId}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (code === 'FOLDER_TRASHED') {
+          toast({
+            title: 'Pasta na lixeira',
+            description: `A pasta selecionada está na lixeira do Google Drive. • TraceID: ${vTraceId}`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (code === 'FOLDER_NOT_FOUND' || code.includes('404')) {
           const driveLink = `https://drive.google.com/drive/folders/${id}`;
           toast({
-            title: "Pasta não encontrada",
-            description: `A pasta não está acessível. Verifique se você tem acesso ou se está na conta correta. Para abrir: ${driveLink}`,
-            variant: "destructive",
+            title: 'Pasta não encontrada',
+            description: `A pasta não está acessível. Verifique se você tem acesso ou se está na conta correta. [Abrir no Drive](${driveLink}) • TraceID: ${vTraceId}`,
+            variant: 'destructive',
           });
-          throw new Error(errorMsg);
+          return;
         }
 
-        if (code.includes("SHORTCUT_ID_PROVIDED") && verifyData?.targetId) {
-          toast({
-            title: "Atalho detectado",
-            description: "A pasta selecionada é um atalho. Usando a pasta de destino automaticamente.",
-          });
-          // Retry with targetId
-          return handleSelectCurrentFolder(verifyData.targetId, name, path);
-        }
-
-        throw new Error(`${errorMsg} (TraceID: ${verifyData?.traceId || traceId})`);
+        // Generic error
+        toast({
+          title: 'Falha na verificação',
+          description: `${message} (${code}) • TraceID: ${vTraceId}`,
+          variant: 'destructive',
+        });
+        return;
       }
 
-      console.log('[FOLDER_SELECT][verify] OK:', verifyData);
+      const resolvedId = vJson?.lookup?.resolved?.id || id;
+      console.log('[FOLDER_SELECT][verify] OK:', { resolvedId, mimeType: vJson?.lookup?.resolved?.mimeType });
 
       // ========== STATE: SAVING ==========
-      setFolderSelectionState("saving");
-      console.log('[FOLDER_SELECT][save] Calling set_folder...');
-      const { data: saveData, error: saveError } = await supabase.functions.invoke('google-drive-auth', {
-        body: { 
-          action: "set_folder", 
-          folderId: id, 
-          folderName: name,
-          folderPath: path || name
-        },
-        headers,
-      });
-
-      if (saveError || !saveData?.ok || !saveData?.persisted) {
-        const errorMsg = saveData?.error || saveError?.message || "Erro ao salvar pasta";
-        const saveTraceId = saveData?.traceId || traceId;
-        console.error('[FOLDER_SELECT][save] Failed:', { errorMsg, traceId: saveTraceId });
-        setFolderSelectionState("error");
-        throw new Error(`${errorMsg} (TraceID: ${saveTraceId})`);
-      }
-
-      console.log('[FOLDER_SELECT][save] OK:', saveData);
-
-      // ========== STATE: REFRESHING ==========
-      setFolderSelectionState("confirming");
-      console.log('[FOLDER_SELECT][refresh] Validating consistency...');
+      setFolderSelectionState('saving');
       
-      // Fetch status (no-store)
-      const { data: statusData, error: statusError } = await supabase.functions.invoke('google-drive-auth', {
-        body: { action: "status" },
-        headers: { ...headers, 'Cache-Control': 'no-store' },
+      const { resp: sResp, json: sJson } = await callEdge('google-drive-auth', 'POST', {
+        action: 'set_folder',
+        folderId: resolvedId,
+        folderName: name,
+        folderPath: path || name
       });
 
-      // Fetch diagnostics (no-store)
-      const { data: diagData, error: diagError } = await supabase.functions.invoke('drive-sync-diagnostics', {
-        headers: { ...headers, 'Cache-Control': 'no-store' },
+      console.log('[FOLDER_SELECT][save] response:', {
+        status: sResp.status,
+        ok: sJson?.ok,
+        persisted: sJson?.persisted,
+        savedFolderId: sJson?.savedFolderId,
+        traceId: sJson?.traceId
       });
 
-      if (statusError || diagError) {
-        console.error('[FOLDER_SELECT][refresh] Failed to fetch status/diagnostics:', { statusError, diagError });
-        setFolderSelectionState("error");
-        throw new Error(`Falha ao validar consistência da pasta (TraceID: ${traceId})`);
+      if (!sResp.ok || !sJson?.ok || !sJson?.persisted) {
+        const code = sJson?.code || 'SAVE_FAILED';
+        const message = sJson?.error || sJson?.message || 'Erro ao salvar pasta';
+        const sTraceId = sJson?.traceId || traceId;
+
+        console.error('[FOLDER_SELECT][save] Failed:', { status: sResp.status, code, message, traceId: sTraceId });
+        setFolderSelectionState('error');
+
+        toast({
+          title: 'Erro ao salvar pasta',
+          description: `${message} (${code}) • TraceID: ${sTraceId}`,
+          variant: 'destructive',
+        });
+        return;
       }
 
-      const statusFolderId = statusData?.dedicatedFolderId;
-      const diagFolderId = diagData?.settings?.folderId;
+      console.log('[FOLDER_SELECT][save] OK:', { savedFolderId: sJson.savedFolderId, savedFolderName: sJson.savedFolderName });
 
-      console.log('[FOLDER_SELECT][refresh] Consistency check:', { 
-        expected: id, 
-        statusFolderId, 
+      // ========== STATE: CONFIRMING ==========
+      setFolderSelectionState('confirming');
+      console.log('[FOLDER_SELECT][confirming] Validating consistency...');
+
+      const { resp: stResp, json: stJson } = await callEdge('google-drive-auth', 'POST', { action: 'status' });
+      const { resp: dgResp, json: dgJson } = await callEdge('drive-sync-diagnostics', 'GET');
+
+      if (!stResp.ok || !dgResp.ok) {
+        console.error('[FOLDER_SELECT][confirming] Failed to fetch status/diagnostics:', {
+          statusStatus: stResp.status,
+          diagStatus: dgResp.status
+        });
+        setFolderSelectionState('error');
+        toast({
+          title: 'Falha ao confirmar',
+          description: 'Não foi possível confirmar a pasta no servidor.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const statusFolderId = stJson?.dedicatedFolderId;
+      const diagFolderId = dgJson?.settings?.folderId;
+
+      console.log('[FOLDER_SELECT][confirming] Consistency check:', {
+        expected: resolvedId,
+        statusFolderId,
         diagFolderId,
         traceId
       });
 
-      if (statusFolderId !== id || diagFolderId !== id) {
-        console.error('[FOLDER_SELECT][refresh] Inconsistency detected!', { 
-          expected: id, 
-          statusFolderId, 
+      if (statusFolderId !== resolvedId || diagFolderId !== resolvedId) {
+        console.error('[FOLDER_SELECT][confirming] Inconsistency detected!', {
+          expected: resolvedId,
+          statusFolderId,
           diagFolderId,
           traceId
         });
-        setFolderSelectionState("error");
-        throw new Error(`Inconsistência ao confirmar pasta no servidor (TraceID: ${traceId})`);
+        setFolderSelectionState('error');
+        toast({
+          title: 'Inconsistência detectada',
+          description: `Falha ao confirmar pasta no servidor (inconsistência). • TraceID: ${traceId}`,
+          variant: 'destructive',
+        });
+        return;
       }
 
       // ========== STATE: READY ==========
-      setFolderSelectionState("ready");
-      console.log('[FOLDER_SELECT][ready] Folder selection complete:', { traceId, id, name });
+      setFolderSelectionState('ready');
+      console.log('[FOLDER_SELECT][ready] Folder selection complete:', { traceId, id: resolvedId, name });
 
       toast({
-        title: "Pasta configurada com sucesso",
+        title: 'Pasta configurada com sucesso',
         description: `"${name}" está pronta. Clique em Sincronizar para indexar os arquivos.`,
       });
 
-      // Only dispatch event AFTER successful validation
       window.dispatchEvent(new CustomEvent('google-drive-folder-updated', {
         detail: {
-          dedicatedFolderId: id,
+          dedicatedFolderId: resolvedId,
           dedicatedFolderName: name,
           dedicatedFolderPath: path || name,
         }
       }));
 
-      // Refresh status
-      await checkStatus();
+      await serializedCheckStatus();
 
     } catch (e: any) {
-      console.error('[FOLDER_SELECT] Error:', e);
-      setFolderSelectionState("error");
+      console.error('[FOLDER_SELECT] Unexpected error:', e);
+      setFolderSelectionState('error');
       
-      // Only show toast if not already handled
-      if (!e?.message?.includes("TraceID")) {
-        toast({
-          title: "Erro ao selecionar pasta",
-          description: e?.message || "Não foi possível selecionar a pasta",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: 'Erro ao selecionar pasta',
+        description: e?.message || 'Não foi possível selecionar a pasta',
+        variant: 'destructive',
+      });
     } finally {
       setSelectionMutex(false);
     }
-  }, [toast, checkStatus, connect, selectionMutex]);
+  }, [toast, serializedCheckStatus, connect, selectionMutex]);
 
   const buildFolderPath = useCallback(() => {
     // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
