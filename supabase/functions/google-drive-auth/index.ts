@@ -214,6 +214,18 @@ const SetFolderSchema = z.object({
   folderPath: z.string().min(1).max(1024).optional(),
 });
 
+// Helper to extract user email from token (via Google's tokeninfo)
+async function getUserEmailFromToken(accessToken: string): Promise<string | null> {
+  try {
+    const resp = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.email || null;
+  } catch {
+    return null;
+  }
+}
+
 // Handle set_folder action
 async function handleSetFolder(userId: string, body: any) {
   const traceId = crypto.randomUUID();
@@ -226,7 +238,14 @@ async function handleSetFolder(userId: string, body: any) {
     const parsed = SetFolderSchema.safeParse(body);
     if (!parsed.success) {
       console.error("[set-folder][validation-failed]", { traceId, errors: parsed.error });
-      throw new Error("VALIDATION_FAILED");
+      return httpJson(400, {
+        ok: false,
+        persisted: false,
+        code: "INVALID_INPUT",
+        error: "Invalid folder parameters",
+        details: parsed.error.errors,
+        traceId
+      });
     }
     
     const { folderId, folderName, folderPath } = parsed.data;
@@ -242,7 +261,15 @@ async function handleSetFolder(userId: string, body: any) {
       .maybeSingle();
     
     if (tokenError) throw new Error(`TOKEN_LOOKUP_FAILED: ${tokenError.message}`);
-    if (!tokenData) throw new Error("DRIVE_NOT_CONNECTED");
+    if (!tokenData) {
+      return httpJson(401, {
+        ok: false,
+        persisted: false,
+        code: "DRIVE_NOT_CONNECTED",
+        error: "Google Drive not connected",
+        traceId
+      });
+    }
     
     // 2) Get a valid access token (auto-refresh if needed)
     let accessToken: string;
@@ -250,17 +277,27 @@ async function handleSetFolder(userId: string, body: any) {
       accessToken = await ensureAccessToken(userId);
     } catch (e: any) {
       console.error("[set-folder][token-refresh-failed]", { traceId, error: e.message });
-      throw new Error("TOKEN_REFRESH_FAILED");
+      return httpJson(401, {
+        ok: false,
+        persisted: false,
+        code: "TOKEN_EXPIRED",
+        error: "Failed to refresh access token",
+        traceId
+      });
     }
+
+    // Get user email for diagnostics
+    const userEmail = await getUserEmailFromToken(accessToken) || "unknown";
 
     // 3) Verify the folder exists on Google Drive
     // Use supportsAllDrives=true to support Shared Drives
     const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?` +
-      `fields=id,name,mimeType,trashed,parents,driveId,shortcutDetails&supportsAllDrives=true`;
+      `fields=id,name,mimeType,trashed,parents,driveId,owners(emailAddress),shortcutDetails&supportsAllDrives=true`;
     
     console.log("[set-folder.lookup][request]", {
       traceId,
       user_id: userId,
+      userEmail,
       incomingFolderId: folderId,
       request: { supportsAllDrives: true }
     });
@@ -277,9 +314,11 @@ async function handleSetFolder(userId: string, body: any) {
       console.error("[set-folder.lookup][failed]", { 
         traceId, 
         user_id: userId,
+        userEmail,
         incomingFolderId: folderId,
         httpStatus: googleStatus,
         googleError,
+        googleErrorCode: googleError?.error?.errors?.[0]?.reason || null,
         request: { supportsAllDrives: true }
       });
       
@@ -368,11 +407,13 @@ async function handleSetFolder(userId: string, body: any) {
           persisted: false,
           code: "FOLDER_NOT_FOUND",
           error: "Folder not found in Google Drive",
+          userEmail,
           incomingFolderId: folderId,
           candidates: candidates.length > 0 ? candidates : undefined,
+          isSharedDriveExpected: candidates.some((c: any) => c.driveId),
           hint: candidates.length > 0 
-            ? "Similar folders found. Check if you have the correct folder ID."
-            : "No accessible folders with this name found. Check permissions and folder ID.",
+            ? "Similar folders found. Check if you have the correct folder ID or try selecting one of the suggested folders."
+            : "No accessible folders with this name found. Verify: (1) folder ID is correct, (2) you have access, (3) you're using the right Google account.",
           traceId
         });
       }
@@ -417,6 +458,7 @@ async function handleSetFolder(userId: string, body: any) {
     console.log("[set-folder.lookup][success]", {
       traceId,
       user_id: userId,
+      userEmail,
       incomingFolderId: folderId,
       httpStatus: 200,
       mimeType: meta.mimeType,
@@ -424,7 +466,7 @@ async function handleSetFolder(userId: string, body: any) {
       isShortcut: meta.mimeType === "application/vnd.google-apps.shortcut"
     });
     
-    // Resolve shortcuts
+    // Resolve shortcuts completely before proceeding
     let isShortcut = false;
     let resolvedId = meta.id;
     
@@ -446,19 +488,47 @@ async function handleSetFolder(userId: string, body: any) {
       
       console.log("[set-folder.lookup][resolving-shortcut]", { 
         traceId, 
+        userEmail,
         shortcutId: folderId,
         targetId 
       });
       
-      // Suggest using targetId directly
-      return httpJson(400, {
-        ok: false,
-        persisted: false,
-        code: "SHORTCUT_ID_PROVIDED",
-        error: "Folder ID is a shortcut",
-        targetId,
-        hint: "Please retry with the target folder ID",
-        traceId
+      // Fetch target folder to resolve shortcut
+      const targetUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(targetId)}?` +
+        `fields=id,name,mimeType,trashed,parents,driveId,owners(emailAddress)&supportsAllDrives=true`;
+      
+      const targetResp = await fetch(targetUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+
+      if (!targetResp.ok) {
+        const targetError = await targetResp.json().catch(() => ({}));
+        console.error("[set-folder.lookup][shortcut-target-failed]", {
+          traceId,
+          targetId,
+          httpStatus: targetResp.status,
+          targetError
+        });
+        
+        return httpJson(400, {
+          ok: false,
+          persisted: false,
+          code: "SHORTCUT_TARGET_INACCESSIBLE",
+          error: "Shortcut target folder is not accessible",
+          targetId,
+          hint: "The folder this shortcut points to may have been deleted or you don't have access to it.",
+          traceId
+        });
+      }
+
+      meta = await targetResp.json();
+      resolvedId = meta.id;
+      
+      console.log("[set-folder.lookup][shortcut-resolved]", {
+        traceId,
+        shortcutId: folderId,
+        resolvedId,
+        resolvedName: meta.name
       });
     }
     
