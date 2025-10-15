@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2 } from "lucide-react";
 
+type FolderSelectionState = "idle" | "verifying" | "saving" | "refreshing" | "ready" | "error";
+
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
   const { progress, runFullSync, reset: resetOrchestrator } = useDriveSyncOrchestrator();
@@ -18,6 +20,8 @@ export default function GoogleDriveIntegration() {
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
   const [preflightResult, setPreflightResult] = useState<{ ok: boolean; reason?: string } | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(true);
+  const [folderSelectionState, setFolderSelectionState] = useState<FolderSelectionState>("idle");
+  const [selectionMutex, setSelectionMutex] = useState(false);
 
   // Preflight check on component mount
   useEffect(() => {
@@ -111,17 +115,49 @@ export default function GoogleDriveIntegration() {
   }, [loading, status.isConnected, status.isExpired]);
 
   const handleSelectCurrentFolder = useCallback(async (id: string, name: string, path?: string) => {
+    // Mutex: prevent concurrent selections
+    if (selectionMutex) {
+      console.warn('[FOLDER_SELECT] Already selecting a folder, ignoring...');
+      return;
+    }
+
+    setSelectionMutex(true);
+    setShowFolderBrowser(false);
+
     try {
-      console.log('[FOLDER_SELECT] Starting folder selection:', { id, name, path });
-      setShowFolderBrowser(false);
-      
-      // ONLY save folder - do NOT auto-index or sync
+      const traceId = crypto.randomUUID();
+      console.log('[FOLDER_SELECT] Starting FSM flow:', { traceId, id, name, path });
+
+      // ========== STATE: VERIFYING ==========
+      setFolderSelectionState("verifying");
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error('Not authenticated');
       }
 
-      console.log('[FOLDER_SELECT] Calling google-drive-auth with set_folder action');
+      const headers = {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      };
+
+      console.log('[FOLDER_SELECT][verify] Calling drive-folder-verify...');
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('drive-folder-verify', {
+        body: { folderId: id },
+        headers,
+      });
+
+      if (verifyError || !verifyData?.ok) {
+        const errorMsg = verifyData?.error || verifyError?.message || "Pasta não encontrada no Google Drive";
+        console.error('[FOLDER_SELECT][verify] Failed:', errorMsg);
+        setFolderSelectionState("error");
+        throw new Error(errorMsg);
+      }
+
+      console.log('[FOLDER_SELECT][verify] OK:', verifyData);
+
+      // ========== STATE: SAVING ==========
+      setFolderSelectionState("saving");
+      console.log('[FOLDER_SELECT][save] Calling set_folder...');
       const { data: saveData, error: saveError } = await supabase.functions.invoke('google-drive-auth', {
         body: { 
           action: "set_folder", 
@@ -129,53 +165,91 @@ export default function GoogleDriveIntegration() {
           folderName: name,
           folderPath: path || name
         },
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
-      console.log('[FOLDER_SELECT] Response:', { saveData, saveError });
-
-      if (saveError || !saveData?.ok) {
+      if (saveError || !saveData?.ok || !saveData?.persisted) {
         const errorMsg = saveData?.error || saveError?.message || "Erro ao salvar pasta";
-        console.error('[FOLDER_SELECT] Failed:', errorMsg);
+        console.error('[FOLDER_SELECT][save] Failed:', errorMsg);
+        setFolderSelectionState("error");
         throw new Error(errorMsg);
       }
 
-      console.log('[FOLDER_SELECT] Folder saved successfully, preparing UI update');
-      toast({
-        title: "Pasta salva",
-        description: `Pasta "${name}" configurada. Clique em Sincronizar para indexar.`,
+      console.log('[FOLDER_SELECT][save] OK:', saveData);
+
+      // ========== STATE: REFRESHING ==========
+      setFolderSelectionState("refreshing");
+      console.log('[FOLDER_SELECT][refresh] Validating consistency...');
+      
+      // Fetch status (no-store)
+      const { data: statusData, error: statusError } = await supabase.functions.invoke('google-drive-auth', {
+        body: { action: "status" },
+        headers: { ...headers, 'Cache-Control': 'no-store' },
       });
 
-      // Optimistically update UI with new folder info
-      const updatedPath = saveData?.dedicatedFolderPath || path || name;
+      // Fetch diagnostics (no-store)
+      const { data: diagData, error: diagError } = await supabase.functions.invoke('drive-sync-diagnostics', {
+        headers: { ...headers, 'Cache-Control': 'no-store' },
+      });
+
+      if (statusError || diagError) {
+        console.error('[FOLDER_SELECT][refresh] Failed to fetch status/diagnostics:', { statusError, diagError });
+        setFolderSelectionState("error");
+        throw new Error('Falha ao validar consistência da pasta');
+      }
+
+      const statusFolderId = statusData?.dedicatedFolderId;
+      const diagFolderId = diagData?.settings?.folderId;
+
+      console.log('[FOLDER_SELECT][refresh] Consistency check:', { 
+        expected: id, 
+        statusFolderId, 
+        diagFolderId 
+      });
+
+      if (statusFolderId !== id || diagFolderId !== id) {
+        console.error('[FOLDER_SELECT][refresh] Inconsistency detected!', { 
+          expected: id, 
+          statusFolderId, 
+          diagFolderId 
+        });
+        setFolderSelectionState("error");
+        throw new Error('Inconsistência ao confirmar pasta no servidor');
+      }
+
+      // ========== STATE: READY ==========
+      setFolderSelectionState("ready");
+      console.log('[FOLDER_SELECT][ready] Folder selection complete:', { traceId, id, name });
+
+      toast({
+        title: "Pasta configurada",
+        description: `Pasta "${name}" selecionada com sucesso. Clique em Sincronizar para indexar.`,
+      });
+
+      // Dispatch event for UI updates
       window.dispatchEvent(new CustomEvent('google-drive-folder-updated', {
         detail: {
           dedicatedFolderId: id,
           dedicatedFolderName: name,
-          dedicatedFolderPath: updatedPath,
+          dedicatedFolderPath: path || name,
         }
       }));
-      
-      // Immediate refresh to avoid stale UI
+
+      // Refresh status
       await checkStatus();
-      
-      // Wait a moment then refresh status to show new folder from server
-      setTimeout(() => {
-        console.log('[FOLDER_SELECT] Refreshing status...');
-        checkStatus();
-      }, 800);
+
     } catch (e: any) {
       console.error('[FOLDER_SELECT] Error:', e);
+      setFolderSelectionState("error");
       toast({
-        title: "Erro",
-        description: `Não foi possível selecionar a pasta: ${e?.message || e}`,
+        title: "Erro ao selecionar pasta",
+        description: e?.message || "Não foi possível selecionar a pasta",
         variant: "destructive",
       });
+    } finally {
+      setSelectionMutex(false);
     }
-  }, [toast, checkStatus]);
+  }, [toast, checkStatus, selectionMutex]);
 
   const buildFolderPath = useCallback(() => {
     // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
@@ -187,6 +261,15 @@ export default function GoogleDriveIntegration() {
   }, [status.dedicatedFolderPath, status.dedicatedFolder]);
 
   const handleSyncClick = useCallback(async () => {
+    // Block if folder selection is not in "ready" or "idle" state
+    if (folderSelectionState !== "ready" && folderSelectionState !== "idle") {
+      toast({
+        title: "Aguarde",
+        description: "Aguarde a validação da pasta antes de sincronizar.",
+      });
+      return;
+    }
+
     try {
       // Get current folder from status
       const folderData = typeof status.dedicatedFolder === 'string' 
@@ -206,7 +289,10 @@ export default function GoogleDriveIntegration() {
         return;
       }
 
-      // Use orchestrator for full flow: index → sync-run loop → changes-pull
+      // Reset FSM state before sync
+      setFolderSelectionState("idle");
+
+      // Use orchestrator for full flow: verify root → index → sync-run loop → changes-pull
       await runFullSync(folderId, folderName, folderPath);
 
       // Refresh status after completion
@@ -225,7 +311,7 @@ export default function GoogleDriveIntegration() {
         variant: "destructive"
       });
     }
-  }, [status, runFullSync, toast, checkStatus]);
+  }, [status, runFullSync, toast, checkStatus, folderSelectionState]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -255,7 +341,7 @@ export default function GoogleDriveIntegration() {
           dedicatedFolderPath={buildFolderPath()}
           onChooseFolder={() => setShowFolderBrowser(true)}
           onSync={handleSyncClick}
-          syncing={progress.phase === 'indexing' || progress.phase === 'syncing'}
+          syncing={progress.phase === 'indexing' || progress.phase === 'syncing' || folderSelectionState === 'verifying' || folderSelectionState === 'saving' || folderSelectionState === 'refreshing'}
           syncProgress={progress.phase !== 'idle' ? {
             processedFolders: progress.processedFolders || 0,
             queued: progress.queuedFolders || 0,
