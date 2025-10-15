@@ -146,11 +146,52 @@ export default function GoogleDriveIntegration() {
         headers,
       });
 
+      // Handle specific verify errors
       if (verifyError || !verifyData?.ok) {
+        const code = verifyData?.code || verifyError?.message || "";
         const errorMsg = verifyData?.error || verifyError?.message || "Pasta não encontrada no Google Drive";
-        console.error('[FOLDER_SELECT][verify] Failed:', errorMsg);
+        console.error('[FOLDER_SELECT][verify] Failed:', { code, errorMsg, traceId: verifyData?.traceId });
         setFolderSelectionState("error");
-        throw new Error(errorMsg);
+
+        // Specific error handling
+        if (code.includes("401") || code.includes("TOKEN_EXPIRED")) {
+          toast({
+            title: "Token expirado",
+            description: "Reconectando sua conta do Google Drive...",
+          });
+          await connect(); // Auto-reconnect
+          return;
+        }
+
+        if (code.includes("403") || code.includes("INSUFFICIENT_SCOPE")) {
+          toast({
+            title: "Permissões insuficientes",
+            description: "Reconectando para obter permissões necessárias...",
+          });
+          await connect(); // Reconnect with broader scopes
+          return;
+        }
+
+        if (code.includes("404") || code.includes("FOLDER_NOT_FOUND")) {
+          const driveLink = `https://drive.google.com/drive/folders/${id}`;
+          toast({
+            title: "Pasta não encontrada",
+            description: `A pasta não está acessível. Verifique se você tem acesso ou se está na conta correta. Para abrir: ${driveLink}`,
+            variant: "destructive",
+          });
+          throw new Error(errorMsg);
+        }
+
+        if (code.includes("SHORTCUT_ID_PROVIDED") && verifyData?.targetId) {
+          toast({
+            title: "Atalho detectado",
+            description: "A pasta selecionada é um atalho. Usando a pasta de destino automaticamente.",
+          });
+          // Retry with targetId
+          return handleSelectCurrentFolder(verifyData.targetId, name, path);
+        }
+
+        throw new Error(`${errorMsg} (TraceID: ${verifyData?.traceId || traceId})`);
       }
 
       console.log('[FOLDER_SELECT][verify] OK:', verifyData);
@@ -170,9 +211,10 @@ export default function GoogleDriveIntegration() {
 
       if (saveError || !saveData?.ok || !saveData?.persisted) {
         const errorMsg = saveData?.error || saveError?.message || "Erro ao salvar pasta";
-        console.error('[FOLDER_SELECT][save] Failed:', errorMsg);
+        const saveTraceId = saveData?.traceId || traceId;
+        console.error('[FOLDER_SELECT][save] Failed:', { errorMsg, traceId: saveTraceId });
         setFolderSelectionState("error");
-        throw new Error(errorMsg);
+        throw new Error(`${errorMsg} (TraceID: ${saveTraceId})`);
       }
 
       console.log('[FOLDER_SELECT][save] OK:', saveData);
@@ -195,7 +237,7 @@ export default function GoogleDriveIntegration() {
       if (statusError || diagError) {
         console.error('[FOLDER_SELECT][refresh] Failed to fetch status/diagnostics:', { statusError, diagError });
         setFolderSelectionState("error");
-        throw new Error('Falha ao validar consistência da pasta');
+        throw new Error(`Falha ao validar consistência da pasta (TraceID: ${traceId})`);
       }
 
       const statusFolderId = statusData?.dedicatedFolderId;
@@ -204,17 +246,19 @@ export default function GoogleDriveIntegration() {
       console.log('[FOLDER_SELECT][refresh] Consistency check:', { 
         expected: id, 
         statusFolderId, 
-        diagFolderId 
+        diagFolderId,
+        traceId
       });
 
       if (statusFolderId !== id || diagFolderId !== id) {
         console.error('[FOLDER_SELECT][refresh] Inconsistency detected!', { 
           expected: id, 
           statusFolderId, 
-          diagFolderId 
+          diagFolderId,
+          traceId
         });
         setFolderSelectionState("error");
-        throw new Error('Inconsistência ao confirmar pasta no servidor');
+        throw new Error(`Inconsistência ao confirmar pasta no servidor (TraceID: ${traceId})`);
       }
 
       // ========== STATE: READY ==========
@@ -222,11 +266,11 @@ export default function GoogleDriveIntegration() {
       console.log('[FOLDER_SELECT][ready] Folder selection complete:', { traceId, id, name });
 
       toast({
-        title: "Pasta configurada",
-        description: `Pasta "${name}" selecionada com sucesso. Clique em Sincronizar para indexar.`,
+        title: "Pasta configurada com sucesso",
+        description: `"${name}" está pronta. Clique em Sincronizar para indexar os arquivos.`,
       });
 
-      // Dispatch event for UI updates
+      // Only dispatch event AFTER successful validation
       window.dispatchEvent(new CustomEvent('google-drive-folder-updated', {
         detail: {
           dedicatedFolderId: id,
@@ -241,15 +285,19 @@ export default function GoogleDriveIntegration() {
     } catch (e: any) {
       console.error('[FOLDER_SELECT] Error:', e);
       setFolderSelectionState("error");
-      toast({
-        title: "Erro ao selecionar pasta",
-        description: e?.message || "Não foi possível selecionar a pasta",
-        variant: "destructive",
-      });
+      
+      // Only show toast if not already handled
+      if (!e?.message?.includes("TraceID")) {
+        toast({
+          title: "Erro ao selecionar pasta",
+          description: e?.message || "Não foi possível selecionar a pasta",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSelectionMutex(false);
     }
-  }, [toast, checkStatus, selectionMutex]);
+  }, [toast, checkStatus, connect, selectionMutex]);
 
   const buildFolderPath = useCallback(() => {
     // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
@@ -337,17 +385,57 @@ export default function GoogleDriveIntegration() {
 
       {/* Seção de Seleção de Pasta - mostra apenas quando conectado */}
       {status.isConnected && (
-        <DriveFolderSelectionCard
-          dedicatedFolderPath={buildFolderPath()}
-          onChooseFolder={() => setShowFolderBrowser(true)}
-          onSync={handleSyncClick}
-          syncing={progress.phase === 'indexing' || progress.phase === 'syncing' || folderSelectionState === 'verifying' || folderSelectionState === 'saving' || folderSelectionState === 'refreshing'}
-          syncProgress={progress.phase !== 'idle' ? {
-            processedFolders: progress.processedFolders || 0,
-            queued: progress.queuedFolders || 0,
-            updatedItems: progress.updatedItems || 0
-          } : null}
-        />
+        <>
+          {/* Show folder selection state */}
+          {folderSelectionState !== "idle" && folderSelectionState !== "ready" && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                <div className="flex-1">
+                  <p className="font-medium text-blue-900">
+                    {folderSelectionState === "verifying" && "Verificando pasta no Google Drive..."}
+                    {folderSelectionState === "saving" && "Salvando configuração..."}
+                    {folderSelectionState === "refreshing" && "Confirmando consistência..."}
+                    {folderSelectionState === "error" && "Erro ao selecionar pasta"}
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    {folderSelectionState === "verifying" && "Validando acesso e permissões"}
+                    {folderSelectionState === "saving" && "Persistindo configuração no servidor"}
+                    {folderSelectionState === "refreshing" && "Validando configuração salva"}
+                    {folderSelectionState === "error" && "Verifique os erros acima"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DriveFolderSelectionCard
+            dedicatedFolderPath={buildFolderPath()}
+            onChooseFolder={() => {
+              if (folderSelectionState === "idle" || folderSelectionState === "ready" || folderSelectionState === "error") {
+                setShowFolderBrowser(true);
+              }
+            }}
+            onSync={handleSyncClick}
+            syncing={
+              progress.phase === 'indexing' || 
+              progress.phase === 'syncing' || 
+              folderSelectionState === 'verifying' || 
+              folderSelectionState === 'saving' || 
+              folderSelectionState === 'refreshing'
+            }
+            syncProgress={progress.phase !== 'idle' ? {
+              processedFolders: progress.processedFolders || 0,
+              queued: progress.queuedFolders || 0,
+              updatedItems: progress.updatedItems || 0
+            } : null}
+            disabled={
+              folderSelectionState === 'verifying' || 
+              folderSelectionState === 'saving' || 
+              folderSelectionState === 'refreshing'
+            }
+          />
+        </>
       )}
       
       {/* Progress indicator */}

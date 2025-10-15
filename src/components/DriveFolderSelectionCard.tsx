@@ -41,15 +41,16 @@ export function DriveFolderSelectionCard({
                 </span>
               </div>
             ) : (
-              <span>Nenhuma pasta selecionada</span>
+              <span>Nenhuma pasta selecionada. Clique em "Buscar pasta" para começar.</span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {dedicatedFolderPath && onSync && (
               <Button
                 onClick={onSync}
-                disabled={syncing}
-                className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                disabled={syncing || disabled}
+                className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                title={disabled ? "Aguarde a validação da pasta" : "Iniciar sincronização"}
               >
                 {syncing ? (
                   <>
@@ -64,8 +65,13 @@ export function DriveFolderSelectionCard({
                 )}
               </Button>
             )}
-            <Button onClick={onChooseFolder} disabled={disabled}>
-              <Folder className="h-4 w-4 mr-1" /> Buscar pasta
+            <Button 
+              onClick={onChooseFolder} 
+              disabled={disabled}
+              title={disabled ? "Aguarde a operação atual" : "Escolher pasta do Google Drive"}
+            >
+              <Folder className="h-4 w-4 mr-1" /> 
+              {dedicatedFolderPath ? "Trocar pasta" : "Buscar pasta"}
             </Button>
           </div>
         </div>

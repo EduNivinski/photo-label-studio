@@ -193,8 +193,11 @@ export function useDriveSyncOrchestrator() {
         description: `${totalItems} arquivos indexados com sucesso`,
       });
 
-      // Trigger refresh event and invalidate cache
+      // Trigger refresh event and invalidate library cache
       window.dispatchEvent(new CustomEvent('google-drive-status-changed'));
+      window.dispatchEvent(new CustomEvent('google-drive-sync-complete', {
+        detail: { timestamp: Date.now() }
+      }));
 
       return { success: true, totalItems, totalProcessed };
 
