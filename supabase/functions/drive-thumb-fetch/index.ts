@@ -16,6 +16,36 @@ serve(async (req) => {
   const traceId = crypto.randomUUID();
 
   try {
+    // Support both GET and POST
+    let itemId: string | null = null;
+    let size = 256;
+
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      itemId = url.searchParams.get('itemId');
+      const sizeParam = url.searchParams.get('size') || '256';
+      size = parseInt(sizeParam, 10);
+    } else if (req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      itemId = body.itemId;
+      size = body.size || 256;
+    } else {
+      return new Response(JSON.stringify({ 
+        ok: false, 
+        code: "METHOD_NOT_ALLOWED",
+        message: "Only GET, POST, and OPTIONS methods are allowed", 
+        traceId 
+      }), {
+        status: 405,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
+      });
+    }
+
+  try {
     // Authenticate user
     const { userId } = await requireAuth(req);
     
@@ -30,25 +60,34 @@ serve(async (req) => {
     });
 
     if (!canProceed) {
-      return httpJson(429, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
-        error: "Rate limit exceeded", 
+        code: "RATE_LIMIT_EXCEEDED",
+        message: "Rate limit exceeded", 
         traceId 
+      }), {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
-    // Parse query parameters
-    const url = new URL(req.url);
-    let itemId = url.searchParams.get('itemId');
-    const sizeParam = url.searchParams.get('size') || '256';
-    const size = parseInt(sizeParam, 10);
-
     if (!itemId) {
-      return httpJson(400, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
         code: "MISSING_ITEM_ID",
         message: "Missing itemId parameter", 
         traceId 
+      }), {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
@@ -58,11 +97,18 @@ serve(async (req) => {
     }
 
     if (![256, 512, 1024].includes(size)) {
-      return httpJson(400, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
         code: "INVALID_SIZE",
         message: "Invalid size. Must be 256, 512, or 1024", 
         traceId 
+      }), {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
@@ -81,11 +127,18 @@ serve(async (req) => {
 
     if (itemError || !item) {
       console.error(`❌ [${traceId}] Item not found:`, itemError);
-      return httpJson(404, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
         code: "ITEM_NOT_FOUND",
         message: "Item not found in database", 
         traceId 
+      }), {
+        status: 404,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
@@ -136,7 +189,7 @@ serve(async (req) => {
             headers: {
               ...corsHeaders,
               'Content-Type': 'application/json',
-              'Cache-Control': 'no-store'
+              'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
             }
           }
         );
@@ -149,11 +202,18 @@ serve(async (req) => {
     // Get Drive client with access token
     const driveClient = await getDriveClient(userId, supabase);
     if (!driveClient) {
-      return httpJson(401, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
         code: "AUTH_FAILED",
         message: "Failed to authenticate with Google Drive", 
         traceId 
+      }), {
+        status: 401,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
@@ -346,7 +406,7 @@ serve(async (req) => {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-store'
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
         }
       }
     );
@@ -355,28 +415,49 @@ serve(async (req) => {
     console.error(`❌ [${traceId}] Error:`, error);
     
     if (error?.message === "UNAUTHORIZED" || error?.message?.includes("auth")) {
-      return httpJson(401, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
         code: "UNAUTHORIZED",
         message: "Authentication failed or token expired", 
         traceId 
+      }), {
+        status: 401,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
     if (error?.message?.includes("not found")) {
-      return httpJson(404, { 
+      return new Response(JSON.stringify({ 
         ok: false, 
         code: "FILE_NOT_FOUND",
         message: "File not found in Google Drive", 
         traceId 
+      }), {
+        status: 404,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+        }
       });
     }
 
-    return httpJson(500, { 
+    return new Response(JSON.stringify({ 
       ok: false,
       code: "INTERNAL_ERROR",
       message: "Failed to generate thumbnail",
       traceId
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+      }
     });
   }
 });

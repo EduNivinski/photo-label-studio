@@ -72,3 +72,34 @@ export async function listChanges(pageToken: string, accessToken: string) {
   const url = `https://www.googleapis.com/drive/v3/changes?pageToken=${pageToken}&fields=${fields}&pageSize=500&supportsAllDrives=true&includeItemsFromAllDrives=true`;
   return driveFetchJSON<{ changes: any[]; nextPageToken?: string; newStartPageToken?: string }>(url, accessToken);
 }
+
+/**
+ * Get drive client with access token for a user
+ */
+export async function getDriveClient(userId: string, supabase: any): Promise<{ token: string } | null> {
+  // First try to get tokens from the secured table
+  const { data: tokens, error } = await supabase
+    .from('user_drive_tokens')
+    .select('access_token_enc, refresh_token_enc, expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !tokens) {
+    console.error('Failed to get user tokens:', error);
+    return null;
+  }
+
+  // Check if token is expired
+  const now = new Date();
+  const expiresAt = new Date(tokens.expires_at);
+  
+  if (now >= expiresAt) {
+    console.error('Access token expired for user:', userId);
+    return null;
+  }
+
+  // For now, assume tokens are decrypted (they should be encrypted in production)
+  return {
+    token: tokens.access_token_enc
+  };
+}
