@@ -4,7 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, httpJson, safeError } from "../_shared/http.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-import { getStartPageToken } from "../_shared/drive_client.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
@@ -271,32 +270,12 @@ serve(async (req) => {
     
     if (stUpErr) throw stUpErr;
 
-    const isDone = pending.length === 0;
-    const totalProcessed = newStats.processedFolders;
-    const remainingPending = pending.length;
-    
-    console.log(`[run][done] user=${userId} done=${isDone} processed=${totalProcessed} pending=${remainingPending}`);
-    
-    // If this was the first full sync completion, initialize the change token
-    if (isDone && updatedItems > 0 && !st.start_page_token) {
-      console.log(`[run][initToken] user=${userId} - Initializing change token after first sync`);
-      try {
-        const { startPageToken } = await getStartPageToken(token);
-        await admin.from("drive_sync_state")
-          .update({ start_page_token: startPageToken })
-          .eq("user_id", userId);
-        console.log(`[run][initToken] user=${userId} - Token saved: ${startPageToken.slice(0, 10)}...`);
-      } catch (tokenErr) {
-        console.error(`[run][initToken][error] user=${userId}`, tokenErr);
-      }
-    }
-
     console.log(`Processed ${processedFolders} folders, ${updatedItems} items, ${foundFolders} subfolders found. Remaining: ${pending.length}`);
 
     return httpJson(200, { 
       ok: true, 
-      done: isDone, 
-      queued: remainingPending, 
+      done: pending.length === 0, 
+      queued: pending.length, 
       processedFolders,
       updatedItems,
       foundFolders,

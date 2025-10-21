@@ -1,8 +1,12 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { listChanges, getStartPageToken, DriveFile } from "../_shared/drive_client.ts";
+import { listChanges, DriveFile } from "../_shared/drive_client.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
-import { corsHeaders } from "../_shared/http.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -21,21 +25,12 @@ async function getUserIdFromJwt(req: Request): Promise<string | null> {
 
 async function getState(userId: string) {
   const { data, error } = await admin.from("drive_sync_state")
-    .select("start_page_token, root_folder_id")
+    .select("start_page_token")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return { 
-    startPageToken: data?.start_page_token || null, 
-    rootFolderId: data?.root_folder_id || null 
-  };
-}
-
-async function saveStartPageToken(userId: string, token: string) {
-  const { error } = await admin.from("drive_sync_state")
-    .update({ start_page_token: token })
-    .eq("user_id", userId);
-  if (error) throw new Error(`Failed to save token: ${error.message}`);
+  if (!data?.start_page_token) throw new Error("NO_START_PAGE_TOKEN");
+  return data.start_page_token as string;
 }
 
 async function upsertItem(userId: string, f: DriveFile) {
@@ -105,142 +100,78 @@ async function markRemoved(userId: string, fileId: string) {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
-
-  const traceId = crypto.randomUUID();
 
   try {
     const userId = await getUserIdFromJwt(req);
-    if (!userId) {
-      return new Response(JSON.stringify({ 
-        ok: false, 
-        code: "INVALID_JWT",
-        message: "Authentication required",
-        traceId 
-      }), { 
-        status: 401, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
-    }
-
-    const token = await ensureAccessToken(userId);
-    const state = await getState(userId);
-
-    console.log('[changes-pull][start]', { 
-      traceId, 
-      user_id: userId, 
-      hasToken: !!state.startPageToken, 
-      rootFolderId: state.rootFolderId 
+    if (!userId) return new Response(JSON.stringify({ ok: false, reason: "INVALID_JWT" }), { 
+      status: 401, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
-    // If no token exists, initialize one
-    if (!state.startPageToken) {
-      console.log('[changes-pull][resetToken]', { traceId, reason: 'NO_TOKEN' });
-      const { startPageToken } = await getStartPageToken(token);
-      await saveStartPageToken(userId, startPageToken);
-      
-      return new Response(JSON.stringify({ 
-        ok: true, 
-        processed: 0,
-        newStartPageToken: startPageToken,
-        reset: true,
-        message: 'Initialized change token',
-        traceId 
-      }), { 
-        status: 200, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
-    }
+    const token = await ensureAccessToken(userId);
+    let pageToken = await getState(userId);
 
-    let pageToken = state.startPageToken;
-    let newStartPageToken: string | undefined;
+    let newStart: string | undefined;
     let processed = 0;
 
-    // Apply changes to database with error handling
+    console.log(`Starting delta sync for user ${userId} from page token ${pageToken.slice(0, 10)}...`);
+
     do {
-      try {
-        const page = await listChanges(pageToken, token);
-        
-        for (const ch of page.changes || []) {
-          const fileId = ch.fileId as string;
-          if (ch.removed) {
-            await markRemoved(userId, fileId);
-          } else if (ch.file) {
-            const f = ch.file as DriveFile;
-            if (f.mimeType === "application/vnd.google-apps.folder") {
-              await upsertFolder(userId, f);
-            } else {
-              await upsertItem(userId, f);
-            }
+      const page = await listChanges(pageToken, token);
+      
+      for (const ch of page.changes || []) {
+        const fileId = ch.fileId as string;
+        if (ch.removed) {
+          await markRemoved(userId, fileId);
+          console.log(`Removed file/folder: ${fileId}`);
+        } else if (ch.file) {
+          const f = ch.file as DriveFile;
+          if (f.mimeType === "application/vnd.google-apps.folder") {
+            await upsertFolder(userId, f);
+          } else {
+            await upsertItem(userId, f);
           }
-          processed++;
+          console.log(`Updated ${f.mimeType === "application/vnd.google-apps.folder" ? "folder" : "file"}: ${f.name}`);
         }
-        
-        if (page.newStartPageToken) newStartPageToken = page.newStartPageToken;
-        pageToken = page.nextPageToken || "";
-      } catch (apiError: any) {
-        // Handle invalid token - reset and retry
-        if (apiError?.message?.includes('invalid') || apiError?.message?.includes('startPageToken')) {
-          console.log('[changes-pull][resetToken]', { traceId, reason: 'INVALID_TOKEN', error: apiError.message });
-          const { startPageToken } = await getStartPageToken(token);
-          await saveStartPageToken(userId, startPageToken);
-          
-          return new Response(JSON.stringify({ 
-            ok: true, 
-            processed,
-            newStartPageToken: startPageToken,
-            reset: true,
-            message: 'Token reset due to invalidity',
-            traceId 
-          }), { 
-            status: 200, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" } 
-          });
-        }
-        
-        // Handle insufficient scope
-        if (apiError?.message?.includes('403') || apiError?.message?.includes('insufficient')) {
-          return new Response(JSON.stringify({ 
-            ok: false, 
-            code: "INSUFFICIENT_SCOPE",
-            message: "Google Drive API access requires additional permissions",
-            traceId 
-          }), { 
-            status: 403, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" } 
-          });
-        }
-        
-        throw apiError;
+        processed++;
       }
+      
+      if (page.newStartPageToken) newStart = page.newStartPageToken;
+      pageToken = page.nextPageToken || "";
     } while (pageToken);
 
-    // Save the new start page token for future delta syncs
-    if (newStartPageToken) {
-      await saveStartPageToken(userId, newStartPageToken);
+    if (newStart) {
+      const { error } = await admin.from("drive_sync_state")
+        .update({ 
+          start_page_token: newStart, 
+          last_changes_at: new Date().toISOString(), 
+          updated_at: new Date().toISOString() 
+        })
+        .eq("user_id", userId);
+      if (error) throw new Error("UPSERT_SYNC:" + error.message);
     }
 
-    console.log('[changes-pull][done]', { traceId, processed, newStartPageToken });
+    console.log(`Delta sync completed: ${processed} changes processed`);
 
     return new Response(JSON.stringify({ 
       ok: true, 
-      processed,
-      newStartPageToken,
-      traceId 
+      processed, 
+      newStartPageToken: newStart 
     }), { 
       status: 200, 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
     
   } catch (e: any) {
-    console.error('[changes-pull][error]', { traceId, error: e?.message || String(e) });
+    console.error("Changes pull error:", e?.message || String(e));
     return new Response(JSON.stringify({ 
       ok: false, 
-      code: "PULL_ERROR",
-      message: e?.message || "Failed to pull changes",
-      traceId 
+      reason: "CHANGES_ERROR", 
+      message: e?.message || String(e) 
     }), { 
       status: 500, 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
