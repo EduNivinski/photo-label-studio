@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MediaItem } from '@/types/media';
+import { withCacheBuster } from '@/lib/cacheBuster';
 
 interface MediaThumbProps {
   item: MediaItem;
@@ -28,7 +29,7 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
         body: { itemId: fileId, size: 256 }
       });
       if (!error && data?.ok && data?.url) {
-        setPoster(data.url + "&cb=" + Date.now());
+        setPoster(withCacheBuster(data.url));
       }
     } catch (err) {
       console.error('Failed to retry thumbnail:', err);

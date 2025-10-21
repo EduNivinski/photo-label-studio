@@ -146,6 +146,12 @@ if (source === "all" || source === "gdrive") {
         const fileId = item.file_id;
         const mimeType = item.mime_type || '';
         
+        // Only process images and videos
+        const isMedia = mimeType.startsWith('image/') || mimeType.startsWith('video/');
+        if (!isMedia) {
+          continue;
+        }
+        
         // Calculate current revision
         const revInput = `${item.modified_time || ''}|${item.md5_checksum || ''}|${item.updated_at || ''}`;
         const revHashBuffer = await crypto.subtle.digest(
@@ -186,6 +192,8 @@ if (source === "all" || source === "gdrive") {
                   })
                   .eq('user_id', userId)
                   .eq('file_id', fileId);
+                
+                console.log(`✅ Generated and cached thumb for ${fileId}`);
               }
             }
           } catch (thumbError) {
