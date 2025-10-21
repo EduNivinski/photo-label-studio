@@ -32,12 +32,24 @@ export async function requireAuth(req: Request): Promise<AuthResult> {
  * Returns a JSON response with proper headers and BigInt-safe serialization
  */
 // Standard CORS headers for all functions
-export const corsHeaders = {
+export const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   "Access-Control-Allow-Headers": "authorization, content-type, cache-control, x-client-info, apikey, x-supabase-authorization, x-requested-with",
   "Access-Control-Max-Age": "86400",
 };
+
+export function json(status: number, body: unknown, extra: Record<string,string> = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      ...corsHeaders,
+      ...extra,
+    },
+  });
+}
 
 export function httpJson(status: number, data: unknown, origin?: string | null): Response {
   // Get allowed origins from environment or use defaults
