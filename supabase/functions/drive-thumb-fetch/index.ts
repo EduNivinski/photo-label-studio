@@ -1,8 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDriveClient } from "../_shared/drive_client.ts";
 
-// @deno-types="npm:@types/sharp@^0.32.0"
-import sharp from "npm:sharp@^0.33.0";
+// Dynamic sharp loader (fallback to no-sharp pipeline)
+let SharpMod: any | null = null;
+async function loadSharp() {
+  if (SharpMod !== null) return SharpMod;
+  try {
+    // @deno-types="npm:@types/sharp@^0.32.0"
+    const mod = await import("npm:sharp@0.33.0");
+    SharpMod = (mod as any).default || mod;
+  } catch (_e) {
+    SharpMod = null; // sharp unavailable on this platform/runtime
+  }
+  return SharpMod;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
@@ -143,37 +154,32 @@ async function handler(req: Request): Promise<Response> {
       .join('')
       .substring(0, 16);
 
-    // Check cache in storage
-    const storagePath = `${userId}/${fileId}/${rev}/${size}.webp`;
+    // Check cache in storage (try WEBP then JPG)
+    const basePath = `${userId}/${fileId}/${rev}/${size}`;
 
-    const { data: existingFile } = await supabase.storage
-      .from('thumbnails')
-      .list(storagePath.split('/').slice(0, -1).join('/'), {
-        search: `${size}.webp`
-      });
-
-    if (existingFile && existingFile.length > 0) {
-      // Cache hit - return signed URL
-      const { data: signedData } = await supabase.storage
+    const trySign = async (ext: string) => {
+      const { data } = await supabase.storage
         .from('thumbnails')
-        .createSignedUrl(storagePath, 3600); // 1 hour
+        .createSignedUrl(`${basePath}.${ext}`, 3600);
+      return data?.signedUrl ? { url: data.signedUrl, key: `${basePath}.${ext}` } : null;
+    };
 
-      if (signedData?.signedUrl) {
-        console.log('[thumb][cache-hit]', { traceId, key: storagePath });
-        return jsonResponse(200, {
-          ok: true,
-          url: signedData.signedUrl,
-          rev,
-          width: size,
-          height: size,
-          traceId
-        });
-      } else {
-        console.log('[thumb][warning]', { traceId, reason: 'sign_failed' });
-      }
+    let signed = await trySign('webp');
+    if (!signed) signed = await trySign('jpg');
+
+    if (signed) {
+      console.log('[thumb][cache-hit]', { traceId, key: signed.key });
+      return jsonResponse(200, {
+        ok: true,
+        url: signed.url,
+        rev,
+        width: size,
+        height: size,
+        traceId
+      });
     }
 
-    console.log('[thumb][cache-miss]', { traceId, key: storagePath });
+    console.log('[thumb][cache-miss]', { traceId, key: basePath });
 
     // Cache miss - generate thumbnail
     console.log('[thumb][generate]', { traceId, fileId, mimeType });
@@ -182,27 +188,54 @@ async function handler(req: Request): Promise<Response> {
 
     let imageBuffer: ArrayBuffer | null = null;
 
+    // Decide pipeline based on sharp availability
+    const sharpMod = await loadSharp();
+    const useSharp = !!sharpMod;
+
     // Handle different mime types
-    const isRaw = mimeType.startsWith('image/') && /\/(cr2|nef|arw|raf|dng|orf|rw2)$/i.test(mimeType);
+    const isRaw = mimeType.startsWith('image/') && /(cr2|nef|arw|raf|dng|orf|rw2)$/i.test(mimeType.split('/')[1] || '');
 
     if (mimeType.startsWith('image/') && !isRaw) {
-      // Download full image from Drive
-      const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
-      try {
-        const response = await fetch(downloadUrl, {
-          headers: { Authorization: `Bearer ${driveClient.token}` }
-        });
+      if (useSharp) {
+        // Prefer full image when we can resize it with sharp
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
+        try {
+          const response = await fetch(downloadUrl, {
+            headers: { Authorization: `Bearer ${driveClient.token}` }
+          });
 
-        if (!response.ok) {
-          console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: response.status });
-          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Status ${response.status}`, traceId });
+          if (!response.ok) {
+            console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: response.status });
+            return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Status ${response.status}`, traceId });
+          }
+
+          imageBuffer = await response.arrayBuffer();
+          console.log('[thumb][downloaded]', { traceId, fileId, bytes: imageBuffer.byteLength });
+        } catch (fetchErr) {
+          console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(fetchErr) });
+          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(fetchErr), traceId });
         }
+      } else {
+        // No sharp available: use Drive's thumbnail instead of downloading full image
+        const link = thumbLink || (driveItem?.thumbnail_link || '');
+        if (link) {
+          try {
+            const thumbResponse = await fetch(link, {
+              headers: { Authorization: `Bearer ${driveClient.token}` }
+            });
 
-        imageBuffer = await response.arrayBuffer();
-        console.log('[thumb][downloaded]', { traceId, fileId, bytes: imageBuffer.byteLength });
-      } catch (fetchErr) {
-        console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(fetchErr) });
-        return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(fetchErr), traceId });
+            if (thumbResponse.ok) {
+              imageBuffer = await thumbResponse.arrayBuffer();
+              console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
+            } else {
+              console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
+              return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
+            }
+          } catch (thumbErr) {
+            console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_error', error: String(thumbErr) });
+            return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(thumbErr), traceId });
+          }
+        }
       }
     } else if (mimeType.startsWith('video/') || isRaw) {
       // Use Drive's thumbnail for videos and RAW images
@@ -227,24 +260,12 @@ async function handler(req: Request): Promise<Response> {
       }
     }
 
-    // If we don't have an image buffer, return error for media types or placeholder for others
+    // If we don't have an image buffer, return not found (no data: placeholders for Home)
     if (!imageBuffer) {
-      if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) {
-        console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', mimeType });
-        return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "No preview available", traceId });
-      } else {
-        // Non-media types get placeholder (but we don't cache it)
-        console.log('[thumb][placeholder]', { traceId, mimeType });
-        return jsonResponse(200, {
-          ok: true,
-          url: createPlaceholder(size, "file"),
-          rev,
-          width: size,
-          height: size,
-          traceId
-        });
-      }
+      console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', mimeType });
+      return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "No preview available", traceId });
     }
+
 
     // Process with sharp
     let webpBuffer: Buffer;
