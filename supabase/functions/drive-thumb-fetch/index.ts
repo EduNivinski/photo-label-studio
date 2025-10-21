@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, httpJson, requireAuth, safeError, getClientIp } from "../_shared/http.ts";
-import { checkRateLimit, RATE_LIMITS } from "../_shared/rate-limit.ts";
-import { getAccessToken } from "../_shared/token_provider_v2.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
+import { getDriveClient } from "../_shared/drive_client.ts";
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -39,22 +39,29 @@ serve(async (req) => {
 
     // Parse query parameters
     const url = new URL(req.url);
-    const itemId = url.searchParams.get('itemId');
+    let itemId = url.searchParams.get('itemId');
     const sizeParam = url.searchParams.get('size') || '256';
     const size = parseInt(sizeParam, 10);
 
     if (!itemId) {
       return httpJson(400, { 
         ok: false, 
-        error: "Missing itemId parameter", 
+        code: "MISSING_ITEM_ID",
+        message: "Missing itemId parameter", 
         traceId 
       });
+    }
+
+    // Normalize itemId: remove "gdrive:" prefix if present
+    if (itemId.startsWith('gdrive:')) {
+      itemId = itemId.substring(7);
     }
 
     if (![256, 512, 1024].includes(size)) {
       return httpJson(400, { 
         ok: false, 
-        error: "Invalid size. Must be 256, 512, or 1024", 
+        code: "INVALID_SIZE",
+        message: "Invalid size. Must be 256, 512, or 1024", 
         traceId 
       });
     }
@@ -64,18 +71,20 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Lookup item
+    // Lookup item by file_id (normalized itemId)
     const { data: item, error: itemError } = await supabase
       .from('drive_items')
       .select('file_id, mime_type, modified_time, md5_checksum, updated_at, thumb_url, thumb_rev, thumbnail_link')
       .eq('user_id', userId)
-      .or(`file_id.eq.${itemId},id.eq.${itemId}`)
+      .eq('file_id', itemId)
       .maybeSingle();
 
     if (itemError || !item) {
+      console.error(`❌ [${traceId}] Item not found:`, itemError);
       return httpJson(404, { 
         ok: false, 
-        error: "Item not found", 
+        code: "ITEM_NOT_FOUND",
+        message: "Item not found in database", 
         traceId 
       });
     }
@@ -137,60 +146,113 @@ serve(async (req) => {
     // Need to generate thumbnail
     console.log(`🔄 [${traceId}] Generating thumbnail for ${fileId} size=${size} mime=${mimeType}`);
 
-    // Get access token
-    const accessToken = await getAccessToken(userId, supabase);
-    if (!accessToken) {
+    // Get Drive client with access token
+    const driveClient = await getDriveClient(userId, supabase);
+    if (!driveClient) {
       return httpJson(401, { 
         ok: false, 
-        error: "Failed to get access token", 
+        code: "AUTH_FAILED",
+        message: "Failed to authenticate with Google Drive", 
         traceId 
       });
     }
 
+    const accessToken = driveClient.token;
+
     let imageBuffer: Uint8Array | null = null;
+    const isRaw = mimeType.toLowerCase().includes('cr2') || 
+                  mimeType.toLowerCase().includes('nef') || 
+                  mimeType.toLowerCase().includes('arw') ||
+                  mimeType.toLowerCase().includes('dng');
 
-    if (mimeType.startsWith('image/')) {
-      // Download image from Drive
-      const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
-      const driveResp = await fetch(driveUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+    if (mimeType.startsWith('image/') || isRaw) {
+      // For RAW images, try thumbnailLink first as sharp may not support all RAW formats
+      if (isRaw && item.thumbnail_link) {
+        console.log(`📸 [${traceId}] RAW image detected, trying thumbnailLink first`);
+        try {
+          const thumbResp = await fetch(item.thumbnail_link, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
 
-      if (!driveResp.ok) {
-        throw new Error(`Failed to download image: ${driveResp.status}`);
+          if (thumbResp.ok) {
+            const thumbBuffer = new Uint8Array(await thumbResp.arrayBuffer());
+            const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
+            
+            imageBuffer = await sharp(thumbBuffer)
+              .resize(size, size, { 
+                fit: 'inside', 
+                withoutEnlargement: true 
+              })
+              .webp({ quality: 70 })
+              .toBuffer();
+          }
+        } catch (err) {
+          console.log(`⚠️ [${traceId}] thumbnailLink failed for RAW, will try direct download:`, err.message);
+        }
       }
 
-      const originalBuffer = new Uint8Array(await driveResp.arrayBuffer());
-      
-      // Use sharp to resize (import dynamically)
-      const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
-      
-      imageBuffer = await sharp(originalBuffer)
-        .resize(size, size, { 
-          fit: 'inside', 
-          withoutEnlargement: true 
-        })
-        .webp({ quality: 70 })
-        .toBuffer();
-
-    } else if (mimeType.startsWith('video/')) {
-      // Try to use Drive's thumbnailLink
-      if (item.thumbnail_link) {
-        const thumbResp = await fetch(item.thumbnail_link, {
+      // If RAW thumbnailLink failed or not RAW, try direct download
+      if (!imageBuffer) {
+        const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
+        const driveResp = await fetch(driveUrl, {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        if (thumbResp.ok) {
-          const thumbBuffer = new Uint8Array(await thumbResp.arrayBuffer());
-          const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
-          
-          imageBuffer = await sharp(thumbBuffer)
+        if (!driveResp.ok) {
+          throw new Error(`Failed to download image: ${driveResp.status} ${driveResp.statusText}`);
+        }
+
+        const originalBuffer = new Uint8Array(await driveResp.arrayBuffer());
+        
+        // Use sharp to resize
+        const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
+        
+        try {
+          imageBuffer = await sharp(originalBuffer)
             .resize(size, size, { 
               fit: 'inside', 
               withoutEnlargement: true 
             })
             .webp({ quality: 70 })
             .toBuffer();
+        } catch (sharpErr) {
+          console.error(`❌ [${traceId}] Sharp processing failed:`, sharpErr.message);
+          // For RAW that sharp can't handle, use placeholder
+          if (isRaw) {
+            const placeholderUrl = 'https://placehold.co/256x256/2a2a2a/white?text=RAW';
+            const placeholderResp = await fetch(placeholderUrl);
+            imageBuffer = new Uint8Array(await placeholderResp.arrayBuffer());
+          } else {
+            throw sharpErr;
+          }
+        }
+      }
+
+    } else if (mimeType.startsWith('video/')) {
+      console.log(`🎥 [${traceId}] Video detected, trying thumbnailLink`);
+      // Try to use Drive's thumbnailLink
+      if (item.thumbnail_link) {
+        try {
+          const thumbResp = await fetch(item.thumbnail_link, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+
+          if (thumbResp.ok) {
+            const thumbBuffer = new Uint8Array(await thumbResp.arrayBuffer());
+            const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
+            
+            imageBuffer = await sharp(thumbBuffer)
+              .resize(size, size, { 
+                fit: 'inside', 
+                withoutEnlargement: true 
+              })
+              .webp({ quality: 70 })
+              .toBuffer();
+            
+            console.log(`✅ [${traceId}] Video thumbnail generated from Drive thumbnailLink`);
+          }
+        } catch (err) {
+          console.log(`⚠️ [${traceId}] thumbnailLink processing failed:`, err.message);
         }
       }
 
@@ -203,23 +265,28 @@ serve(async (req) => {
       }
 
     } else {
-      // Other file types: try thumbnailLink or use placeholder
+      // Other file types (PDF, Google Docs, etc): try thumbnailLink or use placeholder
+      console.log(`📄 [${traceId}] Other file type: ${mimeType}`);
       if (item.thumbnail_link) {
-        const thumbResp = await fetch(item.thumbnail_link, {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
+        try {
+          const thumbResp = await fetch(item.thumbnail_link, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
 
-        if (thumbResp.ok) {
-          const thumbBuffer = new Uint8Array(await thumbResp.arrayBuffer());
-          const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
-          
-          imageBuffer = await sharp(thumbBuffer)
-            .resize(size, size, { 
-              fit: 'inside', 
-              withoutEnlargement: true 
-            })
-            .webp({ quality: 70 })
-            .toBuffer();
+          if (thumbResp.ok) {
+            const thumbBuffer = new Uint8Array(await thumbResp.arrayBuffer());
+            const sharp = (await import('https://deno.land/x/sharp@v0.33.2/mod.ts')).default;
+            
+            imageBuffer = await sharp(thumbBuffer)
+              .resize(size, size, { 
+                fit: 'inside', 
+                withoutEnlargement: true 
+              })
+              .webp({ quality: 70 })
+              .toBuffer();
+          }
+        } catch (err) {
+          console.log(`⚠️ [${traceId}] thumbnailLink processing failed:`, err.message);
         }
       }
 
@@ -287,17 +354,29 @@ serve(async (req) => {
   } catch (error: any) {
     console.error(`❌ [${traceId}] Error:`, error);
     
-    if (error?.message === "UNAUTHORIZED") {
+    if (error?.message === "UNAUTHORIZED" || error?.message?.includes("auth")) {
       return httpJson(401, { 
         ok: false, 
-        error: "Unauthorized", 
+        code: "UNAUTHORIZED",
+        message: "Authentication failed or token expired", 
         traceId 
       });
     }
 
-    return safeError(error, { 
-      publicMessage: "Failed to fetch thumbnail", 
-      logContext: `drive-thumb-fetch [${traceId}]` 
+    if (error?.message?.includes("not found")) {
+      return httpJson(404, { 
+        ok: false, 
+        code: "FILE_NOT_FOUND",
+        message: "File not found in Google Drive", 
+        traceId 
+      });
+    }
+
+    return httpJson(500, { 
+      ok: false,
+      code: "INTERNAL_ERROR",
+      message: "Failed to generate thumbnail",
+      traceId
     });
   }
 });
