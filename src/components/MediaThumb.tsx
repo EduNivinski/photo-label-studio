@@ -23,10 +23,12 @@ export function MediaThumb({ item, className = "", onLoad, onError }: MediaThumb
     retried.current = true;
     try {
       const fileId = item.id.split(":")[1];
-      const { data } = await supabase.functions.invoke("get-thumb-urls", { body:{ fileIds:[fileId] }});
-      const fresh = data?.urls?.[fileId];
-      if (fresh) {
-        setPoster(fresh + "&cb=" + Date.now());
+      // Use new drive-thumb-fetch endpoint
+      const { data, error } = await supabase.functions.invoke("drive-thumb-fetch", { 
+        body: { itemId: fileId, size: 256 }
+      });
+      if (!error && data?.ok && data?.url) {
+        setPoster(data.url + "&cb=" + Date.now());
       }
     } catch (err) {
       console.error('Failed to retry thumbnail:', err);

@@ -135,6 +135,9 @@ export type Database = {
           size: number | null
           size_bigint: number | null
           status: string
+          thumb_rev: string | null
+          thumb_updated_at: string | null
+          thumb_url: string | null
           thumbnail_link: string | null
           trashed: boolean
           updated_at: string
@@ -167,6 +170,9 @@ export type Database = {
           size?: number | null
           size_bigint?: number | null
           status?: string
+          thumb_rev?: string | null
+          thumb_updated_at?: string | null
+          thumb_url?: string | null
           thumbnail_link?: string | null
           trashed?: boolean
           updated_at?: string
@@ -199,6 +205,9 @@ export type Database = {
           size?: number | null
           size_bigint?: number | null
           status?: string
+          thumb_rev?: string | null
+          thumb_updated_at?: string | null
+          thumb_url?: string | null
           thumbnail_link?: string | null
           trashed?: boolean
           updated_at?: string

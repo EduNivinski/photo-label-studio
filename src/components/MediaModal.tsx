@@ -76,55 +76,23 @@ export function MediaModal({
   const [loadingPoster, setLoadingPoster] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Utility function to fetch Drive previews
+  // Utility function to fetch Drive previews using drive-thumb-fetch
   const fetchDrivePreview = async ({ fileId, kind }: { fileId: string; kind: "image" | "video" }) => {
-    console.log(`📡 Fetching ${kind} preview for fileId: ${fileId}`);
-    
-    const functionName = kind === "image" ? "drive-image-preview" : "drive-video-poster";
-    const maxSize = kind === "image" ? 1600 : 1280;
-    
-    console.log(`📡 Invoking ${functionName} with maxSize: ${maxSize}`);
+    console.log(`📡 Fetching ${kind} preview for fileId: ${fileId} (1024px)`);
     
     const controller = new AbortController();
     abortControllerRef.current = controller;
     
     try {
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-      
-      // Call edge function directly with fetch to get blob response
-      const supabaseUrl = 'https://tcupxcxyylxfgsbhfdhw.supabase.co';
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/${functionName}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ fileId, max: maxSize }),
-          signal: controller.signal
-        }
-      );
-      
-      console.log(`📡 Response status: ${response.status} ${response.statusText}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Preview failed: ${response.status} - ${errorText}`);
-      }
-      
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      
-      console.log(`✅ ${kind} preview blob created:`, {
-        size: blob.size,
-        type: blob.type,
-        url: objectUrl
+      const { data, error } = await supabase.functions.invoke('drive-thumb-fetch', {
+        body: { itemId: fileId, size: 1024 }
       });
-      
-      return objectUrl;
+
+      if (error) throw error;
+      if (!data?.ok || !data?.url) throw new Error('No preview URL returned');
+
+      console.log(`✅ ${kind} preview URL received:`, data.url);
+      return data.url;
     } catch (error) {
       console.error(`❌ Error fetching ${kind} preview:`, error);
       throw error;
@@ -132,19 +100,15 @@ export function MediaModal({
   };
 
   useEffect(() => {
-    // Cleanup function to revoke URLs and abort requests
+    // Cleanup function to revoke blob URLs and abort requests
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      if (hiresSrc && hiresSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(hiresSrc);
-      }
-      if (posterHq && posterHq.startsWith('blob:')) {
-        URL.revokeObjectURL(posterHq);
-      }
+      // Note: With the new drive-thumb-fetch, URLs are signed URLs from storage,
+      // not blob URLs, so no need to revoke them
     };
-  }, [hiresSrc, posterHq]);
+  }, []);
 
   useEffect(() => {
     if (item) {
@@ -152,12 +116,6 @@ export function MediaModal({
       setZoom(1);
       
       // Reset preview states
-      if (hiresSrc && hiresSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(hiresSrc);
-      }
-      if (posterHq && posterHq.startsWith('blob:')) {
-        URL.revokeObjectURL(posterHq);
-      }
       setHiresSrc(null);
       setPosterHq(null);
       setLoading(false);
@@ -182,8 +140,6 @@ export function MediaModal({
               if (!abortControllerRef.current?.signal.aborted) {
                 console.log('✅ Video poster loaded successfully:', url);
                 setPosterHq(url);
-              } else {
-                URL.revokeObjectURL(url);
               }
             })
             .catch(error => {
@@ -202,8 +158,6 @@ export function MediaModal({
               if (!abortControllerRef.current?.signal.aborted) {
                 console.log('✅ High-res image loaded successfully:', url);
                 setHiresSrc(url);
-              } else {
-                URL.revokeObjectURL(url);
               }
             })
             .catch(error => {

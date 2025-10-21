@@ -72,6 +72,9 @@ verify_jwt = true
 [functions."get-thumb-urls"]        # emite URLs assinadas
 verify_jwt = true
 
+[functions."drive-thumb-fetch"]      # gera e cacheia thumbnails com storage
+verify_jwt = true
+
 # Removed get-video-urls - now using get-thumb-urls for all media
 
 [functions."diag-scopes"]
