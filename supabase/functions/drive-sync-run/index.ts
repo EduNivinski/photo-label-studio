@@ -6,8 +6,10 @@ import { checkRateLimit } from "../_shared/rate-limit.ts";
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, content-type, cache-control, x-client-info, apikey, x-supabase-authorization, x-requested-with',
+  'Access-Control-Max-Age': '86400',
 };
 
 const BodySchema = z.object({ budgetFolders: z.number().int().min(1).max(20).optional() });

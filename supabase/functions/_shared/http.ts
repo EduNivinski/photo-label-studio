@@ -31,6 +31,14 @@ export async function requireAuth(req: Request): Promise<AuthResult> {
 /**
  * Returns a JSON response with proper headers and BigInt-safe serialization
  */
+// Standard CORS headers for all functions
+export const corsHeaders = {
+  "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, content-type, cache-control, x-client-info, apikey, x-supabase-authorization, x-requested-with",
+  "Access-Control-Max-Age": "86400",
+};
+
 export function httpJson(status: number, data: unknown, origin?: string | null): Response {
   // Get allowed origins from environment or use defaults
   const allowedOriginsEnv = Deno.env.get("CORS_ALLOWED_ORIGINS");

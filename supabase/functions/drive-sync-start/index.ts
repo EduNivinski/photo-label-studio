@@ -5,8 +5,10 @@ import { requireAuth, httpJson, safeError } from "../_shared/http.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, content-type, cache-control, x-client-info, apikey, x-supabase-authorization, x-requested-with',
+  'Access-Control-Max-Age': '86400',
 };
 
 const BodySchema = z.object({ force: z.boolean().optional() });
@@ -97,8 +99,10 @@ serve(async (req) => {
     });
 
     return httpJson(200, {
-      ok: true, 
+      ok: true,
+      rearmed: true,
       effectiveRootFolderId: currentFolderId,
+      rootFolderId: currentFolderId, // Mirror for compatibility
       message: 'Sync start armed with latest folder',
       traceId: cid
     }, req.headers.get('origin'));

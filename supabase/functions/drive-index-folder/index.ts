@@ -4,8 +4,10 @@ import { listChildren, DriveFile, getStartPageToken } from "../_shared/drive_cli
 import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, content-type, cache-control, x-client-info, apikey, x-supabase-authorization, x-requested-with',
+  'Access-Control-Max-Age': '86400',
 };
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

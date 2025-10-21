@@ -45,11 +45,16 @@ export function useDriveSyncOrchestrator() {
         throw new Error(errorMsg);
       }
 
-      console.log('[SYNC][start] OK:', { traceId, rearmed: startData.rearmed, rootFolderId: startData.rootFolderId });
+      console.log('[SYNC][start] OK:', { 
+        traceId, 
+        rearmed: startData.rearmed, 
+        effectiveRootFolderId: startData.effectiveRootFolderId,
+        rootFolderId: startData.rootFolderId 
+      });
 
       // Step 2: Validate that root_folder_id matches folderId
       const { data: diagData, error: diagError } = await supabase.functions.invoke('drive-sync-diagnostics', {
-        headers: { ...headers, 'Cache-Control': 'no-store' },
+        headers,
       });
 
       if (diagError || !diagData?.ok) {
