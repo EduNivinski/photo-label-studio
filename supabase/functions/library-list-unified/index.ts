@@ -178,7 +178,8 @@ if (source === "all" || source === "gdrive") {
 
             if (thumbResp.ok) {
               const thumbData = await thumbResp.json();
-              if (thumbData.ok && thumbData.url) {
+              if (thumbData.ok && thumbData.url && !thumbData.url.startsWith('data:')) {
+                // Only use HTTP/HTTPS URLs, not data: placeholders
                 item.posterUrl = thumbData.url;
                 debugFilledThumbs++;
                 
@@ -194,13 +195,17 @@ if (source === "all" || source === "gdrive") {
                   .eq('file_id', fileId);
                 
                 console.log(`✅ Generated and cached thumb for ${fileId}`);
+              } else {
+                console.log(`⚠️ Skipped placeholder/invalid thumb for ${fileId}`);
               }
+            } else {
+              console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status}`);
             }
           } catch (thumbError) {
             console.error(`❌ Error fetching thumb for ${fileId}:`, thumbError);
           }
-        } else if (item.thumb_url) {
-          // Use cached thumbnail URL
+        } else if (item.thumb_url && !item.thumb_url.startsWith('data:')) {
+          // Use cached thumbnail URL (only if it's HTTP/HTTPS)
           item.posterUrl = item.thumb_url;
           debugFilledThumbs++;
         }
