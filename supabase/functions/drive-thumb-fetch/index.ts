@@ -266,31 +266,44 @@ async function handler(req: Request): Promise<Response> {
       return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "No preview available", traceId });
     }
 
+    // Process with sharp (if available) or save as JPEG
+    let finalBuffer: Uint8Array;
+    let finalExt: string;
+    let finalContentType: string;
 
-    // Process with sharp
-    let webpBuffer: Buffer;
-    try {
-      webpBuffer = await sharp(Buffer.from(imageBuffer))
-        .resize({
-          width: size,
-          height: size,
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .webp({ quality: 82 })
-        .toBuffer();
-      
-      console.log('[thumb][processed]', { traceId, fileId, outputBytes: webpBuffer.length });
-    } catch (sharpErr) {
-      console.log('[thumb][error]', { traceId, code: 'THUMB_PROCESS_ERROR', error: String(sharpErr) });
-      return jsonResponse(500, { ok: false, code: "THUMB_PROCESS_ERROR", details: String(sharpErr), traceId });
+    if (useSharp && sharpMod) {
+      try {
+        finalBuffer = await sharpMod(Buffer.from(imageBuffer))
+          .resize({
+            width: size,
+            height: size,
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .webp({ quality: 82 })
+          .toBuffer();
+        finalExt = 'webp';
+        finalContentType = 'image/webp';
+        console.log('[thumb][processed-webp]', { traceId, fileId, outputBytes: finalBuffer.length });
+      } catch (sharpErr) {
+        console.log('[thumb][error]', { traceId, code: 'THUMB_PROCESS_ERROR', error: String(sharpErr) });
+        return jsonResponse(500, { ok: false, code: "THUMB_PROCESS_ERROR", details: String(sharpErr), traceId });
+      }
+    } else {
+      // No sharp: save as JPEG
+      finalBuffer = new Uint8Array(imageBuffer);
+      finalExt = 'jpg';
+      finalContentType = 'image/jpeg';
+      console.log('[thumb][no-sharp-jpeg]', { traceId, fileId, bytes: finalBuffer.length });
     }
+
+    const storagePath = `${basePath}.${finalExt}`;
 
     // Upload to storage
     const { error: uploadError } = await supabase.storage
       .from('thumbnails')
-      .upload(storagePath, webpBuffer, {
-        contentType: 'image/webp',
+      .upload(storagePath, finalBuffer, {
+        contentType: finalContentType,
         upsert: true
       });
 

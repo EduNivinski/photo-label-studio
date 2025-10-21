@@ -82,6 +82,32 @@ export function httpJson(status: number, data: unknown, origin?: string | null):
 }
 
 /**
+ * Returns a 204 No Content response with CORS headers for OPTIONS
+ */
+export function httpNoContent(origin?: string | null): Response {
+  const allowedOriginsEnv = Deno.env.get("CORS_ALLOWED_ORIGINS");
+  const allowedOrigins = allowedOriginsEnv 
+    ? allowedOriginsEnv.split(",").map(o => o.trim())
+    : ["https://photo-label-studio.lovable.app", "http://localhost:3000", "http://localhost:5173"];
+  
+  const allowedOrigin = origin && allowedOrigins.includes(origin)
+    ? origin 
+    : allowedOrigins[0];
+
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Headers": "authorization, apikey, content-type, cache-control, x-client-info, x-supabase-authorization",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Access-Control-Max-Age": "86400",
+      "Vary": "Origin",
+    },
+  });
+}
+
+/**
  * Safe error handling - logs details but returns generic message with code hint
  */
 export function safeError(
