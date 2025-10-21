@@ -7,6 +7,7 @@ import { MediaItem } from '@/types/media';
 import { formatDuration } from '@/lib/formatDuration';
 import { LabelChip } from '@/components/LabelChip';
 import { useSignedVideos } from '@/hooks/useSignedVideos';
+import { MediaThumb } from '@/components/MediaThumb';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,55 +98,39 @@ export function MediaCard({
         )}
 
         {/* Media content */}
-        {item.posterUrl && !imageError ? (
+        <MediaThumb 
+          item={item}
+          className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500"
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+        
+        {item.isVideo && (
           <>
-            <img
-              src={item.posterUrl}
-              alt={item.name}
-              loading="lazy"
-              onError={handleImageError}
-              onLoad={handleImageLoad}
-              className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500"
-            />
-            {item.isVideo && (
-              <>
-                {/* Play button overlay */}
-                <div 
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:pointer-events-auto cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePlayVideo();
-                  }}
-                >
-                  <div className="bg-black/70 rounded-full p-3 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-6 h-6 text-white fill-white" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </div>
-                </div>
-                {/* Duration badge */}
-                {item.durationMs && (
-                  <Badge 
-                    variant="secondary" 
-                    className="absolute bottom-2 right-2 bg-black/70 text-white backdrop-blur-sm"
-                  >
-                    {formatDuration(Math.floor(item.durationMs / 1000))}
-                  </Badge>
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-3xl mb-2">
-                {item.isVideo ? '🎥' : '🖼️'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {item.mimeType}
+            {/* Play button overlay */}
+            <div 
+              className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:pointer-events-auto cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayVideo();
+              }}
+            >
+              <div className="bg-black/70 rounded-full p-3 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                <svg className="w-6 h-6 text-white fill-white" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
               </div>
             </div>
-          </div>
+            {/* Duration badge */}
+            {item.durationMs && (
+              <Badge 
+                variant="secondary" 
+                className="absolute bottom-2 right-2 bg-black/70 text-white backdrop-blur-sm"
+              >
+                {formatDuration(Math.floor(item.durationMs / 1000))}
+              </Badge>
+            )}
+          </>
         )}
 
         {/* Action buttons overlay */}
