@@ -77,7 +77,12 @@ serve(async (req) => {
       
       const { data: updateResult, error: deleteDriveError } = await supabase
         .from('drive_items')
-        .update({ status: 'deleted', trashed: true, updated_at: new Date().toISOString() })
+        .update({ 
+          status: 'deleted', 
+          trashed: true, 
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString() 
+        })
         .eq('file_id', key)
         .eq('user_id', user.id)
         .select();

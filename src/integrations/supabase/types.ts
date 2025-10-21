@@ -117,6 +117,7 @@ export type Database = {
         Row: {
           created_at: string
           created_time: string | null
+          deleted_at: string | null
           drive_id: string | null
           file_id: string
           image_meta: Json | null
@@ -148,6 +149,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_time?: string | null
+          deleted_at?: string | null
           drive_id?: string | null
           file_id: string
           image_meta?: Json | null
@@ -179,6 +181,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_time?: string | null
+          deleted_at?: string | null
           drive_id?: string | null
           file_id?: string
           image_meta?: Json | null

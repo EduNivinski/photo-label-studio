@@ -38,7 +38,7 @@ async function saveStartPageToken(userId: string, token: string) {
   if (error) throw new Error(`Failed to save token: ${error.message}`);
 }
 
-async function upsertItem(userId: string, f: DriveFile) {
+async function upsertItem(userId: string, f: DriveFile, traceId?: string) {
   const path = null; // se não souber, mantenha null; o path_cached será refrescado no próximo full ou quando resolver parents
   
   // Extract video metadata if present
@@ -46,6 +46,27 @@ async function upsertItem(userId: string, f: DriveFile) {
   const videoDurationMs = videoMeta?.durationMillis ? Number(videoMeta.durationMillis) : null;
   const videoWidth = videoMeta?.width ? Number(videoMeta.width) : null;
   const videoHeight = videoMeta?.height ? Number(videoMeta.height) : null;
+
+  // Check if item was previously deleted (for reactivation logging)
+  const { data: existing } = await admin.from("drive_items")
+    .select("status, deleted_at")
+    .eq("user_id", userId)
+    .eq("file_id", f.id)
+    .maybeSingle();
+
+  const wasDeleted = existing?.status === 'deleted' || existing?.deleted_at != null;
+  const willReactivate = wasDeleted && !f.trashed;
+
+  if (willReactivate) {
+    console.log(`[changes][restored-remote]`, { 
+      traceId,
+      user_id: userId, 
+      file_id: f.id, 
+      name: f.name,
+      previousStatus: existing?.status,
+      deletedAt: existing?.deleted_at 
+    });
+  }
 
   const { error } = await admin.from("drive_items").upsert({
     user_id: userId, 
@@ -69,7 +90,8 @@ async function upsertItem(userId: string, f: DriveFile) {
     video_height: videoHeight,
     path_cached: path, 
     last_seen_at: new Date().toISOString(),
-    status: f.trashed ? "deleted" : "active", 
+    status: f.trashed ? "deleted" : "active",
+    deleted_at: f.trashed ? new Date().toISOString() : null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,file_id" });
   if (error) throw new Error("UPSERT_ITEM:" + error.message);
@@ -92,7 +114,12 @@ async function upsertFolder(userId: string, f: DriveFile) {
 async function markRemoved(userId: string, fileId: string) {
   // Marca tanto em drive_items quanto drive_folders
   const { error: itemErr } = await admin.from("drive_items")
-    .update({ status: "deleted", trashed: true, updated_at: new Date().toISOString() })
+    .update({ 
+      status: "deleted", 
+      trashed: true, 
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString() 
+    })
     .eq("user_id", userId).eq("file_id", fileId);
   
   const { error: folderErr } = await admin.from("drive_folders")
@@ -166,13 +193,14 @@ serve(async (req) => {
         for (const ch of page.changes || []) {
           const fileId = ch.fileId as string;
           if (ch.removed) {
+            console.log('[changes][deleted-remote]', { traceId, user_id: userId, file_id: fileId });
             await markRemoved(userId, fileId);
           } else if (ch.file) {
             const f = ch.file as DriveFile;
             if (f.mimeType === "application/vnd.google-apps.folder") {
               await upsertFolder(userId, f);
             } else {
-              await upsertItem(userId, f);
+              await upsertItem(userId, f, traceId);
             }
           }
           processed++;

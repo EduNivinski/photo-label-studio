@@ -54,6 +54,26 @@ async function upsertItem(userId: string, f: DriveFile, path: string) {
   const videoWidth = videoMeta?.width ? Number(videoMeta.width) : null;
   const videoHeight = videoMeta?.height ? Number(videoMeta.height) : null;
 
+  // Check if item was previously deleted (for reactivation logging)
+  const { data: existing } = await admin.from("drive_items")
+    .select("status, deleted_at")
+    .eq("user_id", userId)
+    .eq("file_id", f.id)
+    .maybeSingle();
+
+  const wasDeleted = existing?.status === 'deleted' || existing?.deleted_at != null;
+  const willReactivate = wasDeleted && !f.trashed;
+
+  if (willReactivate) {
+    console.log(`[sync-upsert][reactivated]`, { 
+      user_id: userId, 
+      file_id: f.id, 
+      name: f.name,
+      previousStatus: existing?.status,
+      deletedAt: existing?.deleted_at 
+    });
+  }
+
   const { error } = await admin.from("drive_items").upsert({
     user_id: userId,
     file_id: f.id,
@@ -77,6 +97,7 @@ async function upsertItem(userId: string, f: DriveFile, path: string) {
     path_cached: path,
     last_seen_at: new Date().toISOString(),
     status: f.trashed ? "deleted" : "active",
+    deleted_at: f.trashed ? new Date().toISOString() : null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,file_id" });
   if (error) throw new Error("UPSERT_ITEM:" + error.message);

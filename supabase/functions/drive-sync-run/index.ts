@@ -204,6 +204,26 @@ serve(async (req) => {
                             typeof f.size === "number" ? String(f.size) :
                             f.size != null ? String(f.size) : null;
 
+            // Check if item was previously deleted (for reactivation logging)
+            const { data: existing } = await admin.from("drive_items")
+              .select("status, deleted_at")
+              .eq("user_id", userId)
+              .eq("file_id", f.id)
+              .maybeSingle();
+
+            const wasDeleted = existing?.status === 'deleted' || existing?.deleted_at != null;
+            
+            if (wasDeleted) {
+              console.log(`[sync-upsert][reactivated]`, { 
+                traceId: cid,
+                user_id: userId, 
+                file_id: f.id, 
+                name: f.name,
+                previousStatus: existing?.status,
+                deletedAt: existing?.deleted_at 
+              });
+            }
+
             const { error: upErr } = await admin
               .from("drive_items")
               .upsert({
@@ -233,6 +253,8 @@ serve(async (req) => {
                 video_meta: f.videoMediaMetadata ?? null,
                 parents: f.parents ?? null,
                 status: 'active',
+                trashed: false,
+                deleted_at: null,
                 last_seen_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               }, { onConflict: "user_id,file_id" });
