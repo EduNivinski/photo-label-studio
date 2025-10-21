@@ -12,6 +12,7 @@ serve(async (req) => {
   try {
     // Authenticate user
     const { userId } = await requireAuth(req);
+    const authHeader = req.headers.get('authorization') || '';
     
     // Rate limiting
     const clientIp = getClientIp(req);
@@ -152,10 +153,10 @@ if (source === "all" || source === "gdrive") {
           continue;
         }
         
-        // Calculate current revision
-        const revInput = `${item.modified_time || ''}|${item.md5_checksum || ''}|${item.updated_at || ''}`;
+        // Calculate current revision (sha1 of fileId:modified_time)
+        const revInput = `${fileId}:${item.modified_time || ''}`;
         const revHashBuffer = await crypto.subtle.digest(
-          'SHA-256', 
+          'SHA-1', 
           new TextEncoder().encode(revInput)
         );
         const currentRev = Array.from(new Uint8Array(revHashBuffer))
@@ -172,7 +173,7 @@ if (source === "all" || source === "gdrive") {
             const thumbUrl = `${supabaseUrl}/functions/v1/drive-thumb-fetch?itemId=${fileId}&size=256`;
             const thumbResp = await fetch(thumbUrl, {
               headers: {
-                'Authorization': `Bearer ${supabaseServiceKey}`
+                'Authorization': authHeader
               }
             });
 
@@ -283,6 +284,7 @@ if (source === "all" || source === "gdrive") {
         createdAt: item.created_time || item.upload_date,
         updatedAt: item.modified_time || item.updated_at,
         posterUrl,
+        thumbUrl: posterUrl,
         previewUrl: item.source === 'db' ? item.url : null,
         openInDriveUrl: item.source === 'gdrive' ? (item.web_view_link || `https://drive.google.com/file/d/${item.file_id}/view`) : null,
         downloadEnabled: true,
@@ -317,9 +319,11 @@ if (source === "all" || source === "gdrive") {
       headers: { 
         ...corsHeaders(req.headers.get("origin")), 
         'Content-Type': 'application/json',
-        "Access-Control-Allow-Origin": "https://photo-label-studio.lovable.app",
-        "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        'Cache-Control': 'no-store',
+        'Vary': 'Origin',
+        'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
+        'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, cache-control',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
       }
     });
 

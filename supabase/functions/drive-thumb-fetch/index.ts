@@ -7,9 +7,10 @@ import sharp from "npm:sharp@^0.33.0";
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, content-type, cache-control, x-client-info, apikey',
   'Access-Control-Max-Age': '86400',
   'Cache-Control': 'no-store',
+  'Vary': 'Origin',
 };
 
 function jsonResponse(status: number, body: any): Response {
@@ -39,19 +40,19 @@ async function handler(req: Request): Promise<Response> {
     if (req.method === "GET") {
       const url = new URL(req.url);
       itemId = url.searchParams.get("itemId") ?? undefined;
-      size = parseInt(url.searchParams.get("size") ?? "256", 10);
+      size = (parseInt(url.searchParams.get("size") ?? "256", 10) === 1024 ? 1024 : 256);
     } else if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       itemId = body.itemId;
-      size = parseInt(String(body.size ?? "256"), 10);
+      size = (parseInt(String(body.size ?? "256"), 10) === 1024 ? 1024 : 256);
     } else {
       console.log('[thumb][error]', { traceId, code: 'METHOD_NOT_ALLOWED' });
       return jsonResponse(405, { ok: false, code: "METHOD_NOT_ALLOWED", traceId });
     }
 
     if (!itemId) {
-      console.log('[thumb][error]', { traceId, code: 'MISSING_ITEM_ID' });
-      return jsonResponse(400, { ok: false, code: "MISSING_ITEM_ID", message: "itemId é obrigatório", traceId });
+      console.log('[thumb][error]', { traceId, code: 'INVALID_INPUT', message: 'itemId is required' });
+      return jsonResponse(400, { ok: false, code: "INVALID_INPUT", message: "itemId is required", traceId });
     }
 
     // Normalize prefix
@@ -84,7 +85,7 @@ async function handler(req: Request): Promise<Response> {
     userId = user.id;
     console.log('[thumb][auth]', { traceId, userId });
 
-    // Get drive item metadata
+    // Get drive item metadata (DB first)
     const { data: driveItem, error: itemError } = await supabase
       .from('drive_items')
       .select('file_id, mime_type, modified_time, md5_checksum, updated_at, thumbnail_link')
@@ -97,17 +98,46 @@ async function handler(req: Request): Promise<Response> {
       return jsonResponse(500, { ok: false, code: "DB_ERROR", message: itemError.message, traceId });
     }
 
-    if (!driveItem) {
-      console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', fileId });
-      return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", traceId });
+    // Prepare variables possibly from Drive fallback
+    let mimeType = driveItem?.mime_type || '';
+    let modifiedTime = driveItem?.modified_time || '';
+    let thumbLink = driveItem?.thumbnail_link || '';
+
+    // Create Drive client (needed for Drive fallback and downloads)
+    const driveClient = await getDriveClient(userId, supabase);
+    if (!driveClient) {
+      console.log('[thumb][error]', { traceId, code: 'DRIVE_TOKEN_EXPIRED' });
+      return jsonResponse(401, { ok: false, code: "DRIVE_TOKEN_EXPIRED", message: "Drive token expired or invalid", traceId });
     }
 
-    const mimeType = driveItem.mime_type || '';
+    if (!driveItem) {
+      // Fallback: fetch metadata directly from Drive
+      try {
+        const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,modifiedTime,hasThumbnail,thumbnailLink&supportsAllDrives=true`;
+        const metaResp = await fetch(metaUrl, { headers: { Authorization: `Bearer ${driveClient.token}` } });
+        if (metaResp.status === 404) {
+          console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', fileId });
+          return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "File not found", traceId });
+        }
+        if (!metaResp.ok) {
+          console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: metaResp.status });
+          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Failed to fetch metadata: ${metaResp.status}`, traceId });
+        }
+        const meta = await metaResp.json();
+        mimeType = meta.mimeType || '';
+        modifiedTime = meta.modifiedTime || '';
+        thumbLink = meta.thumbnailLink || '';
+      } catch (e) {
+        console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(e) });
+        return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(e), traceId });
+      }
+    }
+
     console.log('[thumb][metadata]', { traceId, fileId, mimeType });
-    
-    // Calculate revision hash
-    const revInput = `${driveItem.modified_time || ''}|${driveItem.md5_checksum || ''}|${driveItem.updated_at || ''}`;
-    const revHashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(revInput));
+
+    // Calculate revision hash (sha1 of fileId:modifiedTime)
+    const revInput = `${fileId}:${modifiedTime || ''}`;
+    const revHashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(revInput));
     const rev = Array.from(new Uint8Array(revHashBuffer))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('')
@@ -115,7 +145,7 @@ async function handler(req: Request): Promise<Response> {
 
     // Check cache in storage
     const storagePath = `${userId}/${fileId}/${rev}/${size}.webp`;
-    
+
     const { data: existingFile } = await supabase.storage
       .from('thumbnails')
       .list(storagePath.split('/').slice(0, -1).join('/'), {
@@ -124,7 +154,7 @@ async function handler(req: Request): Promise<Response> {
 
     if (existingFile && existingFile.length > 0) {
       // Cache hit - return signed URL
-      const { data: signedData, error: signError } = await supabase.storage
+      const { data: signedData } = await supabase.storage
         .from('thumbnails')
         .createSignedUrl(storagePath, 3600); // 1 hour
 
@@ -139,7 +169,7 @@ async function handler(req: Request): Promise<Response> {
           traceId
         });
       } else {
-        console.log('[thumb][warning]', { traceId, reason: 'sign_failed', signError });
+        console.log('[thumb][warning]', { traceId, reason: 'sign_failed' });
       }
     }
 
@@ -148,18 +178,15 @@ async function handler(req: Request): Promise<Response> {
     // Cache miss - generate thumbnail
     console.log('[thumb][generate]', { traceId, fileId, mimeType });
 
-    // Get Drive access token
-    const driveClient = await getDriveClient(userId, supabase);
-    if (!driveClient) {
-      console.log('[thumb][error]', { traceId, code: 'DRIVE_TOKEN_EXPIRED' });
-      return jsonResponse(401, { ok: false, code: "DRIVE_TOKEN_EXPIRED", traceId });
-    }
+    // Drive client already initialized above
 
     let imageBuffer: ArrayBuffer | null = null;
 
     // Handle different mime types
-    if (mimeType.startsWith('image/')) {
-      // Download image from Drive
+    const isRaw = mimeType.startsWith('image/') && /\/(cr2|nef|arw|raf|dng|orf|rw2)$/i.test(mimeType);
+
+    if (mimeType.startsWith('image/') && !isRaw) {
+      // Download full image from Drive
       const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
       try {
         const response = await fetch(downloadUrl, {
@@ -168,31 +195,34 @@ async function handler(req: Request): Promise<Response> {
 
         if (!response.ok) {
           console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: response.status });
-          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", details: `Status ${response.status}`, traceId });
+          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Status ${response.status}`, traceId });
         }
 
         imageBuffer = await response.arrayBuffer();
         console.log('[thumb][downloaded]', { traceId, fileId, bytes: imageBuffer.byteLength });
       } catch (fetchErr) {
         console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(fetchErr) });
-        return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", details: String(fetchErr), traceId });
+        return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(fetchErr), traceId });
       }
-    } else if (mimeType.startsWith('video/')) {
-      // Use Drive's thumbnail for videos
-      if (driveItem.thumbnail_link) {
+    } else if (mimeType.startsWith('video/') || isRaw) {
+      // Use Drive's thumbnail for videos and RAW images
+      const link = thumbLink || (driveItem?.thumbnail_link || '');
+      if (link) {
         try {
-          const thumbResponse = await fetch(driveItem.thumbnail_link, {
+          const thumbResponse = await fetch(link, {
             headers: { Authorization: `Bearer ${driveClient.token}` }
           });
 
           if (thumbResponse.ok) {
             imageBuffer = await thumbResponse.arrayBuffer();
-            console.log('[thumb][video-thumb]', { traceId, fileId, bytes: imageBuffer.byteLength });
+            console.log('[thumb][thumb-fetched]', { traceId, fileId, bytes: imageBuffer.byteLength });
           } else {
-            console.log('[thumb][warning]', { traceId, reason: 'video_thumb_failed', status: thumbResponse.status });
+            console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
+            return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
           }
         } catch (thumbErr) {
-          console.log('[thumb][warning]', { traceId, reason: 'video_thumb_error', error: String(thumbErr) });
+          console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_error', error: String(thumbErr) });
+          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(thumbErr), traceId });
         }
       }
     }
@@ -200,8 +230,8 @@ async function handler(req: Request): Promise<Response> {
     // If we don't have an image buffer, return error for media types or placeholder for others
     if (!imageBuffer) {
       if (mimeType.startsWith('image/') || mimeType.startsWith('video/')) {
-        console.log('[thumb][error]', { traceId, code: 'NO_IMAGE_DATA', mimeType });
-        return jsonResponse(500, { ok: false, code: "NO_IMAGE_DATA", traceId });
+        console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', mimeType });
+        return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "No preview available", traceId });
       } else {
         // Non-media types get placeholder (but we don't cache it)
         console.log('[thumb][placeholder]', { traceId, mimeType });
