@@ -81,7 +81,11 @@ export function useUnifiedMedia() {
       setTotal(response.total);
       console.log('📊 Loaded items:', enrichedItems.length, 'of', response.total);
       console.log('🏷️ Labels enriched for items:', enrichedItems.filter(i => i.labels?.length).length);
-      return { ...response, items: enrichedItems };
+      return { 
+        ...response, 
+        items: enrichedItems,
+        needsDriveReauth: (response as any).needsDriveReauth || false 
+      };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);

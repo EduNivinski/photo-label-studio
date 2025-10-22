@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getDriveClient } from "../_shared/drive_client.ts";
+import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
-// Dynamic sharp loader (fallback to no-sharp pipeline)
+// Dynamic sharp loader
 let SharpMod: any | null = null;
 async function loadSharp() {
   if (SharpMod !== null) return SharpMod;
@@ -10,11 +10,12 @@ async function loadSharp() {
     const mod = await import("npm:sharp@0.33.0");
     SharpMod = (mod as any).default || mod;
   } catch (_e) {
-    SharpMod = null; // sharp unavailable on this platform/runtime
+    SharpMod = null;
   }
   return SharpMod;
 }
 
+// Standardized CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://photo-label-studio.lovable.app',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -35,6 +36,7 @@ function jsonResponse(status: number, body: any): Response {
 }
 
 async function handler(req: Request): Promise<Response> {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
@@ -114,26 +116,57 @@ async function handler(req: Request): Promise<Response> {
     let modifiedTime = driveItem?.modified_time || '';
     let thumbLink = driveItem?.thumbnail_link || '';
 
-    // Create Drive client (needed for Drive fallback and downloads)
-    const driveClient = await getDriveClient(userId, supabase);
-    if (!driveClient) {
-      console.log('[thumb][error]', { traceId, code: 'DRIVE_TOKEN_EXPIRED' });
-      return jsonResponse(401, { ok: false, code: "DRIVE_TOKEN_EXPIRED", message: "Drive token expired or invalid", traceId });
+    // Get access token using ensureAccessToken (handles refresh automatically)
+    let accessToken: string;
+    try {
+      accessToken = await ensureAccessToken(userId);
+    } catch (tokenError: any) {
+      const errMsg = String(tokenError?.message || tokenError);
+      console.log('[thumb][error]', { traceId, code: 'DRIVE_TOKEN_ERROR', error: errMsg });
+      
+      if (errMsg.includes('NEEDS_RECONSENT') || errMsg.includes('NO_TOKENS') || errMsg.includes('NO_REFRESH_TOKEN')) {
+        return jsonResponse(403, { 
+          ok: false, 
+          code: "INSUFFICIENT_SCOPE", 
+          message: "Reautorize o Google Drive para exibir miniaturas.", 
+          traceId 
+        });
+      }
+      
+      return jsonResponse(401, { 
+        ok: false, 
+        code: "DRIVE_TOKEN_EXPIRED", 
+        message: "Drive token expired or invalid", 
+        traceId 
+      });
     }
 
     if (!driveItem) {
       // Fallback: fetch metadata directly from Drive
       try {
         const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,modifiedTime,hasThumbnail,thumbnailLink&supportsAllDrives=true`;
-        const metaResp = await fetch(metaUrl, { headers: { Authorization: `Bearer ${driveClient.token}` } });
+        const metaResp = await fetch(metaUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        
         if (metaResp.status === 404) {
           console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', fileId });
           return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "File not found", traceId });
         }
+        
+        if (metaResp.status === 403) {
+          console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: 403 });
+          return jsonResponse(403, { 
+            ok: false, 
+            code: "INSUFFICIENT_SCOPE", 
+            message: "Reautorize o Google Drive para exibir miniaturas.", 
+            traceId 
+          });
+        }
+        
         if (!metaResp.ok) {
           console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: metaResp.status });
           return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Failed to fetch metadata: ${metaResp.status}`, traceId });
         }
+        
         const meta = await metaResp.json();
         mimeType = meta.mimeType || '';
         modifiedTime = meta.modifiedTime || '';
@@ -184,8 +217,6 @@ async function handler(req: Request): Promise<Response> {
     // Cache miss - generate thumbnail
     console.log('[thumb][generate]', { traceId, fileId, mimeType });
 
-    // Drive client already initialized above
-
     let imageBuffer: ArrayBuffer | null = null;
 
     // Decide pipeline based on sharp availability
@@ -201,7 +232,7 @@ async function handler(req: Request): Promise<Response> {
         const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`;
         try {
           const response = await fetch(downloadUrl, {
-            headers: { Authorization: `Bearer ${driveClient.token}` }
+            headers: { Authorization: `Bearer ${accessToken}` }
           });
 
           if (!response.ok) {
@@ -210,7 +241,7 @@ async function handler(req: Request): Promise<Response> {
               return jsonResponse(403, { 
                 ok: false, 
                 code: "INSUFFICIENT_SCOPE", 
-                message: "Token sem escopo para baixar thumbs. Reautentize o Google Drive.", 
+                message: "Reautorize o Google Drive para exibir miniaturas.", 
                 traceId 
               });
             }
@@ -226,24 +257,29 @@ async function handler(req: Request): Promise<Response> {
         }
       } else {
         // No sharp available: use Drive's thumbnail instead of downloading full image
-        const link = thumbLink || (driveItem?.thumbnail_link || '');
+        const link = thumbLink || '';
         if (link) {
           try {
             const thumbResponse = await fetch(link, {
-              headers: { Authorization: `Bearer ${driveClient.token}` }
+              headers: { Authorization: `Bearer ${accessToken}` }
             });
 
-              if (thumbResponse.ok) {
-                imageBuffer = await thumbResponse.arrayBuffer();
-                console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
-              } else {
-                if (thumbResponse.status === 403) {
-                  console.log('[thumb][warning]', { traceId, reason: 'insufficient_scope', status: thumbResponse.status });
-                  return jsonResponse(403, { ok: false, code: "INSUFFICIENT_SCOPE", message: "Token sem escopo para baixar thumbs. Reautentize o Google Drive.", traceId });
-                }
-                console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
-                return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
+            if (thumbResponse.ok) {
+              imageBuffer = await thumbResponse.arrayBuffer();
+              console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
+            } else {
+              if (thumbResponse.status === 403) {
+                console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: 403 });
+                return jsonResponse(403, { 
+                  ok: false, 
+                  code: "INSUFFICIENT_SCOPE", 
+                  message: "Reautorize o Google Drive para exibir miniaturas.", 
+                  traceId 
+                });
               }
+              console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
+              return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
+            }
           } catch (thumbErr) {
             console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_error', error: String(thumbErr) });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(thumbErr), traceId });
@@ -252,11 +288,11 @@ async function handler(req: Request): Promise<Response> {
       }
     } else if (mimeType.startsWith('video/') || isRaw) {
       // Use Drive's thumbnail for videos and RAW images
-      const link = thumbLink || (driveItem?.thumbnail_link || '');
+      const link = thumbLink || '';
       if (link) {
         try {
           const thumbResponse = await fetch(link, {
-            headers: { Authorization: `Bearer ${driveClient.token}` }
+            headers: { Authorization: `Bearer ${accessToken}` }
           });
 
           if (thumbResponse.ok) {
@@ -264,8 +300,13 @@ async function handler(req: Request): Promise<Response> {
             console.log('[thumb][thumb-fetched]', { traceId, fileId, bytes: imageBuffer.byteLength });
           } else {
             if (thumbResponse.status === 403) {
-              console.log('[thumb][warning]', { traceId, reason: 'insufficient_scope', status: thumbResponse.status });
-              return jsonResponse(403, { ok: false, code: "INSUFFICIENT_SCOPE", message: "Token sem escopo para baixar thumbs. Reautentize o Google Drive.", traceId });
+              console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: 403 });
+              return jsonResponse(403, { 
+                ok: false, 
+                code: "INSUFFICIENT_SCOPE", 
+                message: "Reautorize o Google Drive para exibir miniaturas.", 
+                traceId 
+              });
             }
             console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
@@ -277,7 +318,7 @@ async function handler(req: Request): Promise<Response> {
       }
     }
 
-    // If we don't have an image buffer, return not found (no data: placeholders for Home)
+    // If we don't have an image buffer, return not found (no placeholders for non-media)
     if (!imageBuffer) {
       console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', mimeType });
       return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "No preview available", traceId });
@@ -351,24 +392,14 @@ async function handler(req: Request): Promise<Response> {
     });
 
   } catch (err) {
-    console.log('[thumb][error]', { traceId: traceId, code: 'UNEXPECTED_ERROR', error: String(err) });
+    console.log('[thumb][error]', { traceId, code: 'UNEXPECTED_ERROR', error: String(err) });
     return jsonResponse(500, {
       ok: false,
       code: "UNEXPECTED_ERROR",
       message: String(err),
-      traceId: traceId
+      traceId
     });
   }
-}
-
-function createPlaceholder(size: number, type: string): string {
-  const label = type === "video" ? "📹" : "📄";
-  return "data:image/svg+xml;base64," + btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-    <rect width="100%" height="100%" fill="#f3f4f6"/>
-    <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="48" fill="#9ca3af">
-      ${label}
-    </text>
-  </svg>`);
 }
 
 Deno.serve(handler);

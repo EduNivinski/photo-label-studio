@@ -41,6 +41,7 @@ import { UnifiedPhotoCard } from '@/components/UnifiedPhotoCard';
 import { useUnifiedMedia } from '@/hooks/useUnifiedMedia';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import { supabase } from '@/integrations/supabase/client';
+import { DriveReauthBanner } from '@/components/DriveReauthBanner';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
 import type { MediaItem } from '@/types/media';
@@ -133,6 +134,7 @@ const Index = () => {
   // Unified media state
   const { items: unifiedItems, loading: unifiedLoading, loadItems: loadUnifiedItems, addLabel: addUnifiedLabel, removeLabel: removeUnifiedLabel } = useUnifiedMedia();
   const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
+  const [needsDriveReauth, setNeedsDriveReauth] = useState(false);
 
   // Pagination
   const {
@@ -183,7 +185,14 @@ const Index = () => {
 
   // Load unified media items - always load on mount
   useEffect(() => {
-    loadUnifiedItems(unifiedParams);
+    const loadData = async () => {
+      const response = await loadUnifiedItems(unifiedParams);
+      // Check if we need Drive reauth
+      if (response && typeof response === 'object' && 'needsDriveReauth' in response) {
+        setNeedsDriveReauth(Boolean(response.needsDriveReauth));
+      }
+    };
+    loadData();
   }, [unifiedParams, loadUnifiedItems]);
 
   // Apply client-side filters to unified items so home reflects label filters immediately
@@ -567,6 +576,14 @@ const Index = () => {
 
       {/* CONTAINER 2: Buscar Labels */}
       <div className="container mx-auto px-4 max-w-7xl mb-4">
+        {/* Drive Reauth Banner */}
+        {needsDriveReauth && (
+          <DriveReauthBanner onReauthComplete={() => {
+            setNeedsDriveReauth(false);
+            loadUnifiedItems(unifiedParams);
+          }} />
+        )}
+        
         <SearchBar
           searchTerm={filters.searchTerm}
           onSearchChange={updateSearchTerm}
