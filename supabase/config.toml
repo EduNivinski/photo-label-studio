@@ -95,6 +95,12 @@ verify_jwt = true
 [functions."delete-unified-item"]
 verify_jwt = true
 
+[functions."drive-debug-scopes"]     # diagnostics endpoint
+verify_jwt = true
+
+[functions."health"]                 # health check endpoint
+verify_jwt = false
+
 # ===== PÚBLICAS (explicitamente liberadas) =====
 # Callback do OAuth (Google não envia JWT)
 [functions."google-drive-oauth-callback2"]
