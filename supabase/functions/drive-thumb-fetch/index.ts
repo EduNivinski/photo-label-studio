@@ -205,6 +205,15 @@ async function handler(req: Request): Promise<Response> {
           });
 
           if (!response.ok) {
+            if (response.status === 403) {
+              console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: response.status });
+              return jsonResponse(403, { 
+                ok: false, 
+                code: "INSUFFICIENT_SCOPE", 
+                message: "Token sem escopo para baixar thumbs. Reautentize o Google Drive.", 
+                traceId 
+              });
+            }
             console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: response.status });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Status ${response.status}`, traceId });
           }
@@ -224,13 +233,17 @@ async function handler(req: Request): Promise<Response> {
               headers: { Authorization: `Bearer ${driveClient.token}` }
             });
 
-            if (thumbResponse.ok) {
-              imageBuffer = await thumbResponse.arrayBuffer();
-              console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
-            } else {
-              console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
-              return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
-            }
+              if (thumbResponse.ok) {
+                imageBuffer = await thumbResponse.arrayBuffer();
+                console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
+              } else {
+                if (thumbResponse.status === 403) {
+                  console.log('[thumb][warning]', { traceId, reason: 'insufficient_scope', status: thumbResponse.status });
+                  return jsonResponse(403, { ok: false, code: "INSUFFICIENT_SCOPE", message: "Token sem escopo para baixar thumbs. Reautentize o Google Drive.", traceId });
+                }
+                console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
+                return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
+              }
           } catch (thumbErr) {
             console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_error', error: String(thumbErr) });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(thumbErr), traceId });
@@ -250,6 +263,10 @@ async function handler(req: Request): Promise<Response> {
             imageBuffer = await thumbResponse.arrayBuffer();
             console.log('[thumb][thumb-fetched]', { traceId, fileId, bytes: imageBuffer.byteLength });
           } else {
+            if (thumbResponse.status === 403) {
+              console.log('[thumb][warning]', { traceId, reason: 'insufficient_scope', status: thumbResponse.status });
+              return jsonResponse(403, { ok: false, code: "INSUFFICIENT_SCOPE", message: "Token sem escopo para baixar thumbs. Reautentize o Google Drive.", traceId });
+            }
             console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
           }

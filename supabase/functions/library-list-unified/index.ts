@@ -141,6 +141,7 @@ if (source === "all" || source === "gdrive") {
 
     // Ensure thumbnails for Google Drive items
     let debugFilledThumbs = 0;
+    let needsDriveReauth = false;
     
     for (const item of paginatedItems) {
       if (item.source === "gdrive") {
@@ -199,9 +200,14 @@ if (source === "all" || source === "gdrive") {
               } else {
                 console.log(`⚠️ Skipped placeholder/invalid thumb for ${fileId}`);
               }
-            } else {
-              console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status}`);
-            }
+              let errJson: any = null;
+              try { errJson = await thumbResp.json(); } catch {}
+              if (thumbResp.status === 403 && errJson && errJson.code === 'INSUFFICIENT_SCOPE') {
+                needsDriveReauth = true;
+                console.log(`🔒 Insufficient scope for ${fileId}`);
+              } else {
+                console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status}`);
+              }
           } catch (thumbError) {
             console.error(`❌ Error fetching thumb for ${fileId}:`, thumbError);
           }
@@ -315,6 +321,7 @@ if (source === "all" || source === "gdrive") {
       pageSize,
       debugFilledThumbs: finalDebugFilled,
       debugMissingThumbs: finalDebugMissing,
+      needsDriveReauth,
     }), {
       headers: { 
         ...corsHeaders(req.headers.get("origin")), 

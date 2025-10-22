@@ -777,7 +777,8 @@ serve(async (req: Request) => {
     // Route to appropriate handler
     if (action === "status") {
       return await handleStatus(userId);
-    } else if (action === "authorize") {
+    } else if (action === "authorize" || action === "auth_url") {
+      // Return authorization URL (supports both legacy 'authorize' and new 'auth_url')
       return await handleAuthorize(userId);
     } else if (action === "disconnect") {
       return await handleDisconnect(userId);
