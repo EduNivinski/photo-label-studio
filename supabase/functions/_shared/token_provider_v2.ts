@@ -169,11 +169,13 @@ export async function refreshAccessToken(userId: string): Promise<string> {
 }
 
 export async function ensureAccessToken(userId: string): Promise<string> {
-  // Always SELECT by user_id (unique key), no ordering by updated_at
+  // SELECT by user_id, order by updated_at desc to get latest token
   const { data: row } = await admin
     .from("user_drive_tokens")
     .select("access_token_enc, refresh_token_enc, expires_at, scope")
     .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!row) throw new Error("NO_TOKENS");
@@ -218,8 +220,9 @@ export async function ensureAccessToken(userId: string): Promise<string> {
   // Log diagnostic info
   console.log("[token-provider][ensured]", {
     userId,
+    hasRefresh: !!finalRefreshToken,
     scopeFromStore: scopeFromRow,
-    hasDriveReadonly: scopeFromRow.includes("drive.readonly")
+    hasDriveReadonly: scopeFromRow?.includes("https://www.googleapis.com/auth/drive.readonly") ?? false
   });
   
   return newAccess;

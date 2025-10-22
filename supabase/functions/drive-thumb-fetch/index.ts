@@ -120,6 +120,7 @@ async function handler(req: Request): Promise<Response> {
     let accessToken: string;
     try {
       accessToken = await ensureAccessToken(userId);
+      console.log('[thumb][token]', { traceId, first8: accessToken.slice(0, 8), fromProvider: 'v2' });
     } catch (tokenError: any) {
       const errMsg = String(tokenError?.message || tokenError);
       console.log('[thumb][error]', { traceId, code: 'DRIVE_TOKEN_ERROR', error: errMsg });
@@ -153,11 +154,31 @@ async function handler(req: Request): Promise<Response> {
         }
         
         if (metaResp.status === 403) {
-          console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: 403 });
+          const errorBody = await metaResp.json().catch(() => ({}));
+          const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
+          const errorMessage = errorBody?.error?.message || '';
+          
+          console.warn('[thumb][403]', { 
+            traceId, 
+            googleMessage: errorMessage, 
+            reason: errorReason 
+          });
+          
+          // Only return INSUFFICIENT_SCOPE if it's actually a scope issue
+          if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+            return jsonResponse(403, { 
+              ok: false, 
+              code: "INSUFFICIENT_SCOPE", 
+              message: "Reautorize o Google Drive para exibir miniaturas.", 
+              traceId 
+            });
+          }
+          
+          // File permission denied (not a scope issue)
           return jsonResponse(403, { 
             ok: false, 
-            code: "INSUFFICIENT_SCOPE", 
-            message: "Reautorize o Google Drive para exibir miniaturas.", 
+            code: "FORBIDDEN_FILE", 
+            message: "Acesso negado ao arquivo.", 
             traceId 
           });
         }
@@ -171,6 +192,14 @@ async function handler(req: Request): Promise<Response> {
         mimeType = meta.mimeType || '';
         modifiedTime = meta.modifiedTime || '';
         thumbLink = meta.thumbnailLink || '';
+        
+        console.log('[thumb][meta]', { 
+          traceId,
+          fileId,
+          hasThumbnail: !!thumbLink, 
+          mimeType, 
+          thumbnailLinkHost: thumbLink ? new URL(thumbLink).host : null 
+        });
       } catch (e) {
         console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(e) });
         return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(e), traceId });
@@ -237,11 +266,30 @@ async function handler(req: Request): Promise<Response> {
 
           if (!response.ok) {
             if (response.status === 403) {
-              console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: response.status });
+              const errorBody = await response.json().catch(() => ({}));
+              const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
+              const errorMessage = errorBody?.error?.message || '';
+              
+              console.warn('[thumb][403]', { 
+                traceId, 
+                googleMessage: errorMessage, 
+                reason: errorReason,
+                source: 'alt=media'
+              });
+              
+              if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+                return jsonResponse(403, { 
+                  ok: false, 
+                  code: "INSUFFICIENT_SCOPE", 
+                  message: "Reautorize o Google Drive para exibir miniaturas.", 
+                  traceId 
+                });
+              }
+              
               return jsonResponse(403, { 
                 ok: false, 
-                code: "INSUFFICIENT_SCOPE", 
-                message: "Reautorize o Google Drive para exibir miniaturas.", 
+                code: "FORBIDDEN_FILE", 
+                message: "Acesso negado ao arquivo.", 
                 traceId 
               });
             }
@@ -256,12 +304,17 @@ async function handler(req: Request): Promise<Response> {
           return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(fetchErr), traceId });
         }
       } else {
-        // No sharp available: use Drive's thumbnail instead of downloading full image
+        // No sharp available: use Drive's thumbnail with access_token in query string
         const link = thumbLink || '';
         if (link) {
           try {
-            const thumbResponse = await fetch(link, {
-              headers: { Authorization: `Bearer ${accessToken}` }
+            // Add access_token to query string for googleusercontent.com hosts
+            const thumbUrl = new URL(link);
+            thumbUrl.searchParams.set('access_token', accessToken);
+            
+            const thumbResponse = await fetch(thumbUrl.toString(), {
+              method: 'GET'
+              // No Authorization header - using query param instead
             });
 
             if (thumbResponse.ok) {
@@ -269,11 +322,30 @@ async function handler(req: Request): Promise<Response> {
               console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
             } else {
               if (thumbResponse.status === 403) {
-                console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: 403 });
+                const errorBody = await thumbResponse.json().catch(() => ({}));
+                const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
+                const errorMessage = errorBody?.error?.message || '';
+                
+                console.warn('[thumb][403]', { 
+                  traceId, 
+                  googleMessage: errorMessage, 
+                  reason: errorReason,
+                  source: 'thumbnailLink'
+                });
+                
+                if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+                  return jsonResponse(403, { 
+                    ok: false, 
+                    code: "INSUFFICIENT_SCOPE", 
+                    message: "Reautorize o Google Drive para exibir miniaturas.", 
+                    traceId 
+                  });
+                }
+                
                 return jsonResponse(403, { 
                   ok: false, 
-                  code: "INSUFFICIENT_SCOPE", 
-                  message: "Reautorize o Google Drive para exibir miniaturas.", 
+                  code: "FORBIDDEN_FILE", 
+                  message: "Acesso negado ao arquivo.", 
                   traceId 
                 });
               }
@@ -287,12 +359,17 @@ async function handler(req: Request): Promise<Response> {
         }
       }
     } else if (mimeType.startsWith('video/') || isRaw) {
-      // Use Drive's thumbnail for videos and RAW images
+      // Use Drive's thumbnail for videos and RAW images with access_token in query string
       const link = thumbLink || '';
       if (link) {
         try {
-          const thumbResponse = await fetch(link, {
-            headers: { Authorization: `Bearer ${accessToken}` }
+          // Add access_token to query string for googleusercontent.com hosts
+          const thumbUrl = new URL(link);
+          thumbUrl.searchParams.set('access_token', accessToken);
+          
+          const thumbResponse = await fetch(thumbUrl.toString(), {
+            method: 'GET'
+            // No Authorization header - using query param instead
           });
 
           if (thumbResponse.ok) {
@@ -300,11 +377,30 @@ async function handler(req: Request): Promise<Response> {
             console.log('[thumb][thumb-fetched]', { traceId, fileId, bytes: imageBuffer.byteLength });
           } else {
             if (thumbResponse.status === 403) {
-              console.log('[thumb][error]', { traceId, code: 'INSUFFICIENT_SCOPE', status: 403 });
+              const errorBody = await thumbResponse.json().catch(() => ({}));
+              const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
+              const errorMessage = errorBody?.error?.message || '';
+              
+              console.warn('[thumb][403]', { 
+                traceId, 
+                googleMessage: errorMessage, 
+                reason: errorReason,
+                source: 'thumbnailLink-raw-video'
+              });
+              
+              if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+                return jsonResponse(403, { 
+                  ok: false, 
+                  code: "INSUFFICIENT_SCOPE", 
+                  message: "Reautorize o Google Drive para exibir miniaturas.", 
+                  traceId 
+                });
+              }
+              
               return jsonResponse(403, { 
                 ok: false, 
-                code: "INSUFFICIENT_SCOPE", 
-                message: "Reautorize o Google Drive para exibir miniaturas.", 
+                code: "FORBIDDEN_FILE", 
+                message: "Acesso negado ao arquivo.", 
                 traceId 
               });
             }

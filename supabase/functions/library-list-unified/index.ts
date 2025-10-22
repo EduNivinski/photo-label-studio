@@ -203,11 +203,17 @@ if (source === "all" || source === "gdrive") {
             } else {
               let errJson: any = null;
               try { errJson = await thumbResp.json(); } catch {}
+              
+              // Only set needsDriveReauth for actual scope issues, not file permission issues
               if (thumbResp.status === 403 && errJson && errJson.code === 'INSUFFICIENT_SCOPE') {
                 needsDriveReauth = true;
                 console.log(`🔒 Insufficient scope for ${fileId}`);
+              } else if (thumbResp.status === 403 && errJson && errJson.code === 'FORBIDDEN_FILE') {
+                console.log(`🚫 File permission denied for ${fileId} (not a scope issue)`);
+              } else if (thumbResp.status === 404) {
+                console.log(`📭 No thumbnail available for ${fileId}`);
               } else {
-                console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status}`);
+                console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status} ${errJson?.code || ''}`);
               }
             }
           } catch (thumbError) {
