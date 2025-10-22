@@ -8,6 +8,7 @@ export function useUnifiedMedia() {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [needsDriveReauth, setNeedsDriveReauth] = useState(false);
 
   const loadItems = useCallback(async (request: MediaListRequest): Promise<MediaListResponse> => {
     console.log('🔄 Loading unified media with request:', request);
@@ -79,12 +80,19 @@ export function useUnifiedMedia() {
 
       setItems(enrichedItems);
       setTotal(response.total);
+      
+      // Update needsDriveReauth state
+      const reauth = (response as any).needsDriveReauth || false;
+      setNeedsDriveReauth(reauth);
+      
       console.log('📊 Loaded items:', enrichedItems.length, 'of', response.total);
       console.log('🏷️ Labels enriched for items:', enrichedItems.filter(i => i.labels?.length).length);
+      console.log('🔒 Needs Drive reauth:', reauth);
+      
       return { 
         ...response, 
         items: enrichedItems,
-        needsDriveReauth: (response as any).needsDriveReauth || false 
+        needsDriveReauth: reauth
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -320,6 +328,7 @@ export function useUnifiedMedia() {
     loading,
     total,
     error,
+    needsDriveReauth,
     loadItems,
     addLabel,
     removeLabel

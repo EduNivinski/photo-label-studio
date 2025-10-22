@@ -111,7 +111,8 @@ serve(async (req) => {
     console.log("[callback] Tokens received", {
       hasAccessToken: !!tokens.access_token,
       hasRefreshToken: !!tokens.refresh_token,
-      expiresIn: tokens.expires_in
+      expiresIn: tokens.expires_in,
+      scope: tokens.scope
     });
 
     // Calculate expires_at
@@ -128,7 +129,12 @@ serve(async (req) => {
       expiresAtIso
     );
 
-    console.log("[callback] Tokens stored successfully");
+    console.log("[callback][saved]", {
+      userId: stateData.user_id,
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      scope: tokens.scope
+    });
 
     // Update user_drive_settings with granted scope only (do not touch drive_folder_*)
     if (tokens.scope) {

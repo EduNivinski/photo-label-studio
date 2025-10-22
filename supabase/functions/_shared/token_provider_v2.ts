@@ -214,6 +214,14 @@ export async function ensureAccessToken(userId: string): Promise<string> {
   
   // Update tokens (refresh stays the same unless Google sends a new one)
   await upsertTokens(userId, newAccess, finalRefreshToken, scopeFromRow, new Date(newExp).toISOString());
+  
+  // Log diagnostic info
+  console.log("[token-provider][ensured]", {
+    userId,
+    scopeFromStore: scopeFromRow,
+    hasDriveReadonly: scopeFromRow.includes("drive.readonly")
+  });
+  
   return newAccess;
 }
 

@@ -132,9 +132,15 @@ const Index = () => {
   }>({ suggestions: [], source: 'mock', photo: null });
 
   // Unified media state
-  const { items: unifiedItems, loading: unifiedLoading, loadItems: loadUnifiedItems, addLabel: addUnifiedLabel, removeLabel: removeUnifiedLabel } = useUnifiedMedia();
+  const { 
+    items: unifiedItems, 
+    loading: unifiedLoading, 
+    needsDriveReauth,
+    loadItems: loadUnifiedItems, 
+    addLabel: addUnifiedLabel, 
+    removeLabel: removeUnifiedLabel 
+  } = useUnifiedMedia();
   const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
-  const [needsDriveReauth, setNeedsDriveReauth] = useState(false);
 
   // Pagination
   const {
@@ -185,14 +191,18 @@ const Index = () => {
 
   // Load unified media items - always load on mount
   useEffect(() => {
-    const loadData = async () => {
-      const response = await loadUnifiedItems(unifiedParams);
-      // Check if we need Drive reauth
-      if (response && typeof response === 'object' && 'needsDriveReauth' in response) {
-        setNeedsDriveReauth(Boolean(response.needsDriveReauth));
-      }
+    loadUnifiedItems(unifiedParams);
+  }, [unifiedParams, loadUnifiedItems]);
+
+  // Listen for reauth completion event
+  useEffect(() => {
+    const handleReauthComplete = () => {
+      console.log('[Index] Reauth completed, reloading items...');
+      loadUnifiedItems(unifiedParams);
     };
-    loadData();
+
+    window.addEventListener('drive:reauth:complete', handleReauthComplete);
+    return () => window.removeEventListener('drive:reauth:complete', handleReauthComplete);
   }, [unifiedParams, loadUnifiedItems]);
 
   // Apply client-side filters to unified items so home reflects label filters immediately
@@ -579,7 +589,6 @@ const Index = () => {
         {/* Drive Reauth Banner */}
         {needsDriveReauth && (
           <DriveReauthBanner onReauthComplete={() => {
-            setNeedsDriveReauth(false);
             loadUnifiedItems(unifiedParams);
           }} />
         )}
