@@ -98,24 +98,6 @@ async function handler(req: Request): Promise<Response> {
     userId = user.id;
     console.log('[thumb][auth]', { traceId, userId });
 
-    // Get drive item metadata (DB first)
-    const { data: driveItem, error: itemError } = await supabase
-      .from('drive_items')
-      .select('file_id, mime_type, modified_time, md5_checksum, updated_at, thumbnail_link')
-      .eq('user_id', userId)
-      .eq('file_id', fileId)
-      .maybeSingle();
-
-    if (itemError) {
-      console.log('[thumb][error]', { traceId, code: 'DB_ERROR', itemError });
-      return jsonResponse(500, { ok: false, code: "DB_ERROR", message: itemError.message, traceId });
-    }
-
-    // Prepare variables possibly from Drive fallback
-    let mimeType = driveItem?.mime_type || '';
-    let modifiedTime = driveItem?.modified_time || '';
-    let thumbLink = driveItem?.thumbnail_link || '';
-
     // Get access token using ensureAccessToken (handles refresh automatically)
     let accessToken: string;
     try {
@@ -142,71 +124,71 @@ async function handler(req: Request): Promise<Response> {
       });
     }
 
-    if (!driveItem) {
-      // Fallback: fetch metadata directly from Drive
-      try {
-        const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,modifiedTime,hasThumbnail,thumbnailLink&supportsAllDrives=true`;
-        const metaResp = await fetch(metaUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    // ALWAYS fetch fresh metadata from Drive (even if exists in DB)
+    let mimeType = '';
+    let modifiedTime = '';
+    let thumbLink = '';
+    
+    try {
+      const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,modifiedTime,hasThumbnail,thumbnailLink&supportsAllDrives=true`;
+      const metaResp = await fetch(metaUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+      
+      if (metaResp.status === 404) {
+        console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', fileId });
+        return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "File not found", traceId });
+      }
+      
+      if (metaResp.status === 403) {
+        const errorBody = await metaResp.json().catch(() => ({}));
+        const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
+        const errorMessage = errorBody?.error?.message || '';
         
-        if (metaResp.status === 404) {
-          console.log('[thumb][error]', { traceId, code: 'FILE_NOT_FOUND', fileId });
-          return jsonResponse(404, { ok: false, code: "FILE_NOT_FOUND", message: "File not found", traceId });
-        }
+        console.warn('[thumb][403]', { 
+          traceId, 
+          googleMessage: errorMessage, 
+          reason: errorReason,
+          source: 'files.get'
+        });
         
-        if (metaResp.status === 403) {
-          const errorBody = await metaResp.json().catch(() => ({}));
-          const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
-          const errorMessage = errorBody?.error?.message || '';
-          
-          console.warn('[thumb][403]', { 
-            traceId, 
-            googleMessage: errorMessage, 
-            reason: errorReason 
-          });
-          
-          // Only return INSUFFICIENT_SCOPE if it's actually a scope issue
-          if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
-            return jsonResponse(403, { 
-              ok: false, 
-              code: "INSUFFICIENT_SCOPE", 
-              message: "Reautorize o Google Drive para exibir miniaturas.", 
-              traceId 
-            });
-          }
-          
-          // File permission denied (not a scope issue)
+        if (errorReason.includes('insufficientScopes') || errorMessage.toLowerCase().includes('scope')) {
           return jsonResponse(403, { 
             ok: false, 
-            code: "FORBIDDEN_FILE", 
-            message: "Acesso negado ao arquivo.", 
+            code: "INSUFFICIENT_SCOPE", 
+            message: "Reautorize o Google Drive para exibir miniaturas.", 
             traceId 
           });
         }
         
-        if (!metaResp.ok) {
-          console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: metaResp.status });
-          return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Failed to fetch metadata: ${metaResp.status}`, traceId });
-        }
-        
-        const meta = await metaResp.json();
-        mimeType = meta.mimeType || '';
-        modifiedTime = meta.modifiedTime || '';
-        thumbLink = meta.thumbnailLink || '';
-        
-        console.log('[thumb][meta]', { 
-          traceId,
-          fileId,
-          hasThumbnail: !!thumbLink, 
-          mimeType, 
-          thumbnailLinkHost: thumbLink ? new URL(thumbLink).host : null 
+        return jsonResponse(403, { 
+          ok: false, 
+          code: "FORBIDDEN_FILE", 
+          message: "Acesso negado ao arquivo.", 
+          traceId 
         });
-      } catch (e) {
-        console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(e) });
-        return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(e), traceId });
       }
+      
+      if (!metaResp.ok) {
+        console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: metaResp.status });
+        return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Failed to fetch metadata: ${metaResp.status}`, traceId });
+      }
+      
+      const meta = await metaResp.json();
+      mimeType = meta.mimeType || '';
+      modifiedTime = meta.modifiedTime || '';
+      thumbLink = meta.thumbnailLink || '';
+      
+      console.log('[thumb][meta-fresh]', { 
+        traceId,
+        fileId,
+        hasThumbnail: !!thumbLink, 
+        mimeType,
+        modifiedTime,
+        thumbHost: thumbLink ? new URL(thumbLink).host : null 
+      });
+    } catch (e) {
+      console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', error: String(e) });
+      return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: String(e), traceId });
     }
-
-    console.log('[thumb][metadata]', { traceId, fileId, mimeType });
 
     // Calculate revision hash (sha1 of fileId:modifiedTime)
     const revInput = `${fileId}:${modifiedTime || ''}`;
@@ -231,6 +213,12 @@ async function handler(req: Request): Promise<Response> {
 
     if (signed) {
       console.log('[thumb][cache-hit]', { traceId, key: signed.key });
+      console.log('[thumb][success]', { 
+        traceId, 
+        url: signed.url, 
+        urlKind: signed.key.endsWith('.webp') ? 'webp' : 'jpg', 
+        cache: 'hit' 
+      });
       return jsonResponse(200, {
         ok: true,
         url: signed.url,
@@ -277,7 +265,19 @@ async function handler(req: Request): Promise<Response> {
                 source: 'alt=media'
               });
               
-              if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+              if (errorReason.includes('insufficientPermissions') || 
+                  errorReason.includes('fileNotAccessible') ||
+                  errorMessage.toLowerCase().includes('sharing violation')) {
+                return jsonResponse(403, { 
+                  ok: false, 
+                  code: "FORBIDDEN_FILE", 
+                  message: "Acesso negado ao arquivo.", 
+                  traceId 
+                });
+              }
+              
+              if (errorReason.includes('insufficientScopes') || 
+                  errorMessage.toLowerCase().includes('scope')) {
                 return jsonResponse(403, { 
                   ok: false, 
                   code: "INSUFFICIENT_SCOPE", 
@@ -285,13 +285,6 @@ async function handler(req: Request): Promise<Response> {
                   traceId 
                 });
               }
-              
-              return jsonResponse(403, { 
-                ok: false, 
-                code: "FORBIDDEN_FILE", 
-                message: "Acesso negado ao arquivo.", 
-                traceId 
-              });
             }
             console.log('[thumb][error]', { traceId, code: 'DRIVE_FETCH_FAILED', status: response.status });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Status ${response.status}`, traceId });
@@ -320,9 +313,74 @@ async function handler(req: Request): Promise<Response> {
             if (thumbResponse.ok) {
               imageBuffer = await thumbResponse.arrayBuffer();
               console.log('[thumb][thumb-fetched-no-sharp]', { traceId, fileId, bytes: imageBuffer.byteLength });
-            } else {
-              if (thumbResponse.status === 403) {
-                const errorBody = await thumbResponse.json().catch(() => ({}));
+            } else if (thumbResponse.status === 403) {
+              let errorBody: any = null;
+              try { 
+                errorBody = await thumbResponse.json(); 
+              } catch {
+                // 403 "mudo" (sem JSON) - thumbnailLink expirou, tentar retry
+                console.log('[thumb][retry]', { 
+                  traceId, 
+                  reason: '403-mute', 
+                  host: thumbUrl.host 
+                });
+                
+                // Refazer files.get para obter novo thumbnailLink
+                try {
+                  const retryMetaResp = await fetch(
+                    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&supportsAllDrives=true`,
+                    { headers: { Authorization: `Bearer ${accessToken}` } }
+                  );
+                  
+                  if (retryMetaResp.ok) {
+                    const retryMeta = await retryMetaResp.json();
+                    if (retryMeta.thumbnailLink) {
+                      const newThumbUrl = new URL(retryMeta.thumbnailLink);
+                      newThumbUrl.searchParams.set('access_token', accessToken);
+                      
+                      const retryThumbResp = await fetch(newThumbUrl.toString(), { method: 'GET' });
+                      
+                      if (retryThumbResp.ok) {
+                        imageBuffer = await retryThumbResp.arrayBuffer();
+                        console.log('[thumb][retry-success]', { traceId, bytes: imageBuffer.byteLength });
+                      } else {
+                        console.log('[thumb][retry-failed]', { traceId, status: retryThumbResp.status });
+                        return jsonResponse(502, { 
+                          ok: false, 
+                          code: "DRIVE_FETCH_FAILED", 
+                          message: "Thumbnail link expired and retry failed", 
+                          traceId 
+                        });
+                      }
+                    } else {
+                      return jsonResponse(502, { 
+                        ok: false, 
+                        code: "DRIVE_FETCH_FAILED", 
+                        message: "No thumbnailLink in retry", 
+                        traceId 
+                      });
+                    }
+                  } else {
+                    return jsonResponse(502, { 
+                      ok: false, 
+                      code: "DRIVE_FETCH_FAILED", 
+                      message: "Retry metadata fetch failed", 
+                      traceId 
+                    });
+                  }
+                } catch (retryErr) {
+                  console.log('[thumb][error]', { traceId, code: 'RETRY_FAILED', error: String(retryErr) });
+                  return jsonResponse(502, { 
+                    ok: false, 
+                    code: "DRIVE_FETCH_FAILED", 
+                    message: String(retryErr), 
+                    traceId 
+                  });
+                }
+              }
+              
+              // Se tem JSON, processar normalmente
+              if (errorBody) {
                 const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
                 const errorMessage = errorBody?.error?.message || '';
                 
@@ -333,7 +391,19 @@ async function handler(req: Request): Promise<Response> {
                   source: 'thumbnailLink'
                 });
                 
-                if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+                if (errorReason.includes('insufficientPermissions') || 
+                    errorReason.includes('fileNotAccessible') ||
+                    errorMessage.toLowerCase().includes('sharing violation')) {
+                  return jsonResponse(403, { 
+                    ok: false, 
+                    code: "FORBIDDEN_FILE", 
+                    message: "Acesso negado ao arquivo.", 
+                    traceId 
+                  });
+                }
+                
+                if (errorReason.includes('insufficientScopes') || 
+                    errorMessage.toLowerCase().includes('scope')) {
                   return jsonResponse(403, { 
                     ok: false, 
                     code: "INSUFFICIENT_SCOPE", 
@@ -341,14 +411,8 @@ async function handler(req: Request): Promise<Response> {
                     traceId 
                   });
                 }
-                
-                return jsonResponse(403, { 
-                  ok: false, 
-                  code: "FORBIDDEN_FILE", 
-                  message: "Acesso negado ao arquivo.", 
-                  traceId 
-                });
               }
+            } else {
               console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
               return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
             }
@@ -375,9 +439,74 @@ async function handler(req: Request): Promise<Response> {
           if (thumbResponse.ok) {
             imageBuffer = await thumbResponse.arrayBuffer();
             console.log('[thumb][thumb-fetched]', { traceId, fileId, bytes: imageBuffer.byteLength });
-          } else {
-            if (thumbResponse.status === 403) {
-              const errorBody = await thumbResponse.json().catch(() => ({}));
+          } else if (thumbResponse.status === 403) {
+            let errorBody: any = null;
+            try { 
+              errorBody = await thumbResponse.json(); 
+            } catch {
+              // 403 "mudo" (sem JSON) - thumbnailLink expirou, tentar retry
+              console.log('[thumb][retry]', { 
+                traceId, 
+                reason: '403-mute', 
+                host: thumbUrl.host 
+              });
+              
+              // Refazer files.get para obter novo thumbnailLink
+              try {
+                const retryMetaResp = await fetch(
+                  `https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&supportsAllDrives=true`,
+                  { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                
+                if (retryMetaResp.ok) {
+                  const retryMeta = await retryMetaResp.json();
+                  if (retryMeta.thumbnailLink) {
+                    const newThumbUrl = new URL(retryMeta.thumbnailLink);
+                    newThumbUrl.searchParams.set('access_token', accessToken);
+                    
+                    const retryThumbResp = await fetch(newThumbUrl.toString(), { method: 'GET' });
+                    
+                    if (retryThumbResp.ok) {
+                      imageBuffer = await retryThumbResp.arrayBuffer();
+                      console.log('[thumb][retry-success]', { traceId, bytes: imageBuffer.byteLength });
+                    } else {
+                      console.log('[thumb][retry-failed]', { traceId, status: retryThumbResp.status });
+                      return jsonResponse(502, { 
+                        ok: false, 
+                        code: "DRIVE_FETCH_FAILED", 
+                        message: "Thumbnail link expired and retry failed", 
+                        traceId 
+                      });
+                    }
+                  } else {
+                    return jsonResponse(502, { 
+                      ok: false, 
+                      code: "DRIVE_FETCH_FAILED", 
+                      message: "No thumbnailLink in retry", 
+                      traceId 
+                    });
+                  }
+                } else {
+                  return jsonResponse(502, { 
+                    ok: false, 
+                    code: "DRIVE_FETCH_FAILED", 
+                    message: "Retry metadata fetch failed", 
+                    traceId 
+                  });
+                }
+              } catch (retryErr) {
+                console.log('[thumb][error]', { traceId, code: 'RETRY_FAILED', error: String(retryErr) });
+                return jsonResponse(502, { 
+                  ok: false, 
+                  code: "DRIVE_FETCH_FAILED", 
+                  message: String(retryErr), 
+                  traceId 
+                });
+              }
+            }
+            
+            // Se tem JSON, processar normalmente
+            if (errorBody) {
               const errorReason = errorBody?.error?.errors?.[0]?.reason || '';
               const errorMessage = errorBody?.error?.message || '';
               
@@ -388,7 +517,19 @@ async function handler(req: Request): Promise<Response> {
                 source: 'thumbnailLink-raw-video'
               });
               
-              if (errorReason.includes('insufficientPermissions') || errorMessage.toLowerCase().includes('scope')) {
+              if (errorReason.includes('insufficientPermissions') || 
+                  errorReason.includes('fileNotAccessible') ||
+                  errorMessage.toLowerCase().includes('sharing violation')) {
+                return jsonResponse(403, { 
+                  ok: false, 
+                  code: "FORBIDDEN_FILE", 
+                  message: "Acesso negado ao arquivo.", 
+                  traceId 
+                });
+              }
+              
+              if (errorReason.includes('insufficientScopes') || 
+                  errorMessage.toLowerCase().includes('scope')) {
                 return jsonResponse(403, { 
                   ok: false, 
                   code: "INSUFFICIENT_SCOPE", 
@@ -396,14 +537,8 @@ async function handler(req: Request): Promise<Response> {
                   traceId 
                 });
               }
-              
-              return jsonResponse(403, { 
-                ok: false, 
-                code: "FORBIDDEN_FILE", 
-                message: "Acesso negado ao arquivo.", 
-                traceId 
-              });
             }
+          } else {
             console.log('[thumb][warning]', { traceId, reason: 'thumb_fetch_failed', status: thumbResponse.status });
             return jsonResponse(502, { ok: false, code: "DRIVE_FETCH_FAILED", message: `Thumb status ${thumbResponse.status}`, traceId });
           }
@@ -476,7 +611,13 @@ async function handler(req: Request): Promise<Response> {
       return jsonResponse(500, { ok: false, code: "SIGNING_FAILED", traceId });
     }
 
-    console.log('[thumb][success]', { traceId, fileId, url: signedData.signedUrl });
+    console.log('[thumb][success]', { 
+      traceId, 
+      fileId, 
+      url: signedData.signedUrl, 
+      urlKind: finalExt, 
+      cache: 'miss' 
+    });
 
     return jsonResponse(200, {
       ok: true,

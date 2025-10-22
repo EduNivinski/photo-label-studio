@@ -142,6 +142,10 @@ if (source === "all" || source === "gdrive") {
     // Ensure thumbnails for Google Drive items
     let debugFilledThumbs = 0;
     let needsDriveReauth = false;
+    let scopeErrors = 0;
+    let forbiddenErrors = 0;
+    let notFoundErrors = 0;
+    let otherErrors = 0;
     
     for (const item of paginatedItems) {
       if (item.source === "gdrive") {
@@ -207,12 +211,16 @@ if (source === "all" || source === "gdrive") {
               // Only set needsDriveReauth for actual scope issues, not file permission issues
               if (thumbResp.status === 403 && errJson && errJson.code === 'INSUFFICIENT_SCOPE') {
                 needsDriveReauth = true;
+                scopeErrors++;
                 console.log(`🔒 Insufficient scope for ${fileId}`);
               } else if (thumbResp.status === 403 && errJson && errJson.code === 'FORBIDDEN_FILE') {
+                forbiddenErrors++;
                 console.log(`🚫 File permission denied for ${fileId} (not a scope issue)`);
               } else if (thumbResp.status === 404) {
+                notFoundErrors++;
                 console.log(`📭 No thumbnail available for ${fileId}`);
               } else {
+                otherErrors++;
                 console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status} ${errJson?.code || ''}`);
               }
             }
@@ -319,7 +327,9 @@ if (source === "all" || source === "gdrive") {
       page,
       pageSize,
       gdriveWithPoster: finalDebugFilled,
-      gdriveWithoutPoster: finalDebugMissing
+      gdriveWithoutPoster: finalDebugMissing,
+      thumbErrors: { scopeErrors, forbiddenErrors, notFoundErrors, otherErrors },
+      needsDriveReauth
     });
 
     return new Response(JSON.stringify({
