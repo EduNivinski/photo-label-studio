@@ -17,6 +17,7 @@ import CollectionDetail from "./pages/CollectionDetail";
 import UserPage from "./pages/User";
 import DriveSettingsPage from "./pages/DriveSettingsPage";
 import GoogleDrive from "./pages/GoogleDrive";
+import DriveConnected from "./pages/DriveConnected";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Login from "./pages/Login";
@@ -145,6 +146,11 @@ function AppContent() {
           <Route path="/drive" element={
             <RequireAuth>
               <GoogleDrive />
+            </RequireAuth>
+          } />
+          <Route path="/drive/connected" element={
+            <RequireAuth>
+              <DriveConnected />
             </RequireAuth>
           } />
           <Route path="*" element={<NotFound />} />

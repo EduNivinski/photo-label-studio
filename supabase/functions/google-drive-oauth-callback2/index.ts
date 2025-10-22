@@ -148,28 +148,15 @@ serve(async (req) => {
     // Clean up used state
     await admin.from("oauth_state").delete().eq("state", state);
 
-    // Return success page that closes the window and notifies parent
-    const html = `<!doctype html>
-<meta charset="utf-8" />
-<script>
-  try {
-    if (window.opener) {
-      window.opener.postMessage({ type: "drive_connected" }, "${ORIGIN}");
-      setTimeout(() => window.close(), 500);
-    }
-  } catch (e) {
-    console.error("Failed to notify parent:", e);
-  }
-</script>
-<body style="font-family:system-ui;margin:24px;text-align:center">
-  <h2>✓ Conexão realizada com sucesso</h2>
-  <p>Você pode fechar esta janela.</p>
-  <script>setTimeout(() => window.close(), 2000);</script>
-</body>`;
+    console.log("[callback] Success - redirecting to app");
 
-    return new Response(html, {
-      status: 200,
-      headers: { ...H, "Content-Type": "text/html; charset=utf-8" }
+    // Return 302 redirect (no JS, no HTML)
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...H,
+        "Location": "https://photo-label-studio.lovable.app/drive/connected?ok=1"
+      }
     });
 
   } catch (e: any) {

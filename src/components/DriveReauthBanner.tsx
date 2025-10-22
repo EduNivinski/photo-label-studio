@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface DriveReauthBannerProps {
   onReauthComplete?: () => void;
@@ -11,6 +11,17 @@ interface DriveReauthBannerProps {
 
 export function DriveReauthBanner({ onReauthComplete }: DriveReauthBannerProps) {
   const [loading, setLoading] = useState(false);
+
+  // Listen for reauth completion event
+  useEffect(() => {
+    const handleReauthComplete = () => {
+      console.log('[DriveReauthBanner] Reauth completed, refreshing...');
+      onReauthComplete?.();
+    };
+
+    window.addEventListener('drive:reauth:complete', handleReauthComplete);
+    return () => window.removeEventListener('drive:reauth:complete', handleReauthComplete);
+  }, [onReauthComplete]);
 
   const handleReauthorize = async () => {
     setLoading(true);
@@ -27,7 +38,7 @@ export function DriveReauthBanner({ onReauthComplete }: DriveReauthBannerProps) 
       }
 
       if (data?.authorizeUrl) {
-        // Redirect to Google OAuth consent screen
+        // Redirect to Google OAuth consent screen (full page redirect)
         window.location.href = data.authorizeUrl;
       } else {
         toast.error('URL de autorização não retornada');

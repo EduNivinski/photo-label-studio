@@ -108,6 +108,33 @@ export function httpNoContent(origin?: string | null): Response {
 }
 
 /**
+ * Returns a 302 redirect response with CORS headers
+ */
+export function httpRedirect(req: Request, location: string): Response {
+  const origin = req.headers.get("origin");
+  const allowedOriginsEnv = Deno.env.get("CORS_ALLOWED_ORIGINS");
+  const allowedOrigins = allowedOriginsEnv 
+    ? allowedOriginsEnv.split(",").map(o => o.trim())
+    : ["https://photo-label-studio.lovable.app", "http://localhost:3000", "http://localhost:5173"];
+  
+  const allowedOrigin = origin && allowedOrigins.includes(origin)
+    ? origin 
+    : allowedOrigins[0];
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "Location": location,
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Headers": "authorization, apikey, content-type, cache-control, x-client-info, x-supabase-authorization",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Vary": "Origin",
+    },
+  });
+}
+
+/**
  * Safe error handling - logs details but returns generic message with code hint
  */
 export function safeError(
