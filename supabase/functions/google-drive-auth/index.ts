@@ -75,7 +75,7 @@ async function handleStatus(userId: string) {
   const traceId = crypto.randomUUID();
   const projectUrl = Deno.env.get("SUPABASE_URL");
   
-  console.log("[status][env]", { traceId, projectUrl, user_id: userId });
+  console.log("[drive-auth][status][start]", { traceId, projectUrl, user_id: userId });
   
   const settings = await getUserDriveSettings(userId);
   
@@ -86,16 +86,28 @@ async function handleStatus(userId: string) {
     .select("root_folder_id")
     .eq("user_id", userId)
     .maybeSingle();
+
+  // Get token info with scope details
+  const { data: tokenRow } = await admin
+    .from("user_drive_tokens")
+    .select("scope, expires_at, refresh_token_enc, updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
   
   try {
     const token = await ensureAccessToken(userId);
     if (!token) throw new Error("NO_ACCESS_TOKEN");
     
-    console.log("[status]", {
+    const hasRefreshToken = !!tokenRow?.refresh_token_enc;
+    const scope = tokenRow?.scope || "";
+    
+    console.log("[drive-auth][status]", {
       traceId,
-      user_id: userId,
-      dedicatedFolderId: settings?.drive_folder_id ?? null,
-      stateRootFolderId: syncState?.root_folder_id ?? null,
+      userId,
+      connected: true,
+      hasRefreshToken,
+      scope,
+      hasDriveReadonly: scope.includes("drive.readonly")
     });
     
     return httpJson(200, {
@@ -103,11 +115,13 @@ async function handleStatus(userId: string) {
       connected: true,
       hasConnection: true,
       isExpired: false,
+      hasRefreshToken,
+      scope,
       isConnected: Boolean(settings?.scope_granted),
       dedicatedFolderId: settings?.drive_folder_id ?? null,
       dedicatedFolderName: settings?.drive_folder_name ?? null,
       dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
-      updatedAt: settings?.updated_at ?? null,
+      updatedAt: tokenRow?.updated_at ?? settings?.updated_at ?? null,
       statusVersion: settings?.updated_at ?? null,
       settingsFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
@@ -115,11 +129,10 @@ async function handleStatus(userId: string) {
     });
   } catch (e: any) {
     const reason = (e?.message || "").toUpperCase();
-    console.log("[status]", {
+    console.log("[drive-auth][status]", {
       traceId,
-      user_id: userId,
-      dedicatedFolderId: settings?.drive_folder_id ?? null,
-      stateRootFolderId: syncState?.root_folder_id ?? null,
+      userId,
+      connected: false,
       error: reason,
     });
     
@@ -128,6 +141,8 @@ async function handleStatus(userId: string) {
       connected: false,
       hasConnection: false,
       isExpired: true,
+      hasRefreshToken: false,
+      scope: "",
       reason: reason || "EXPIRED_OR_INVALID",
       isConnected: false,
       dedicatedFolderId: settings?.drive_folder_id ?? null,
@@ -222,7 +237,29 @@ async function handleDisconnect(userId: string) {
     .eq('user_id', userId);
 
   if (error) throw new Error(error.message);
+  
+  console.log("[drive-auth][disconnect]", { userId });
   return httpJson(200, { ok: true, message: "Disconnected successfully" });
+}
+
+// Handle reset (delete tokens and settings for fresh start)
+async function handleReset(userId: string) {
+  const admin = getAdmin();
+  
+  // Delete tokens
+  await admin.from('user_drive_tokens').delete().eq('user_id', userId);
+  
+  // Reset drive settings (keep folder info but clear scope)
+  await admin
+    .from('user_drive_settings')
+    .update({ scope_granted: null, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+  
+  // Clear drive sync state
+  await admin.from('drive_sync_state').delete().eq('user_id', userId);
+  
+  console.log("[drive-auth][reset]", { userId });
+  return httpJson(200, { ok: true, message: "Google Drive connection reset. Please reconnect." });
 }
 
 // Zod schema for set_folder
@@ -816,6 +853,8 @@ serve(async (req: Request) => {
       return withCors(await handleAuthorize(userId), cors);
     } else if (action === "disconnect") {
       return withCors(await handleDisconnect(userId), cors);
+    } else if (action === "reset") {
+      return withCors(await handleReset(userId), cors);
     } else if (action === "set_folder" || action === "save-folder") {
       return withCors(await handleSetFolder(userId, body), cors);
     } else {
