@@ -28,6 +28,19 @@ function corsHeaders(req: Request) {
   } as const;
 }
 
+// Helper to add CORS to existing Response
+function withCors(response: Response, corsHeaders: Record<string, string>): Response {
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    newHeaders.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
+
 function getAdmin() {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -96,7 +109,6 @@ async function handleStatus(userId: string) {
       dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
       updatedAt: settings?.updated_at ?? null,
       statusVersion: settings?.updated_at ?? null,
-      // Diagnostics
       settingsFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
       traceId,
@@ -123,7 +135,6 @@ async function handleStatus(userId: string) {
       dedicatedFolderPath: settings?.drive_folder_path ?? (settings?.drive_folder_name ?? null),
       updatedAt: settings?.updated_at ?? null,
       statusVersion: settings?.updated_at ?? null,
-      // Diagnostics
       settingsFolderId: settings?.drive_folder_id ?? null,
       stateRootFolderId: syncState?.root_folder_id ?? null,
       traceId,
@@ -142,10 +153,15 @@ async function handleAuthorize(userId: string) {
       hasClientId: !!clientId,
       hasRedirectUri: !!redirectUri
     });
-    throw new Error("OAUTH_CONFIG_MISSING");
+    return httpJson(500, { 
+      ok: false, 
+      code: "SERVER_MISCONFIG", 
+      error: "Missing CLIENT_ID or REDIRECT_URI",
+      message: "Server misconfiguration. Contact support."
+    });
   }
 
-  // Define OAuth scopes
+  // Define OAuth scopes - CRITICAL: include drive.readonly
   const scopes = [
     "openid",
     "email",
@@ -174,7 +190,7 @@ async function handleAuthorize(userId: string) {
     throw new Error("STATE_STORAGE_FAILED");
   }
 
-  // Build authorization URL
+  // Build authorization URL with prompt=consent and access_type=offline
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -190,7 +206,8 @@ async function handleAuthorize(userId: string) {
 
   console.log("[google-drive-auth] Authorization URL generated", {
     userId,
-    redirect_uri: redirectUri
+    redirect_uri: redirectUri,
+    scopes: scopes.split(" ")
   });
 
   return httpJson(200, { ok: true, authorizeUrl });
@@ -741,14 +758,20 @@ async function handleSetFolder(userId: string, body: any) {
 }
 
 serve(async (req: Request) => {
+  const cors = corsHeaders(req);
+  
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(req) });
+    return new Response(null, { status: 204, headers: cors });
   }
 
   try {
-    if (req.method !== "POST") {
-      throw new Error("METHOD_NOT_ALLOWED");
+    // Accept both GET and POST
+    if (req.method !== "GET" && req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ ok: false, code: "METHOD_NOT_ALLOWED", error: "Only GET, POST, and OPTIONS are allowed" }),
+        { status: 405, headers: { ...cors, "Content-Type": "application/json" } }
+      );
     }
 
     // Authenticate user
@@ -765,27 +788,41 @@ serve(async (req: Request) => {
     });
 
     if (!canProceed) {
-      return httpJson(429, { ok: false, error: "Rate limit exceeded. Please try again later." });
+      return new Response(
+        JSON.stringify({ ok: false, code: "RATE_LIMIT", error: "Rate limit exceeded. Please try again later." }),
+        { status: 429, headers: { ...cors, "Content-Type": "application/json" } }
+      );
     }
 
-    // Parse action from body
-    const body = await req.json().catch(() => ({}));
-    const action = body.action || "authorize"; // Default to authorize for backward compatibility
-
-    console.log("[google-drive-auth] Action:", action, "User:", userId);
-
-    // Route to appropriate handler
-    if (action === "status") {
-      return await handleStatus(userId);
-    } else if (action === "authorize" || action === "auth_url") {
-      // Return authorization URL (supports both legacy 'authorize' and new 'auth_url')
-      return await handleAuthorize(userId);
-    } else if (action === "disconnect") {
-      return await handleDisconnect(userId);
-    } else if (action === "set_folder" || action === "save-folder") {
-      return await handleSetFolder(userId, body);
+    // Parse action from body (POST) or query (GET)
+    let action: string;
+    let body: any = {};
+    
+    if (req.method === "POST") {
+      body = await req.json().catch(() => ({}));
+      action = body.action || "authorize";
     } else {
-      return httpJson(400, { ok: false, error: "Invalid action" });
+      // GET: extract from query params
+      const url = new URL(req.url);
+      action = url.searchParams.get("action") || "status";
+    }
+
+    console.log("[google-drive-auth] Action:", action, "Method:", req.method, "User:", userId);
+
+    // Route to appropriate handler and add CORS
+    if (action === "status") {
+      return withCors(await handleStatus(userId), cors);
+    } else if (action === "authorize" || action === "auth_url") {
+      return withCors(await handleAuthorize(userId), cors);
+    } else if (action === "disconnect") {
+      return withCors(await handleDisconnect(userId), cors);
+    } else if (action === "set_folder" || action === "save-folder") {
+      return withCors(await handleSetFolder(userId, body), cors);
+    } else {
+      return new Response(
+        JSON.stringify({ ok: false, code: "INVALID_ACTION", error: "Invalid action" }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
+      );
     }
 
   } catch (err: any) {
@@ -795,12 +832,16 @@ serve(async (req: Request) => {
     });
     
     if (err?.message === "UNAUTHORIZED") {
-      return httpJson(401, { ok: false, error: "Unauthorized." });
+      return new Response(
+        JSON.stringify({ ok: false, code: "UNAUTHORIZED", error: "Unauthorized." }),
+        { status: 401, headers: { ...cors, "Content-Type": "application/json" } }
+      );
     }
     
-    return safeError(err, { 
+    // Generic error with CORS
+    return withCors(safeError(err, { 
       publicMessage: "Unable to process Google Drive request.",
       logContext: "google-drive-auth"
-    });
+    }), cors);
   }
 });
