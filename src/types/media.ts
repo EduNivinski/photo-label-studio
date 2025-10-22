@@ -33,6 +33,9 @@ export interface MediaListResponse {
   total: number;
   page: number;
   pageSize: number;
+  debugFilledThumbs?: number;
+  /** Indica que o token do Drive não tem escopo de conteúdo (requer reconsent) */
+  needsDriveReauth?: boolean;
 }
 
 export interface MediaListRequest {
