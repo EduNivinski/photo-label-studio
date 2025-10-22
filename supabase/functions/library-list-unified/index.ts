@@ -200,6 +200,7 @@ if (source === "all" || source === "gdrive") {
               } else {
                 console.log(`⚠️ Skipped placeholder/invalid thumb for ${fileId}`);
               }
+            } else {
               let errJson: any = null;
               try { errJson = await thumbResp.json(); } catch {}
               if (thumbResp.status === 403 && errJson && errJson.code === 'INSUFFICIENT_SCOPE') {
@@ -208,6 +209,7 @@ if (source === "all" || source === "gdrive") {
               } else {
                 console.log(`⚠️ Thumb fetch failed for ${fileId}: ${thumbResp.status}`);
               }
+            }
           } catch (thumbError) {
             console.error(`❌ Error fetching thumb for ${fileId}:`, thumbError);
           }
