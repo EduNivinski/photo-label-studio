@@ -6,11 +6,17 @@ type Props = {
   onChooseFolder: () => void;
   disabled?: boolean;
   onSync?: () => void;
+  onSyncBackground?: () => void;
   syncing?: boolean;
   syncProgress?: {
     processedFolders: number;
     queued: number;
     updatedItems: number;
+  } | null;
+  backgroundSyncProgress?: {
+    status: string;
+    processed: number;
+    pending: number;
   } | null;
 };
 
@@ -19,8 +25,10 @@ export function DriveFolderSelectionCard({
   onChooseFolder,
   disabled = false,
   onSync,
+  onSyncBackground,
   syncing = false,
   syncProgress,
+  backgroundSyncProgress,
 }: Props) {
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
@@ -45,6 +53,18 @@ export function DriveFolderSelectionCard({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {dedicatedFolderPath && onSyncBackground && backgroundSyncProgress?.status !== 'syncing' && (
+              <Button
+                onClick={onSyncBackground}
+                disabled={disabled}
+                variant="outline"
+                className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                title="Sincronizar em background (continua mesmo se você fechar o site)"
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Sync Background
+              </Button>
+            )}
             {dedicatedFolderPath && onSync && (
               <Button
                 onClick={onSync}
@@ -80,6 +100,16 @@ export function DriveFolderSelectionCard({
           <div className="text-sm text-muted-foreground">
             Processando: {syncProgress.processedFolders} pastas, {syncProgress.updatedItems} arquivos
             {syncProgress.queued > 0 && ` (${syncProgress.queued} pendentes)`}
+          </div>
+        )}
+        
+        {backgroundSyncProgress && backgroundSyncProgress.status === 'syncing' && (
+          <div className="text-sm text-blue-600 flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>
+              Sincronizando em background: {backgroundSyncProgress.processed} processadas
+              {backgroundSyncProgress.pending > 0 && ` (${backgroundSyncProgress.pending} pendentes)`}
+            </span>
           </div>
         )}
       </div>
