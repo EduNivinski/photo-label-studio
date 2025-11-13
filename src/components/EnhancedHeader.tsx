@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Filter, Grid3X3, List, ChevronDown, Tag, Trash2, X, Archive, Upload } from 'lucide-react';
+import { Filter, Grid3X3, List, ChevronDown, Tag, Trash2, X, Archive, Upload, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Toggle } from '@/components/ui/toggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -32,6 +32,8 @@ interface EnhancedHeaderProps {
   onDeleteSelected?: () => void;
   onClearSelection?: () => void;
   onCreateCollection?: () => void;
+  isDeleting?: boolean;
+  deleteProgress?: { current: number; total: number };
 }
 
 export function EnhancedHeader({
@@ -53,7 +55,9 @@ export function EnhancedHeader({
   onManageLabels,
   onDeleteSelected,
   onClearSelection,
-  onCreateCollection
+  onCreateCollection,
+  isDeleting,
+  deleteProgress
 }: EnhancedHeaderProps) {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
@@ -227,10 +231,20 @@ export function EnhancedHeader({
                       size="sm"
                       variant="destructive"
                       onClick={onDeleteSelected}
+                      disabled={isDeleting}
                       className="flex items-center gap-2"
                     >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden lg:inline">Deletar</span>
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="hidden lg:inline">Deletando ({deleteProgress?.current}/{deleteProgress?.total})</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="hidden lg:inline">Deletar</span>
+                        </>
+                      )}
                     </Button>
                   )}
 

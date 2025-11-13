@@ -1,4 +1,4 @@
-import { Tag, Trash2, X, Archive } from 'lucide-react';
+import { Tag, Trash2, X, Archive, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -10,6 +10,8 @@ interface SelectionPanelProps {
   onClearSelection: () => void;
   onSelectAll: () => void;
   onCreateCollection?: () => void;
+  isDeleting?: boolean;
+  deleteProgress?: { current: number; total: number };
 }
 
 export function SelectionPanel({
@@ -19,7 +21,9 @@ export function SelectionPanel({
   onDeleteSelected,
   onClearSelection,
   onSelectAll,
-  onCreateCollection
+  onCreateCollection,
+  isDeleting,
+  deleteProgress
 }: SelectionPanelProps) {
   if (selectedCount === 0) return null;
 
@@ -70,10 +74,20 @@ export function SelectionPanel({
             size="sm"
             variant="destructive"
             onClick={onDeleteSelected}
+            disabled={isDeleting}
             className="flex items-center gap-2"
           >
-            <Trash2 className="h-4 w-4" />
-            Deletar
+            {isDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Deletando ({deleteProgress?.current}/{deleteProgress?.total})
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                Deletar
+              </>
+            )}
           </Button>
 
           <Button

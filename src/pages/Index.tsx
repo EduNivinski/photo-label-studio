@@ -114,6 +114,8 @@ const Index = () => {
   const [isLabelSuggestionsOpen, setIsLabelSuggestionsOpen] = useState(false);
   const [isCreateAlbumOpen, setIsCreateAlbumOpen] = useState(false);
   const [isCreateCollectionFromSelectionOpen, setIsCreateCollectionFromSelectionOpen] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 });
   const [isEditAlbumOpen, setIsEditAlbumOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [selectedMediaItem, setSelectedMediaItem] = useState<MediaItem | null>(null);
@@ -341,10 +343,7 @@ const Index = () => {
     
     if (selectedCount === 0) return;
 
-    // Get selected items from unified items - match by full item.id
-    const selectedItems = unifiedItems.filter(item => {
-      return selectedPhotoIds.has(item.id);
-    });
+    const selectedItems = unifiedItems.filter(item => selectedPhotoIds.has(item.id));
 
     console.log('🗑️ Delete operation:', {
       selectedPhotoIds: Array.from(selectedPhotoIds),
@@ -357,36 +356,60 @@ const Index = () => {
       return;
     }
 
+    // Iniciar loading state
+    setIsDeletingBulk(true);
+    setDeleteProgress({ current: 0, total: selectedItems.length });
+    
+    // Toast inicial
+    const toastId = toast.loading(`Deletando 0/${selectedItems.length} arquivos...`);
+
     let successCount = 0;
-    const totalItems = selectedItems.length;
 
-    for (const item of selectedItems) {
-      try {
-        console.log('🗑️ Deleting item:', item.id, item.source);
-        const { data, error } = await supabase.functions.invoke('delete-unified-item', {
-          body: { itemId: item.id }
-        });
+    // Processamento paralelo (batch de 5)
+    const batchSize = 5;
+    for (let i = 0; i < selectedItems.length; i += batchSize) {
+      const batch = selectedItems.slice(i, i + batchSize);
+      
+      const results = await Promise.allSettled(
+        batch.map(item => {
+          console.log('🗑️ Deleting item:', item.id, item.source);
+          return supabase.functions.invoke('delete-unified-item', {
+            body: { itemId: item.id }
+          });
+        })
+      );
 
-        if (error) {
-          console.error('❌ Error deleting item:', item.id, error);
-        } else {
-          console.log('✅ Item deleted:', item.id);
+      // Contar sucessos
+      results.forEach((result, idx) => {
+        if (result.status === 'fulfilled' && !result.value.error) {
+          console.log('✅ Item deleted:', batch[idx].id);
           successCount++;
+        } else {
+          console.error('❌ Error deleting item:', batch[idx].id, result.status === 'fulfilled' ? result.value.error : result.reason);
         }
-      } catch (error) {
-        console.error('❌ Exception deleting item:', item.id, error);
-      }
+      });
+
+      // Atualizar progresso
+      const currentProgress = Math.min(i + batchSize, selectedItems.length);
+      setDeleteProgress({ current: currentProgress, total: selectedItems.length });
+      toast.loading(`Deletando ${currentProgress}/${selectedItems.length} arquivos...`, { id: toastId });
     }
 
+    // Finalizar loading state
+    setIsDeletingBulk(false);
+    setDeleteProgress({ current: 0, total: 0 });
+    
     clearSelection();
     
     // Reload unified items after deletion
-    loadUnifiedItems(unifiedParams);
+    await loadUnifiedItems(unifiedParams);
 
-    if (successCount === totalItems) {
+    // Toast final
+    toast.dismiss(toastId);
+    if (successCount === selectedItems.length) {
       toast.success(`${successCount} arquivo${successCount !== 1 ? 's' : ''} deletado${successCount !== 1 ? 's' : ''} com sucesso!`);
     } else {
-      toast.error(`Erro ao deletar alguns arquivos. ${successCount} de ${totalItems} foram deletados.`);
+      toast.error(`${successCount} de ${selectedItems.length} arquivos foram deletados.`);
     }
   };
 
@@ -710,6 +733,8 @@ const Index = () => {
           onClearSelection={clearSelection}
           onSelectAll={handleSelectAll}
           onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
+          isDeleting={isDeletingBulk}
+          deleteProgress={deleteProgress}
         />
       )}
 
