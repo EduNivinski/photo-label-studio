@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 };
 
-const BodySchema = z.object({ budgetFolders: z.number().int().min(1).max(20).optional() });
+const BodySchema = z.object({ budgetFolders: z.number().int().min(1).max(100).optional() });
 
 const isFolder = (mime?: string) => mime === "application/vnd.google-apps.folder";
 
@@ -62,7 +62,7 @@ serve(async (req) => {
       windowSec: 300
     });
 
-    const { budgetFolders = 5 } = BodySchema.parse(await req.json().catch(() => ({})));
+    const { budgetFolders = 50 } = BodySchema.parse(await req.json().catch(() => ({})));
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,

@@ -95,10 +95,9 @@ if (source === "all" || source === "gdrive") {
     .eq('trashed', false)
     .neq('status', 'deleted'); // Filter out deleted items
 
-  // Restrict to current root if available (items whose parents include root)
-  if (syncState?.root_folder_id) {
-    driveQuery = driveQuery.contains('parents', [syncState.root_folder_id]);
-  }
+  // Note: We don't filter by root_folder_id here because files in subfolders
+  // have parent_id pointing to their immediate parent folder, not the root.
+  // The user_id filter already ensures we only show files belonging to this user.
 
   // ALWAYS filter to only show images and videos (exclude .txt, .pdf, etc)
   if (mimeClass === "image") {
