@@ -19,7 +19,7 @@ type FileItem = { id: string; name: string; mimeType?: string };
 
 export default function DriveSettingsPage() {
   const [status, setStatus] = useState<DriveStatus>({ ok: true, connected: false });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<{ id: string; name: string } | null>(null);
@@ -59,17 +59,19 @@ export default function DriveSettingsPage() {
     return chosen?.name || s?.dedicatedFolderName || s?.dedicated_folder_name || s?.driveFolderName || s?.drive_folder_name;
   }, [chosen, status]);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (isManual = false) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("google-drive-auth", { body: { action: "status" } });
       if (error || !data || typeof data !== 'object') {
         setStatus({ ok: false, reason: error?.message ? String(error.message) : "INVALID_RESPONSE" });
-        toast({
-          title: "Aviso",
-          description: "Não foi possível obter o status atual",
-          variant: "destructive",
-        });
+        if (isManual) {
+          toast({
+            title: "Aviso",
+            description: "Não foi possível obter o status atual",
+            variant: "destructive",
+          });
+        }
       } else {
         setStatus(data as DriveStatus);
         setDownloadsEnabled(!!(data as any).downloadsEnabled);
@@ -80,7 +82,7 @@ export default function DriveSettingsPage() {
             name: (data as any).dedicatedFolderName || `Pasta ${(data as any).dedicatedFolderId}`
           });
         }
-        if ((data as any).ok && (data as any).connected) {
+        if ((data as any).ok && (data as any).connected && isManual) {
           toast({
             title: "Status verificado",
             description: "Google Drive conectado com sucesso",
@@ -406,14 +408,17 @@ export default function DriveSettingsPage() {
     }
   }, [toast]);
 
+  // Carregar status inicial apenas na montagem
   useEffect(() => {
     fetchStatus();
-    
-    // Peek changes when connected
+  }, []);
+
+  // Peek changes quando status mudar para conectado
+  useEffect(() => {
     if (status.ok && (status as any).connected) {
       peekChanges();
     }
-  }, [fetchStatus, peekChanges, status]);
+  }, [status]);
 
   // Debug log para verificar o estado chosen
   useEffect(() => {
@@ -517,14 +522,24 @@ export default function DriveSettingsPage() {
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Status:</span>
-              {getStatusIcon()}
+              {loading && !status.ok && !(status as any).connected ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : (
+                getStatusIcon()
+              )}
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={getStatusBadgeVariant()} className="flex items-center gap-1">
-                {stateLabel}
-                {loading && <Loader2 className="h-3 w-3 animate-spin" />}
-              </Badge>
-              {peeking && <Loader2 className="h-3 w-3 animate-spin" />}
+              {loading && !status.ok && !(status as any).connected ? (
+                <span className="text-sm text-muted-foreground">Verificando conexão...</span>
+              ) : (
+                <>
+                  <Badge variant={getStatusBadgeVariant()} className="flex items-center gap-1">
+                    {stateLabel}
+                    {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  </Badge>
+                  {peeking && <Loader2 className="h-3 w-3 animate-spin" />}
+                </>
+              )}
             </div>
           </div>
 
@@ -585,7 +600,7 @@ export default function DriveSettingsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Button
-              onClick={fetchStatus}
+              onClick={() => fetchStatus(true)}
               variant="outline"
               disabled={loading}
               className="flex items-center gap-2"
