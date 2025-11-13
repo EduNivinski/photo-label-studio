@@ -45,6 +45,25 @@ export default function GoogleDriveIntegration() {
     runPreflightCheck();
   }, []);
 
+  // Auto-check status on component mount
+  useEffect(() => {
+    serializedCheckStatus();
+  }, [serializedCheckStatus]);
+
+  // Auto-check status after successful preflight
+  useEffect(() => {
+    if (!preflightLoading && preflightResult?.ok) {
+      serializedCheckStatus();
+    }
+  }, [preflightLoading, preflightResult, serializedCheckStatus]);
+
+  // Auto-refresh status when tab gains focus
+  useEffect(() => {
+    const onFocus = () => serializedCheckStatus();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [serializedCheckStatus]);
+
   const handleConnect = async () => {
     if (!preflightResult?.ok) return; // Block if preflight failed
     await connect();
@@ -443,7 +462,7 @@ export default function GoogleDriveIntegration() {
     <div className="max-w-4xl mx-auto space-y-6">
       <DriveIntegrationCard
         state={getStatusState()}
-        onCheck={checkStatus}
+        onCheck={serializedCheckStatus}
         onConnect={handleConnect}
         onReconnect={handleReconnect}
         onReconnectWithConsent={handleReconnectWithPermissions}
