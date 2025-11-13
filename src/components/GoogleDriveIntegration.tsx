@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { supabase, SUPABASE_URL, SUPABASE_ANON } from "@/integrations/supabase/client";
 import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
 import { useDriveSyncOrchestrator } from "@/hooks/useDriveSyncOrchestrator";
@@ -21,18 +21,18 @@ export default function GoogleDriveIntegration() {
   const [preflightResult, setPreflightResult] = useState<{ ok: boolean; reason?: string } | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(true);
   const [folderSelectionState, setFolderSelectionState] = useState<FolderSelectionState>("idle");
-  const [selectionMutex, setSelectionMutex] = useState(false);
-  const [statusCheckMutex, setStatusCheckMutex] = useState(false);
+  const selectionMutex = useRef(false);
+  const statusCheckMutex = useRef(false);
 
   const serializedCheckStatus = useCallback(async () => {
-    if (statusCheckMutex) return;
-    setStatusCheckMutex(true);
+    if (statusCheckMutex.current) return;
+    statusCheckMutex.current = true;
     try {
       await checkStatus();
     } finally {
-      setStatusCheckMutex(false);
+      statusCheckMutex.current = false;
     }
-  }, [statusCheckMutex, checkStatus]);
+  }, [checkStatus]);
 
   // Preflight check on component mount
   useEffect(() => {
@@ -48,21 +48,24 @@ export default function GoogleDriveIntegration() {
   // Auto-check status on component mount
   useEffect(() => {
     serializedCheckStatus();
-  }, [serializedCheckStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-check status after successful preflight
   useEffect(() => {
     if (!preflightLoading && preflightResult?.ok) {
       serializedCheckStatus();
     }
-  }, [preflightLoading, preflightResult, serializedCheckStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preflightLoading, preflightResult]);
 
   // Auto-refresh status when tab gains focus
   useEffect(() => {
     const onFocus = () => serializedCheckStatus();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [serializedCheckStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleConnect = async () => {
     if (!preflightResult?.ok) return; // Block if preflight failed
@@ -146,12 +149,12 @@ export default function GoogleDriveIntegration() {
 
   const handleSelectCurrentFolder = useCallback(async (id: string, name: string, path?: string) => {
     // Mutex: prevent concurrent selections
-    if (selectionMutex) {
+    if (selectionMutex.current) {
       console.warn('[FOLDER_SELECT] Already selecting a folder, ignoring...');
       return;
     }
 
-    setSelectionMutex(true);
+    selectionMutex.current = true;
     setShowFolderBrowser(false);
 
     try {
@@ -236,7 +239,7 @@ export default function GoogleDriveIntegration() {
             title: 'Atalho detectado',
             description: 'A pasta escolhida era um atalho. Resolvendo para a pasta de destino automaticamente.',
           });
-          setSelectionMutex(false);
+          selectionMutex.current = false;
           return handleSelectCurrentFolder(vJson.targetId, name, path);
         }
 
@@ -392,9 +395,9 @@ export default function GoogleDriveIntegration() {
         variant: 'destructive',
       });
     } finally {
-      setSelectionMutex(false);
+      selectionMutex.current = false;
     }
-  }, [toast, serializedCheckStatus, connect, selectionMutex]);
+  }, [toast, serializedCheckStatus, connect]);
 
   const buildFolderPath = useCallback(() => {
     // Priorizar dedicatedFolderPath se existir, senão usar o nome da pasta
