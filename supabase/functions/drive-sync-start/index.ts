@@ -70,6 +70,32 @@ serve(async (req) => {
       settingsFolderId: currentFolderId,
       stateRootBefore: state?.root_folder_id ?? null
     });
+
+    // 3.1) Se a pasta mudou, limpar arquivos da pasta anterior
+    if (state?.root_folder_id && state.root_folder_id !== currentFolderId) {
+      console.log(`[sync-start][cleanup]`, {
+        traceId: cid,
+        user_id: userId,
+        oldRoot: state.root_folder_id,
+        newRoot: currentFolderId
+      });
+
+      const { error: cleanupErr } = await admin
+        .from('drive_items')
+        .update({
+          status: 'deleted',
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .neq('status', 'deleted');
+
+      if (cleanupErr) {
+        console.error(`[sync-start][cleanup-error]`, { traceId: cid, error: cleanupErr });
+      } else {
+        console.log(`[sync-start][cleanup-done]`, { traceId: cid });
+      }
+    }
     
     const pending = [currentFolderId];
     const upsertData = {
