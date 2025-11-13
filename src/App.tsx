@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Login from "./pages/Login";
 import { RequireAuth } from "./components/RequireAuth";
+import { GlobalSyncIndicator } from "./components/GlobalSyncIndicator";
 
 const queryClient = new QueryClient();
 
@@ -166,6 +167,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <GlobalSyncIndicator />
         <AppContent />
       </BrowserRouter>
     </TooltipProvider>
