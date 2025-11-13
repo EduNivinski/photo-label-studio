@@ -29,6 +29,7 @@ import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import { supabase } from '@/integrations/supabase/client';
 import type { Label } from '@/types/photo';
+import { useSignedHiRes } from '@/hooks/useSignedHiRes';
 
 interface MediaModalProps {
   item: MediaItem | null;
@@ -75,29 +76,8 @@ export function MediaModal({
   const [loading, setLoading] = useState(false);
   const [loadingPoster, setLoadingPoster] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Utility function to fetch Drive previews using drive-thumb-fetch
-  const fetchDrivePreview = async ({ fileId, kind }: { fileId: string; kind: "image" | "video" }) => {
-    console.log(`📡 Fetching ${kind} preview for fileId: ${fileId} (1024px)`);
-    
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('drive-thumb-fetch', {
-        body: { itemId: fileId, size: 1024 }
-      });
-
-      if (error) throw error;
-      if (!data?.ok || !data?.url) throw new Error('No preview URL returned');
-
-      console.log(`✅ ${kind} preview URL received:`, data.url);
-      return data.url;
-    } catch (error) {
-      console.error(`❌ Error fetching ${kind} preview:`, error);
-      throw error;
-    }
-  };
+  
+  const { loadHiRes } = useSignedHiRes();
 
   useEffect(() => {
     // Cleanup function to revoke blob URLs and abort requests
@@ -133,12 +113,12 @@ export function MediaModal({
         console.log(`🚀 Loading preview for ${item.isVideo ? 'video' : 'image'}: ${item.name} (${fileId})`);
         
         if (item.isVideo) {
-          // Load high-quality poster for video
+          // Load high-quality poster for video (with cache)
           setLoadingPoster(true);
-          fetchDrivePreview({ fileId, kind: "video" })
+          loadHiRes(fileId, 1024)
             .then(url => {
-              if (!abortControllerRef.current?.signal.aborted) {
-                console.log('✅ Video poster loaded successfully:', url);
+              if (!abortControllerRef.current?.signal.aborted && url) {
+                console.log('✅ Video poster loaded (cached or fresh):', url);
                 setPosterHq(url);
               }
             })
@@ -151,12 +131,12 @@ export function MediaModal({
               }
             });
         } else {
-          // Load high-res image
+          // Load high-res image (with cache)
           setLoading(true);
-          fetchDrivePreview({ fileId, kind: "image" })
+          loadHiRes(fileId, 1024)
             .then(url => {
-              if (!abortControllerRef.current?.signal.aborted) {
-                console.log('✅ High-res image loaded successfully:', url);
+              if (!abortControllerRef.current?.signal.aborted && url) {
+                console.log('✅ High-res image loaded (cached or fresh):', url);
                 setHiresSrc(url);
               }
             })
