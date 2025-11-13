@@ -100,11 +100,14 @@ if (source === "all" || source === "gdrive") {
     driveQuery = driveQuery.contains('parents', [syncState.root_folder_id]);
   }
 
-  // Apply mime type filter
+  // ALWAYS filter to only show images and videos (exclude .txt, .pdf, etc)
   if (mimeClass === "image") {
     driveQuery = driveQuery.like('mime_type', 'image/%');
   } else if (mimeClass === "video") {
     driveQuery = driveQuery.like('mime_type', 'video/%');
+  } else {
+    // When mimeClass is "all", still restrict to media files only
+    driveQuery = driveQuery.or('mime_type.like.image/%,mime_type.like.video/%');
   }
 
   // Apply search filter
