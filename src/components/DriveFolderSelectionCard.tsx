@@ -53,7 +53,7 @@ export function DriveFolderSelectionCard({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {dedicatedFolderPath && onSyncBackground && backgroundSyncProgress?.status !== 'syncing' && (
+            {dedicatedFolderPath && onSyncBackground && backgroundSyncProgress?.status !== 'running' && (
               <Button
                 onClick={onSyncBackground}
                 disabled={disabled}
@@ -103,7 +103,7 @@ export function DriveFolderSelectionCard({
           </div>
         )}
         
-        {backgroundSyncProgress && backgroundSyncProgress.status === 'syncing' && (
+        {backgroundSyncProgress && backgroundSyncProgress.status === 'running' && (
           <div className="text-sm text-blue-600 flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>

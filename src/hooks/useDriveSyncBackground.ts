@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export interface BackgroundSyncProgress {
-  status: 'idle' | 'starting' | 'syncing' | 'completed' | 'error';
+  status: 'idle' | 'starting' | 'running' | 'error';
   processed: number;
   pending: number;
   error?: string;
+  isCompleted?: boolean;
 }
 
 export function useDriveSyncBackground() {
@@ -39,7 +40,7 @@ export function useDriveSyncBackground() {
       if (error) throw error;
 
       if (data?.ok) {
-        setProgress({ status: 'syncing', processed: 0, pending: 0 });
+        setProgress({ status: 'running', processed: 0, pending: 0 });
         
         // 2. Start polling to monitor progress
         if (pollIntervalRef.current) {
@@ -61,21 +62,23 @@ export function useDriveSyncBackground() {
           const pending = Array.isArray(state.pending_folders) ? state.pending_folders.length : 0;
           const stats = state.stats as any;
           const processed = stats?.foldersProcessed || 0;
+          const isCompleted = state.status === 'idle' && pending === 0 && stats?.completedAt;
 
           setProgress({
-            status: state.status as any,
+            status: state.status as 'idle' | 'running' | 'error',
             processed,
-            pending
+            pending,
+            isCompleted
           });
 
           // Stop polling when completed or error
-          if (state.status === 'completed' || state.status === 'error') {
+          if (state.status === 'error' || (state.status === 'idle' && pending === 0)) {
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current);
               pollIntervalRef.current = null;
             }
             
-            if (state.status === 'completed') {
+            if (state.status === 'idle' && pending === 0) {
               toast.success('Sincronização em background concluída!', {
                 description: `${processed} pastas processadas`
               });

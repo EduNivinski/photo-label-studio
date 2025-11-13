@@ -38,9 +38,19 @@ async function backgroundSyncWorker(userId: string, projectUrl: string, serviceK
       
       if (pending === 0) {
         // Completed!
+        const { data: currentState } = await admin
+          .from("drive_sync_state")
+          .select("stats")
+          .eq("user_id", userId)
+          .single();
+        
         await admin.from("drive_sync_state")
           .update({ 
-            status: 'completed', 
+            status: 'idle',
+            stats: {
+              ...(currentState?.stats || {}),
+              completedAt: new Date().toISOString()
+            },
             updated_at: new Date().toISOString() 
           })
           .eq("user_id", userId);
@@ -142,7 +152,7 @@ serve(async (req) => {
     
     const { error: updateError } = await admin.from("drive_sync_state")
       .update({ 
-        status: 'syncing', 
+        status: 'running', 
         updated_at: new Date().toISOString() 
       })
       .eq("user_id", userId);
@@ -162,7 +172,7 @@ serve(async (req) => {
       ok: true,
       message: 'Background sync started',
       traceId: cid,
-      status: 'syncing'
+      status: 'running'
     }, origin);
     
   } catch (err: any) {
