@@ -1,5 +1,6 @@
-import { Folder, RefreshCw, Loader2 } from "lucide-react";
+import { Folder, RefreshCw, Loader2, FileIcon, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 type Props = {
   dedicatedFolderPath?: string | null;
@@ -97,9 +98,42 @@ export function DriveFolderSelectionCard({
         </div>
         
         {syncProgress && (
-          <div className="text-sm text-muted-foreground">
-            Processando: {syncProgress.processedFolders} pastas, {syncProgress.updatedItems} arquivos
-            {syncProgress.queued > 0 && ` (${syncProgress.queued} pendentes)`}
+          <div className="space-y-2">
+            {/* Barra de Progresso */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Progresso da Sincronização</span>
+                <span className="font-medium">
+                  {syncProgress.processedFolders}/{syncProgress.processedFolders + syncProgress.queued} pastas
+                </span>
+              </div>
+              <Progress 
+                value={
+                  syncProgress.queued === 0 && syncProgress.processedFolders === 0
+                    ? 0
+                    : (syncProgress.processedFolders / (syncProgress.processedFolders + syncProgress.queued)) * 100
+                } 
+                className="h-2"
+              />
+            </div>
+            
+            {/* Informações Detalhadas */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Folder className="h-3 w-3" />
+                <span>{syncProgress.processedFolders} processadas</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <FileIcon className="h-3 w-3" />
+                <span>{syncProgress.updatedItems} sincronizados</span>
+              </div>
+              {syncProgress.queued > 0 && (
+                <div className="flex items-center gap-1 text-orange-600">
+                  <Clock className="h-3 w-3" />
+                  <span>{syncProgress.queued} pendentes</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
         
