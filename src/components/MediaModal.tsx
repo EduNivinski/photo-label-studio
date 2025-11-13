@@ -17,7 +17,8 @@ import {
   File,
   Monitor,
   HardDrive,
-  ExternalLink
+  ExternalLink,
+  Maximize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +76,8 @@ export function MediaModal({
   const [posterHq, setPosterHq] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPoster, setLoadingPoster] = useState(false);
+  const [hiResSize, setHiResSize] = useState<1024 | 1920>(1024);
+  const [isLoadingHiRes, setIsLoadingHiRes] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const { loadHiRes } = useSignedHiRes();
@@ -100,6 +103,8 @@ export function MediaModal({
       setPosterHq(null);
       setLoading(false);
       setLoadingPoster(false);
+      setHiResSize(1024);
+      setIsLoadingHiRes(false);
       
       // Abort any ongoing request
       if (abortControllerRef.current) {
@@ -115,7 +120,7 @@ export function MediaModal({
         if (item.isVideo) {
           // Load high-quality poster for video (with cache)
           setLoadingPoster(true);
-          loadHiRes(fileId, 1024)
+          loadHiRes(fileId, hiResSize)
             .then(url => {
               if (!abortControllerRef.current?.signal.aborted && url) {
                 console.log('✅ Video poster loaded (cached or fresh):', url);
@@ -133,7 +138,7 @@ export function MediaModal({
         } else {
           // Load high-res image (with cache)
           setLoading(true);
-          loadHiRes(fileId, 1024)
+          loadHiRes(fileId, hiResSize)
             .then(url => {
               if (!abortControllerRef.current?.signal.aborted && url) {
                 console.log('✅ High-res image loaded (cached or fresh):', url);
@@ -259,6 +264,32 @@ export function MediaModal({
   const handleOpenInDrive = () => {
     if (item.openInDriveUrl) {
       window.open(item.openInDriveUrl, '_blank');
+    }
+  };
+
+  const handleLoadHighRes = async () => {
+    if (!item || item.source !== 'gdrive') return;
+    
+    const { key: fileId } = extractSourceAndKey(item.id);
+    const newSize = hiResSize === 1024 ? 1920 : 1024;
+    
+    setIsLoadingHiRes(true);
+    
+    try {
+      const url = await loadHiRes(fileId, newSize);
+      if (url) {
+        if (item.isVideo) {
+          setPosterHq(url);
+        } else {
+          setHiresSrc(url);
+        }
+        setHiResSize(newSize);
+        console.log(`✅ Loaded ${newSize}px resolution`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load high-res:', error);
+    } finally {
+      setIsLoadingHiRes(false);
     }
   };
 
@@ -437,25 +468,58 @@ export function MediaModal({
             />
           )}
 
-          {/* Zoom Controls for Images */}
-          {!item.isVideo && (
-            <div className="absolute bottom-4 right-4 flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}
-                className="bg-black/50 hover:bg-black/70 text-white border-white/20"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setZoom(Math.min(3, zoom + 0.25))}
-                className="bg-black/50 hover:bg-black/70 text-white border-white/20"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
+          {/* Resolution and Zoom Controls for Images */}
+          {!item.isVideo && item.source === 'gdrive' && (
+            <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+              {/* Resolution Badge and Toggle */}
+              <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                <div className="flex items-center gap-2">
+                  <Monitor className="h-3.5 w-3.5 text-white/70" />
+                  <span className="text-white/90 text-xs font-medium">
+                    {hiResSize}px
+                  </span>
+                </div>
+                <div className="w-px h-4 bg-white/20" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLoadHighRes}
+                  disabled={isLoadingHiRes}
+                  className="h-7 px-2 text-white/80 hover:text-white hover:bg-white/10"
+                  title={hiResSize === 1024 ? "Carregar em 1920px" : "Voltar para 1024px"}
+                >
+                  {isLoadingHiRes ? (
+                    <div className="animate-spin h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full" />
+                  ) : (
+                    <>
+                      <Maximize2 className="h-3.5 w-3.5 mr-1" />
+                      <span className="text-xs">
+                        {hiResSize === 1024 ? "HD" : "SD"}
+                      </span>
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {/* Zoom Controls */}
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setZoom(Math.max(0.5, zoom - 0.25))}
+                  className="bg-black/50 hover:bg-black/70 text-white border-white/20"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setZoom(Math.min(3, zoom + 0.25))}
+                  className="bg-black/50 hover:bg-black/70 text-white border-white/20"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
