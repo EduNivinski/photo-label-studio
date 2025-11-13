@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { supabase, SUPABASE_URL, SUPABASE_ANON } from "@/integrations/supabase/client";
 import { useGoogleDriveSimple } from "@/hooks/useGoogleDriveSimple";
 import { useDriveSyncOrchestrator } from "@/hooks/useDriveSyncOrchestrator";
+import { useDriveSyncBackground } from "@/hooks/useDriveSyncBackground";
 import { useToast } from "@/hooks/use-toast";
 import { DriveIntegrationCard } from "./DriveIntegrationCard";
 import { DriveFolderSelectionCard } from "./DriveFolderSelectionCard";
@@ -15,7 +16,8 @@ type FolderSelectionState = "idle" | "verifying" | "saving" | "confirming" | "re
 
 export default function GoogleDriveIntegration() {
   const { status, loading, checkStatus, connect, disconnect } = useGoogleDriveSimple();
-  const { progress, runFullSync, reset: resetOrchestrator } = useDriveSyncOrchestrator();
+  const { progress, runFullSync, reset: resetSync } = useDriveSyncOrchestrator();
+  const { progress: bgProgress, startBackgroundSync, reset: resetBgSync } = useDriveSyncBackground();
   const { toast } = useToast();
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
   const [preflightResult, setPreflightResult] = useState<{ ok: boolean; reason?: string } | null>(null);
@@ -517,6 +519,7 @@ export default function GoogleDriveIntegration() {
               }
             }}
             onSync={handleSyncClick}
+            onSyncBackground={startBackgroundSync}
             syncing={
               progress.phase === 'indexing' || 
               progress.phase === 'syncing' || 
@@ -524,6 +527,11 @@ export default function GoogleDriveIntegration() {
               folderSelectionState === 'saving' || 
               folderSelectionState === 'confirming'
             }
+            backgroundSyncProgress={bgProgress.status !== 'idle' ? {
+              status: bgProgress.status,
+              processed: bgProgress.processed,
+              pending: bgProgress.pending
+            } : null}
             syncProgress={progress.phase !== 'idle' ? {
               processedFolders: progress.processedFolders || 0,
               queued: progress.queuedFolders || 0,
