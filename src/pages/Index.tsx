@@ -682,6 +682,7 @@ const Index = () => {
           <div className="flex items-center gap-6">
             <PhotoStats 
               items={filteredUnifiedItems}
+              totalItems={unifiedItems}
             />
             
             {/* View Toggle */}
