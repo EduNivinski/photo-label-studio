@@ -153,24 +153,29 @@ if (source === "all" || source === "gdrive") {
     const endIndex = startIndex + pageSize;
     const paginatedItems = items.slice(startIndex, endIndex);
 
-    // Ensure thumbnails for Google Drive items
+    // Generate or fetch thumbnails for Google Drive items - BATCH PROCESSING
+    const BATCH_SIZE = 10;
     let debugFilledThumbs = 0;
     let needsDriveReauth = false;
     let scopeErrors = 0;
     let forbiddenErrors = 0;
     let notFoundErrors = 0;
     let otherErrors = 0;
-    
-    for (const item of paginatedItems) {
-      if (item.source === "gdrive") {
+
+    // Process items in batches
+    const gdriveItems = paginatedItems.filter(item => item.source === "gdrive");
+    for (let i = 0; i < gdriveItems.length; i += BATCH_SIZE) {
+      const batch = gdriveItems.slice(i, i + BATCH_SIZE);
+      console.log(`🔄 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(gdriveItems.length / BATCH_SIZE)}: ${batch.length} items`);
+      
+      // Process batch in parallel
+      await Promise.all(batch.map(async (item) => {
         const fileId = item.file_id;
         const mimeType = item.mime_type || '';
         
         // Only process images and videos
         const isMedia = mimeType.startsWith('image/') || mimeType.startsWith('video/');
-        if (!isMedia) {
-          continue;
-        }
+        if (!isMedia) return;
         
         // Calculate current revision (sha1 of fileId:modified_time)
         const revInput = `${fileId}:${item.modified_time || ''}`;
@@ -222,14 +227,14 @@ if (source === "all" || source === "gdrive") {
               let errJson: any = null;
               try { errJson = await thumbResp.json(); } catch {}
               
-              // Only set needsDriveReauth for actual scope issues, not file permission issues
+              // Only set needsDriveReauth for actual scope issues
               if (thumbResp.status === 403 && errJson && errJson.code === 'INSUFFICIENT_SCOPE') {
                 needsDriveReauth = true;
                 scopeErrors++;
                 console.log(`🔒 Insufficient scope for ${fileId}`);
               } else if (thumbResp.status === 403 && errJson && errJson.code === 'FORBIDDEN_FILE') {
                 forbiddenErrors++;
-                console.log(`🚫 File permission denied for ${fileId} (not a scope issue)`);
+                console.log(`🚫 File permission denied for ${fileId}`);
               } else if (thumbResp.status === 404) {
                 notFoundErrors++;
                 console.log(`📭 No thumbnail available for ${fileId}`);
@@ -240,16 +245,18 @@ if (source === "all" || source === "gdrive") {
             }
           } catch (thumbError) {
             console.error(`❌ Error fetching thumb for ${fileId}:`, thumbError);
+            otherErrors++;
           }
         } else if (item.thumb_url && !item.thumb_url.startsWith('data:')) {
-          // Use cached thumbnail URL (only if it's HTTP/HTTPS)
+          // Use cached thumbnail URL
           item.posterUrl = item.thumb_url;
           debugFilledThumbs++;
         }
-      }
+      }));
     }
 
     console.log(`📊 Processing ${paginatedItems.length} paginated items, ${debugFilledThumbs} thumbnails filled`);
+    console.log(`📊 Errors: scope=${scopeErrors}, forbidden=${forbiddenErrors}, notFound=${notFoundErrors}, other=${otherErrors}`);
 
     // Get labels for all items
     const itemKeys = paginatedItems.map(item => ({

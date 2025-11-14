@@ -29,6 +29,7 @@ import { PhotoModal } from '@/components/PhotoModal';
 import { MediaModal } from '@/components/MediaModal';
 import { KeyboardShortcuts } from '@/components/KeyboardShortcuts';
 import { LabelSuggestions } from '@/components/LabelSuggestions';
+import { LoadingGallery } from '@/components/LoadingGallery';
 import { CreateAlbumDialog } from '@/components/CreateAlbumDialog';
 import { EditAlbumDialog } from '@/components/EditAlbumDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
@@ -125,6 +126,7 @@ const Index = () => {
 
   // View mode state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isLoadingThumbs, setIsLoadingThumbs] = useState(false);
 
   // Label suggestions state
   const [labelSuggestions, setLabelSuggestions] = useState<{
@@ -202,13 +204,28 @@ const Index = () => {
 
   // Helper function to load items with current settings
   const loadCurrentItems = useCallback(async () => {
-    const params = {
-      page: 1,
-      pageSize: itemsPerPage,
-      source: "all" as const,
-      mimeClass: unifiedMimeFilter
-    };
-    await loadUnifiedItems(params);
+    setIsLoadingThumbs(true);
+    
+    const toastId = toast.loading(
+      `Carregando ${itemsPerPage} items...`,
+      { description: 'Gerando thumbnails...' }
+    );
+    
+    try {
+      const params = {
+        page: 1,
+        pageSize: itemsPerPage,
+        source: "all" as const,
+        mimeClass: unifiedMimeFilter
+      };
+      await loadUnifiedItems(params);
+      
+      toast.success('Items carregados!', { id: toastId });
+    } catch (error) {
+      toast.error('Erro ao carregar items', { id: toastId });
+    } finally {
+      setIsLoadingThumbs(false);
+    }
   }, [itemsPerPage, unifiedMimeFilter, loadUnifiedItems]);
 
   // Load unified media items when itemsPerPage or mime filter changes
@@ -796,7 +813,11 @@ const Index = () => {
         </div>
 
         {/* Unified Items Grid */}
-        {unifiedLoading ? (
+        {isLoadingThumbs ? (
+          <div className="container mx-auto px-4 max-w-7xl">
+            <LoadingGallery count={itemsPerPage} />
+          </div>
+        ) : unifiedLoading ? (
           <div className="container mx-auto px-4 max-w-7xl">
             <div className="text-center py-8">
               <p className="text-muted-foreground">Carregando itens...</p>
@@ -805,6 +826,15 @@ const Index = () => {
         ) : (
           <div className="w-full">
             <div className="container mx-auto px-4 max-w-7xl">
+              {/* PhotoStats - só mostrar quando não está carregando */}
+              {paginatedUnifiedItems.length > 0 && (
+                <PhotoStats 
+                  items={paginatedUnifiedItems}
+                  totalPhotos={totalPhotosFromAPI || 0}
+                  totalVideos={totalVideosFromAPI || 0}
+                />
+              )}
+              
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {paginatedUnifiedItems.map((item) => (
                   <UnifiedPhotoCard
