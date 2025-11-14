@@ -137,6 +137,9 @@ const Index = () => {
   // Unified media state
   const { 
     items: unifiedItems, 
+    total: totalUnifiedFromAPI,
+    totalPhotos: totalPhotosFromAPI,
+    totalVideos: totalVideosFromAPI,
     loading: unifiedLoading, 
     needsDriveReauth,
     loadItems: loadUnifiedItems, 
@@ -699,7 +702,8 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <PhotoStats 
                 items={paginatedUnifiedItems}
-                totalItems={unifiedItems}
+                totalPhotos={totalPhotosFromAPI || 0}
+                totalVideos={totalVideosFromAPI || 0}
               />
               {hasMoreItems && (
                 <Badge variant="secondary" className="text-xs">

@@ -7,6 +7,8 @@ export function useUnifiedMedia() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [totalPhotos, setTotalPhotos] = useState(0);
+  const [totalVideos, setTotalVideos] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [needsDriveReauth, setNeedsDriveReauth] = useState(false);
 
@@ -80,6 +82,8 @@ export function useUnifiedMedia() {
 
       setItems(enrichedItems);
       setTotal(response.total);
+      setTotalPhotos(response.totalPhotos || 0);
+      setTotalVideos(response.totalVideos || 0);
       
       // Update needsDriveReauth state
       const reauth = (response as any).needsDriveReauth || false;
@@ -327,6 +331,8 @@ export function useUnifiedMedia() {
     items,
     loading,
     total,
+    totalPhotos,
+    totalVideos,
     error,
     needsDriveReauth,
     loadItems,
