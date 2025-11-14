@@ -144,19 +144,6 @@ const Index = () => {
   } = useUnifiedMedia();
   const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
 
-  // Pagination
-  const {
-    currentPage,
-    totalPages,
-    paginatedItems: paginatedPhotos,
-    reset
-  } = usePagination(filteredPhotos, itemsPerPage);
-
-  // Reset pagination when filtered photos change
-  useEffect(() => {
-    reset();
-  }, [filteredPhotos.length]); // Remove reset from dependencies to avoid loop
-
   // Collection filter effect
   useEffect(() => {
     const fetchCollectionPhotos = async () => {
@@ -219,6 +206,22 @@ const Index = () => {
       return matchesRequired && matchesExcluded && matchesSearch && matchesUnlabeled;
     });
   }, [unifiedItems, filters.labels, filters.searchTerm, filters.showUnlabeled, includedLabels, excludedLabels]);
+
+  // Pagination for unified items (must be after filteredUnifiedItems)
+  const {
+    paginatedItems: paginatedUnifiedItems,
+    hasMoreItems,
+    loadMore,
+    reset: resetPagination,
+    changeItemsPerPage,
+    currentlyShowing,
+    totalItems: totalUnifiedItems
+  } = usePagination(filteredUnifiedItems, itemsPerPage);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    resetPagination();
+  }, [filteredUnifiedItems.length, resetPagination]);
 
   // Ensure no legacy Drive loading variables exist
   const driveLoading = false; // Deprecated - always use unifiedLoading
@@ -708,7 +711,10 @@ const Index = () => {
             {/* Items per page selector */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Por página:</span>
-              <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(parseInt(value))}>
+              <Select 
+                value={itemsPerPage.toString()} 
+                onValueChange={(value) => changeItemsPerPage(parseInt(value))}
+              >
                 <SelectTrigger className="w-20">
                   <SelectValue />
                 </SelectTrigger>
@@ -728,12 +734,14 @@ const Index = () => {
       {selectedCount > 0 && (
         <SelectionPanel
           selectedCount={selectedCount}
-          totalCount={filteredUnifiedItems.length}
+          totalCount={totalUnifiedItems}
           onManageLabels={handleBulkLabelManage}
           onDeleteSelected={handleBulkDelete}
           onClearSelection={clearSelection}
           onSelectAll={handleSelectAll}
-          onCreateCollection={() => setIsCreateCollectionFromSelectionOpen(true)}
+          onCreateCollection={() => {
+            setIsCreateCollectionFromSelectionOpen(true);
+          }}
           isDeleting={isDeletingBulk}
           deleteProgress={deleteProgress}
         />
@@ -769,7 +777,7 @@ const Index = () => {
           <div className="w-full">
             <div className="container mx-auto px-4 max-w-7xl">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredUnifiedItems.map((item) => (
+                {paginatedUnifiedItems.map((item) => (
                   <UnifiedPhotoCard
                     key={item.id}
                     item={item}
@@ -784,12 +792,23 @@ const Index = () => {
                 ))}
               </div>
               
-              {/* Total count display */}
-              {filteredUnifiedItems.length > 0 && (
-                <div className="mt-6 text-center">
+              {/* Pagination info and Load More button */}
+              {paginatedUnifiedItems.length > 0 && (
+                <div className="mt-6 flex flex-col items-center gap-3">
                   <p className="text-sm text-muted-foreground">
-                    {filteredUnifiedItems.length} {filteredUnifiedItems.length === 1 ? 'arquivo encontrado' : 'arquivos encontrados'}
+                    Mostrando {currentlyShowing} de {totalUnifiedItems} {totalUnifiedItems === 1 ? 'arquivo' : 'arquivos'}
                   </p>
+                  
+                  {hasMoreItems && (
+                    <Button
+                      onClick={loadMore}
+                      variant="outline"
+                      size="lg"
+                      className="min-w-[200px]"
+                    >
+                      Carregar mais {Math.min(itemsPerPage, totalUnifiedItems - currentlyShowing)} itens
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -798,7 +817,7 @@ const Index = () => {
       </div>
 
       {/* No items state */}
-      {!unifiedLoading && filteredUnifiedItems.length === 0 && (
+      {!unifiedLoading && paginatedUnifiedItems.length === 0 && (
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center py-16">
             {photos.length === 0 ? (
