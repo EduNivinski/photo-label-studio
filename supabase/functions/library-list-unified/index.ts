@@ -137,6 +137,18 @@ if (source === "all" || source === "gdrive") {
 
     // Apply pagination FIRST
     const total = items.length;
+
+    // Calculate separate totals for photos and videos
+    const totalPhotos = items.filter(item => {
+      const mimeType = item.mime_type || '';
+      return mimeType.startsWith('image/');
+    }).length;
+
+    const totalVideos = items.filter(item => {
+      const mimeType = item.mime_type || '';
+      return mimeType.startsWith('video/');
+    }).length;
+
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedItems = items.slice(startIndex, endIndex);
@@ -337,6 +349,8 @@ if (source === "all" || source === "gdrive") {
     return new Response(JSON.stringify({
       items: responseItems,
       total,
+      totalPhotos,
+      totalVideos,
       page,
       pageSize,
       debugFilledThumbs: finalDebugFilled,

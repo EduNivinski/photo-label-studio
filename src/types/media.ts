@@ -31,6 +31,8 @@ export interface MediaItem {
 export interface MediaListResponse {
   items: MediaItem[];
   total: number;
+  totalPhotos?: number;
+  totalVideos?: number;
   page: number;
   pageSize: number;
   debugFilledThumbs?: number;
