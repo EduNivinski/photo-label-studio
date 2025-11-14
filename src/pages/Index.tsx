@@ -1,5 +1,5 @@
 // Force rebuild to fix updateFilters caching issue - timestamp: 1756513884740
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2, Grid3X3, List, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -125,7 +125,6 @@ const Index = () => {
 
   // View mode state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [itemsPerPage, setItemsPerPage] = useState(24);
 
   // Label suggestions state
   const [labelSuggestions, setLabelSuggestions] = useState<{
@@ -174,29 +173,7 @@ const Index = () => {
     fetchCollectionPhotos();
   }, [selectedCollectionId, getAlbumPhotos]);
 
-  // Stable params for unified media items
-  const unifiedParams = useMemo(() => ({
-    page: 1,
-    pageSize: 50,
-    source: "all" as const,
-    mimeClass: unifiedMimeFilter
-  }), [unifiedMimeFilter]);
-
-  // Load unified media items - always load on mount
-  useEffect(() => {
-    loadUnifiedItems(unifiedParams);
-  }, [unifiedParams, loadUnifiedItems]);
-
-  // Listen for reauth completion event
-  useEffect(() => {
-    const handleReauthComplete = () => {
-      console.log('[Index] Reauth completed, reloading items...');
-      loadUnifiedItems(unifiedParams);
-    };
-
-    window.addEventListener('drive:reauth:complete', handleReauthComplete);
-    return () => window.removeEventListener('drive:reauth:complete', handleReauthComplete);
-  }, [unifiedParams, loadUnifiedItems]);
+  // Removed unifiedParams - now using dynamic params with itemsPerPage
 
   // Apply client-side filters to unified items so home reflects label filters immediately
   const filteredUnifiedItems = useMemo(() => {
@@ -218,9 +195,42 @@ const Index = () => {
     loadMore,
     reset: resetPagination,
     changeItemsPerPage,
+    itemsPerPage,
     currentlyShowing,
     totalItems: totalUnifiedItems
-  } = usePagination(filteredUnifiedItems, itemsPerPage);
+  } = usePagination(filteredUnifiedItems, 24);
+
+  // Helper function to load items with current settings
+  const loadCurrentItems = useCallback(async () => {
+    const params = {
+      page: 1,
+      pageSize: itemsPerPage,
+      source: "all" as const,
+      mimeClass: unifiedMimeFilter
+    };
+    await loadUnifiedItems(params);
+  }, [itemsPerPage, unifiedMimeFilter, loadUnifiedItems]);
+
+  // Load unified media items when itemsPerPage or mime filter changes
+  useEffect(() => {
+    loadCurrentItems();
+  }, [loadCurrentItems]);
+
+  // Listen for reauth completion event
+  useEffect(() => {
+    const handleReauthComplete = () => {
+      console.log('[Index] Reauth completed, reloading items...');
+      loadCurrentItems();
+    };
+
+    window.addEventListener('drive:reauth:complete', handleReauthComplete);
+    return () => window.removeEventListener('drive:reauth:complete', handleReauthComplete);
+  }, [loadCurrentItems]);
+
+  // Debug log for itemsPerPage changes
+  useEffect(() => {
+    console.log('📄 Items per page changed:', itemsPerPage);
+  }, [itemsPerPage]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -317,7 +327,7 @@ const Index = () => {
 
     // Always reload unified items after any label update to reflect changes in UI
     if (success) {
-      await loadUnifiedItems(unifiedParams);
+      await loadCurrentItems();
     }
 
     return success;
@@ -421,7 +431,7 @@ const Index = () => {
     clearSelection();
     
     // Reload unified items after deletion
-    await loadUnifiedItems(unifiedParams);
+    await loadCurrentItems();
 
     // Toast final
     toast.dismiss(toastId);
@@ -631,7 +641,7 @@ const Index = () => {
         {/* Drive Reauth Banner */}
         {needsDriveReauth && (
           <DriveReauthBanner onReauthComplete={() => {
-            loadUnifiedItems(unifiedParams);
+            loadCurrentItems();
           }} />
         )}
         
