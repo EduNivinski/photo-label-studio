@@ -681,7 +681,7 @@ const Index = () => {
           
           <div className="flex items-center gap-6">
             <PhotoStats 
-              photos={filteredPhotos}
+              items={filteredUnifiedItems}
             />
             
             {/* View Toggle */}

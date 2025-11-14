@@ -2,23 +2,23 @@ import { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import type { Photo } from '@/types/photo';
+import type { MediaItem } from '@/types/media';
 
 interface PhotoStatsProps {
-  photos: Photo[];
+  items: MediaItem[];
   onCreateCollection?: () => void;
 }
 
-export function PhotoStats({ photos, onCreateCollection }: PhotoStatsProps) {
+export function PhotoStats({ items, onCreateCollection }: PhotoStatsProps) {
   const stats = useMemo(() => {
-    const totalPhotos = photos.filter(photo => photo.mediaType === 'photo').length;
-    const totalVideos = photos.filter(photo => photo.mediaType === 'video').length;
+    const totalPhotos = items.filter(item => !item.isVideo).length;
+    const totalVideos = items.filter(item => item.isVideo).length;
     
     return {
       totalPhotos,
       totalVideos
     };
-  }, [photos]);
+  }, [items]);
 
   return (
     <div className="flex items-center gap-4">
