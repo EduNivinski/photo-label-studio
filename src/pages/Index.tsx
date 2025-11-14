@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Upload, Library, FolderOpen, FolderPlus, Edit, Trash2, Grid3X3, List, ExternalLink } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Button } from '@/components/ui/button';
@@ -222,6 +223,18 @@ const Index = () => {
   useEffect(() => {
     resetPagination();
   }, [filteredUnifiedItems.length, resetPagination]);
+
+  // Debug pagination values
+  useEffect(() => {
+    console.log('🔍 Pagination Debug:', {
+      total: filteredUnifiedItems.length,
+      showing: paginatedUnifiedItems.length,
+      itemsPerPage,
+      hasMoreItems,
+      currentlyShowing,
+      totalUnifiedItems
+    });
+  }, [filteredUnifiedItems.length, paginatedUnifiedItems.length, itemsPerPage, hasMoreItems, currentlyShowing, totalUnifiedItems]);
 
   // Ensure no legacy Drive loading variables exist
   const driveLoading = false; // Deprecated - always use unifiedLoading
@@ -683,10 +696,17 @@ const Index = () => {
           </div>
           
           <div className="flex items-center gap-6">
-            <PhotoStats 
-              items={filteredUnifiedItems}
-              totalItems={unifiedItems}
-            />
+            <div className="flex items-center gap-2">
+              <PhotoStats 
+                items={paginatedUnifiedItems}
+                totalItems={unifiedItems}
+              />
+              {hasMoreItems && (
+                <Badge variant="secondary" className="text-xs">
+                  +{totalUnifiedItems - currentlyShowing} não carregados
+                </Badge>
+              )}
+            </div>
             
             {/* View Toggle */}
             <div className="flex items-center gap-2">
@@ -709,23 +729,25 @@ const Index = () => {
             </div>
 
             {/* Items per page selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Por página:</span>
-              <Select 
-                value={itemsPerPage.toString()} 
-                onValueChange={(value) => changeItemsPerPage(parseInt(value))}
-              >
-                <SelectTrigger className="w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="12">12</SelectItem>
-                  <SelectItem value="24">24</SelectItem>
-                  <SelectItem value="48">48</SelectItem>
-                  <SelectItem value="96">96</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Card className="p-2 bg-accent/20">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Por página:</span>
+                <Select 
+                  value={itemsPerPage.toString()} 
+                  onValueChange={(value) => changeItemsPerPage(parseInt(value))}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12">12</SelectItem>
+                    <SelectItem value="24">24</SelectItem>
+                    <SelectItem value="48">48</SelectItem>
+                    <SelectItem value="96">96</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -794,19 +816,26 @@ const Index = () => {
               
               {/* Pagination info and Load More button */}
               {paginatedUnifiedItems.length > 0 && (
-                <div className="mt-6 flex flex-col items-center gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    Mostrando {currentlyShowing} de {totalUnifiedItems} {totalUnifiedItems === 1 ? 'arquivo' : 'arquivos'}
-                  </p>
+                <div className="mt-8 flex flex-col items-center gap-4 py-6 border-t">
+                  <div className="text-center">
+                    <p className="text-lg font-medium mb-1">
+                      Mostrando {currentlyShowing} de {totalUnifiedItems} {totalUnifiedItems === 1 ? 'arquivo' : 'arquivos'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {hasMoreItems 
+                        ? `Ainda há ${totalUnifiedItems - currentlyShowing} ${totalUnifiedItems - currentlyShowing === 1 ? 'arquivo' : 'arquivos'} para carregar`
+                        : 'Todos os arquivos foram carregados'}
+                    </p>
+                  </div>
                   
                   {hasMoreItems && (
                     <Button
                       onClick={loadMore}
-                      variant="outline"
+                      variant="default"
                       size="lg"
-                      className="min-w-[200px]"
+                      className="min-w-[250px] h-12"
                     >
-                      Carregar mais {Math.min(itemsPerPage, totalUnifiedItems - currentlyShowing)} itens
+                      Carregar mais {Math.min(itemsPerPage, totalUnifiedItems - currentlyShowing)} {Math.min(itemsPerPage, totalUnifiedItems - currentlyShowing) === 1 ? 'item' : 'itens'}
                     </Button>
                   )}
                 </div>
