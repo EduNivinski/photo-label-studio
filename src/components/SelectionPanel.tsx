@@ -1,28 +1,34 @@
-import { Tag, Trash2, X, Archive, Loader2 } from 'lucide-react';
+import { Tag, Trash2, X, Archive, Loader2, AlertTriangle, Cloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
 interface SelectionPanelProps {
   selectedCount: number;
   totalCount: number;
+  selectedDriveCount?: number;
   onManageLabels: () => void;
   onDeleteSelected: () => void;
+  onDeleteSelectedFromDrive?: () => void;
   onClearSelection: () => void;
   onSelectAll: () => void;
   onCreateCollection?: () => void;
   isDeleting?: boolean;
+  isDeletingFromDrive?: boolean;
   deleteProgress?: { current: number; total: number };
 }
 
 export function SelectionPanel({
   selectedCount,
   totalCount,
+  selectedDriveCount = 0,
   onManageLabels,
   onDeleteSelected,
+  onDeleteSelectedFromDrive,
   onClearSelection,
   onSelectAll,
   onCreateCollection,
   isDeleting,
+  isDeletingFromDrive,
   deleteProgress
 }: SelectionPanelProps) {
   if (selectedCount === 0) return null;
@@ -37,6 +43,11 @@ export function SelectionPanel({
           <span className="text-sm font-medium">
             arquivo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}
           </span>
+          {selectedDriveCount > 0 && (
+            <span className="text-xs text-muted-foreground ml-1">
+              ({selectedDriveCount} do Drive)
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -75,7 +86,7 @@ export function SelectionPanel({
             variant="destructive"
             onClick={onDeleteSelected}
             disabled={isDeleting}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
           >
             {isDeleting ? (
               <>
@@ -85,10 +96,32 @@ export function SelectionPanel({
             ) : (
               <>
                 <Trash2 className="h-4 w-4" />
-                Deletar
+                Deletar do PhotoLabel
               </>
             )}
           </Button>
+
+          {selectedDriveCount > 0 && onDeleteSelectedFromDrive && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={onDeleteSelectedFromDrive}
+              disabled={isDeletingFromDrive}
+              className="flex items-center gap-2 bg-red-950 hover:bg-red-900"
+            >
+              {isDeletingFromDrive ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deletando ({deleteProgress?.current}/{deleteProgress?.total})
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4" />
+                  Deletar {selectedDriveCount} do Drive
+                </>
+              )}
+            </Button>
+          )}
 
           <Button
             size="sm"

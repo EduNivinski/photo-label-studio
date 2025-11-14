@@ -18,19 +18,22 @@ import {
   Monitor,
   HardDrive,
   ExternalLink,
-  Maximize2
+  Maximize2,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LabelChip } from './LabelChip';
 import { LabelManager } from './LabelManager';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { DriveDeleteDialog } from './DriveDeleteDialog';
 import { MediaTypeHeader } from './MediaTypeHeader';
 import { MediaItem } from '@/types/media';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import { supabase } from '@/integrations/supabase/client';
 import type { Label } from '@/types/photo';
 import { useSignedHiRes } from '@/hooks/useSignedHiRes';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MediaModalProps {
   item: MediaItem | null;
@@ -39,6 +42,7 @@ interface MediaModalProps {
   onClose: () => void;
   onLabelManage: () => void;
   onDelete: () => void;
+  onDeleteFromDrive?: () => Promise<void>;
   onUpdateAlias?: (itemId: string, alias: string) => Promise<void>;
   onCreateLabel: (name: string, color?: string) => Promise<void>;
   onDeleteLabel: (labelId: string) => Promise<boolean>;
@@ -56,6 +60,7 @@ export function MediaModal({
   onClose, 
   onLabelManage,
   onDelete,
+  onDeleteFromDrive,
   onUpdateAlias,
   onCreateLabel,
   onDeleteLabel,
@@ -71,6 +76,8 @@ export function MediaModal({
   const [showInfo, setShowInfo] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [showDriveDeleteDialog, setShowDriveDeleteDialog] = useState(false);
+  const [isDeletingFromDrive, setIsDeletingFromDrive] = useState(false);
   const [hiresSrc, setHiresSrc] = useState<string | null>(null);
 
   const [posterHq, setPosterHq] = useState<string | null>(null);
@@ -264,6 +271,20 @@ export function MediaModal({
   const handleOpenInDrive = () => {
     if (item.openInDriveUrl) {
       window.open(item.openInDriveUrl, '_blank');
+    }
+  };
+
+  const handleDriveDelete = async () => {
+    if (!item || !onDeleteFromDrive) return;
+    
+    setIsDeletingFromDrive(true);
+    try {
+      await onDeleteFromDrive();
+      setShowDriveDeleteDialog(false);
+    } catch (error) {
+      console.error('Error deleting from Drive:', error);
+    } finally {
+      setIsDeletingFromDrive(false);
     }
   };
 
@@ -596,15 +617,61 @@ export function MediaModal({
                   Abrir no Drive
                 </Button>
               )}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setIsDeleteConfirmOpen(true)}
-                className="bg-red-600/80 hover:bg-red-600 text-white"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </Button>
+              
+              {/* Delete buttons - different behavior for Drive items */}
+              {item.source === 'gdrive' ? (
+                <div className="flex flex-col gap-2 border-l border-white/20 pl-2 ml-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsDeleteConfirmOpen(true)}
+                          className="bg-orange-600/20 hover:bg-orange-600/40 text-orange-200 border-orange-500/30 justify-start"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remover do PhotoLabel
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Remove apenas do PhotoLabel. Arquivo continua no Drive.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  {onDeleteFromDrive && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setShowDriveDeleteDialog(true)}
+                            className="bg-red-950 hover:bg-red-900 text-white justify-start border-red-800"
+                          >
+                            <AlertTriangle className="h-4 w-4 mr-2" />
+                            Deletar do Google Drive
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-red-950 border-red-800">
+                          ⚠️ Remove do seu Google Drive real. Vai para lixeira.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              ) : (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                  className="bg-red-600/80 hover:bg-red-600 text-white"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </Button>
+              )}
             </div>
           </div>
 
@@ -678,6 +745,18 @@ export function MediaModal({
         }}
         itemCount={1}
       />
+
+      {/* Drive Delete Dialog */}
+      {item?.source === 'gdrive' && onDeleteFromDrive && (
+        <DriveDeleteDialog
+          open={showDriveDeleteDialog}
+          onOpenChange={setShowDriveDeleteDialog}
+          onConfirm={handleDriveDelete}
+          fileName={item.name}
+          thumbnailUrl={item.posterUrl || undefined}
+          isDeleting={isDeletingFromDrive}
+        />
+      )}
 
     </div>
   );
