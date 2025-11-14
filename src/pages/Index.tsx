@@ -699,18 +699,11 @@ const Index = () => {
           </div>
           
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <PhotoStats 
-                items={paginatedUnifiedItems}
-                totalPhotos={totalPhotosFromAPI || 0}
-                totalVideos={totalVideosFromAPI || 0}
-              />
-              {hasMoreItems && (
-                <Badge variant="secondary" className="text-xs">
-                  +{totalUnifiedItems - currentlyShowing} não carregados
-                </Badge>
-              )}
-            </div>
+            <PhotoStats 
+              items={paginatedUnifiedItems}
+              totalPhotos={totalPhotosFromAPI || 0}
+              totalVideos={totalVideosFromAPI || 0}
+            />
             
             {/* View Toggle */}
             <div className="flex items-center gap-2">
