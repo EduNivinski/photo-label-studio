@@ -23,6 +23,7 @@ import { PhotoStats } from '@/components/PhotoStats';
 import { ActiveFileTypesFilter } from '@/components/ActiveFileTypesFilter';
 import { SelectionPanel } from '@/components/SelectionPanel';
 import { BulkLabelDialog } from '@/components/BulkLabelDialog';
+import { DriveBulkDeleteDialog } from '@/components/DriveBulkDeleteDialog';
 import { UploadDialog } from '@/components/UploadDialog';
 import { LabelManager } from '@/components/LabelManager';
 import { PhotoModal } from '@/components/PhotoModal';
@@ -117,6 +118,8 @@ const Index = () => {
   const [isCreateAlbumOpen, setIsCreateAlbumOpen] = useState(false);
   const [isCreateCollectionFromSelectionOpen, setIsCreateCollectionFromSelectionOpen] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [isDeletingBulkFromDrive, setIsDeletingBulkFromDrive] = useState(false);
+  const [showBulkDriveDeleteDialog, setShowBulkDriveDeleteDialog] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 });
   const [isEditAlbumOpen, setIsEditAlbumOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
@@ -973,6 +976,7 @@ const Index = () => {
           onCreateLabel={createLabel}
           onDeleteLabel={deleteLabel}
           onUpdatePhotoLabels={handleUnifiedUpdateLabels}
+          onDeleteFromDrive={handleDeleteFromDrive}
           onDelete={async () => {
             if (!selectedMediaItem) return;
             

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Tag, Plus, Play, Heart, ChevronDown, ExternalLink } from 'lucide-react';
+import { Tag, Plus, Play, Heart, ChevronDown, ExternalLink, Cloud } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 import { LabelChip } from './LabelChip';
 import { QuickLabelSelector } from './QuickLabelSelector';
 import { MediaThumb } from './MediaThumb';
@@ -111,6 +112,19 @@ export function UnifiedPhotoCard({
           )}
         </div>
       </div>
+
+      {/* Google Drive Badge */}
+      {item.source === 'gdrive' && (
+        <div className="absolute top-2 right-2 z-10">
+          <Badge 
+            variant="secondary" 
+            className="text-xs bg-blue-600/90 text-white backdrop-blur-sm border-blue-500/30"
+          >
+            <Cloud className="w-3 h-3 mr-1" />
+            Drive
+          </Badge>
+        </div>
+      )}
 
       <MediaThumb
         item={item}
