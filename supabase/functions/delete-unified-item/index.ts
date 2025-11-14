@@ -1,10 +1,36 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ensureAccessToken } from "../_shared/token_provider_v2.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper function to delete file from Google Drive
+async function deleteFromGoogleDrive(fileId: string, accessToken: string): Promise<boolean> {
+  try {
+    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`;
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.ok || response.status === 204) {
+      console.log(`✅ Successfully deleted file ${fileId} from Google Drive`);
+      return true;
+    } else {
+      const errorBody = await response.text();
+      console.error(`❌ Failed to delete from Google Drive: ${response.status} - ${errorBody}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ Error deleting from Google Drive:`, error);
+    return false;
+  }
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -72,34 +98,65 @@ serve(async (req) => {
 
       console.log(`✅ Deleted photo from DB: ${key}`);
     } else if (source === 'gdrive') {
-      // Delete from drive_items table (marks as deleted/trashed)
-      console.log(`📁 Marking drive item as deleted: file_id=${key}, user_id=${user.id}`);
+      // First, get the access token to delete from Google Drive
+      console.log(`📁 Attempting to delete drive item: file_id=${key}, user_id=${user.id}`);
       
-      const { data: updateResult, error: deleteDriveError } = await supabase
-        .from('drive_items')
-        .update({ 
-          status: 'deleted', 
-          trashed: true, 
-          deleted_at: new Date().toISOString(),
-          updated_at: new Date().toISOString() 
-        })
-        .eq('file_id', key)
-        .eq('user_id', user.id)
-        .select();
+      try {
+        const accessToken = await ensureAccessToken(user.id);
+        console.log(`🔑 Got access token for user ${user.id}`);
+        
+        // Delete from Google Drive
+        const driveDeleted = await deleteFromGoogleDrive(key, accessToken);
+        
+        if (driveDeleted) {
+          console.log(`✅ File deleted from Google Drive: ${key}`);
+          
+          // Now delete from our database (permanently remove the record)
+          const { error: deleteDriveError } = await supabase
+            .from('drive_items')
+            .delete()
+            .eq('file_id', key)
+            .eq('user_id', user.id);
 
-      if (deleteDriveError) {
-        console.error('❌ Error marking drive item as deleted:', deleteDriveError);
+          if (deleteDriveError) {
+            console.error('❌ Error deleting drive item from DB:', deleteDriveError);
+            return new Response(
+              JSON.stringify({ error: 'Failed to delete drive item from database', details: deleteDriveError }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          console.log(`✅ Deleted drive item from database: ${key}`);
+        } else {
+          // If Drive deletion failed, just mark as deleted in our DB
+          console.log(`⚠️ Failed to delete from Drive, marking as deleted in DB only`);
+          
+          const { error: updateError } = await supabase
+            .from('drive_items')
+            .update({ 
+              status: 'deleted', 
+              trashed: true, 
+              deleted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString() 
+            })
+            .eq('file_id', key)
+            .eq('user_id', user.id);
+
+          if (updateError) {
+            console.error('❌ Error marking drive item as deleted:', updateError);
+            return new Response(
+              JSON.stringify({ error: 'Failed to mark drive item as deleted', details: updateError }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      } catch (tokenError) {
+        console.error('❌ Error getting access token:', tokenError);
         return new Response(
-          JSON.stringify({ error: 'Failed to delete drive item', details: deleteDriveError }),
+          JSON.stringify({ error: 'Failed to authenticate with Google Drive' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      console.log(`✅ Marked drive item as deleted:`, {
-        key,
-        rowsAffected: updateResult?.length ?? 0,
-        updatedItem: updateResult?.[0] ?? null
-      });
     }
 
     // Clean up label assignments for this item
