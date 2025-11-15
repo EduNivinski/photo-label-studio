@@ -170,8 +170,19 @@ serve(async (req) => {
         
         for (const f of files) {
           if (isFolder(f.mimeType)) {
+            // Inserir pasta em drive_folders imediatamente
+            await admin.from("drive_folders").upsert({
+              user_id: userId,
+              folder_id: f.id,
+              name: f.name,
+              parent_id: folderId,
+              trashed: false,
+              updated_at: new Date().toISOString()
+            }, { onConflict: "user_id,folder_id" });
+            
             pending.push(f.id);
             foundFolders++;
+            console.log(`[sync-run] 📁 Folder registered: ${f.name} (${f.id})`);
           } else {
             // Determinar media_kind
             let media_kind = null;
@@ -208,7 +219,23 @@ serve(async (req) => {
                 .eq("user_id", userId)
                 .eq("folder_id", parentId)
                 .maybeSingle();
-              drive_origin_folder = parentFolder?.name || null;
+              
+              if (parentFolder) {
+                drive_origin_folder = parentFolder.name;
+              } else {
+                // Fallback: tentar buscar pela pasta atual (folderId)
+                const { data: currentFolder } = await admin.from("drive_folders")
+                  .select("name")
+                  .eq("user_id", userId)
+                  .eq("folder_id", folderId)
+                  .maybeSingle();
+                
+                drive_origin_folder = currentFolder?.name || null;
+                
+                if (!drive_origin_folder) {
+                  console.warn(`[sync-run] Parent folder not found: ${parentId} for file ${f.name}`);
+                }
+              }
             }
 
             // Converter size para string (seguro para BIGINT do Postgres)
