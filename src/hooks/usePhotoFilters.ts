@@ -10,7 +10,8 @@ export function usePhotoFilters(photos: Photo[]) {
     year: undefined,
     fileTypes: ['RAW', 'JPEG', 'PNG', 'MP4', 'MOV', 'AVI'],
     mediaTypes: ['photo', 'video'],
-    sortBy: 'date-desc'
+    sortBy: 'date-desc',
+    sourceFolder: undefined,
   });
   const [showFavorites, setShowFavorites] = useState(false);
   const [filterMode, setFilterMode] = useState<'AND' | 'OR'>('AND');

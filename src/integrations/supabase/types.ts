@@ -166,10 +166,12 @@ export type Database = {
       }
       drive_items: {
         Row: {
+          collections: string[] | null
           created_at: string
           created_time: string | null
           deleted_at: string | null
           drive_id: string | null
+          drive_origin_folder: string | null
           file_id: string
           image_meta: Json | null
           last_seen_at: string
@@ -201,10 +203,12 @@ export type Database = {
           web_view_link: string | null
         }
         Insert: {
+          collections?: string[] | null
           created_at?: string
           created_time?: string | null
           deleted_at?: string | null
           drive_id?: string | null
+          drive_origin_folder?: string | null
           file_id: string
           image_meta?: Json | null
           last_seen_at?: string
@@ -236,10 +240,12 @@ export type Database = {
           web_view_link?: string | null
         }
         Update: {
+          collections?: string[] | null
           created_at?: string
           created_time?: string | null
           deleted_at?: string | null
           drive_id?: string | null
+          drive_origin_folder?: string | null
           file_id?: string
           image_meta?: Json | null
           last_seen_at?: string
@@ -451,6 +457,8 @@ export type Database = {
       photos: {
         Row: {
           alias: string | null
+          collections: string[] | null
+          drive_origin_folder: string | null
           id: string
           labels: string[] | null
           media_type: string
@@ -463,6 +471,8 @@ export type Database = {
         }
         Insert: {
           alias?: string | null
+          collections?: string[] | null
+          drive_origin_folder?: string | null
           id?: string
           labels?: string[] | null
           media_type?: string
@@ -475,6 +485,8 @@ export type Database = {
         }
         Update: {
           alias?: string | null
+          collections?: string[] | null
+          drive_origin_folder?: string | null
           id?: string
           labels?: string[] | null
           media_type?: string

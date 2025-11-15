@@ -49,7 +49,7 @@ async function upsertItem(userId: string, f: DriveFile, traceId?: string) {
 
   // Check if item was previously deleted (for reactivation logging)
   const { data: existing } = await admin.from("drive_items")
-    .select("status, deleted_at")
+    .select("status, deleted_at, drive_origin_folder")
     .eq("user_id", userId)
     .eq("file_id", f.id)
     .maybeSingle();
@@ -66,6 +66,30 @@ async function upsertItem(userId: string, f: DriveFile, traceId?: string) {
       previousStatus: existing?.status,
       deletedAt: existing?.deleted_at 
     });
+  }
+
+  // Extract drive_origin_folder from parent if parents changed
+  let drive_origin_folder = existing?.drive_origin_folder || null;
+  if (f.parents && f.parents.length > 0) {
+    const parentId = f.parents[0];
+    const { data: parentFolder } = await admin.from("drive_folders")
+      .select("name")
+      .eq("user_id", userId)
+      .eq("folder_id", parentId)
+      .maybeSingle();
+    const newOriginFolder = parentFolder?.name || null;
+    
+    // Update only if parent changed
+    if (newOriginFolder && newOriginFolder !== existing?.drive_origin_folder) {
+      drive_origin_folder = newOriginFolder;
+      console.log(`[changes][origin-updated]`, {
+        traceId,
+        user_id: userId,
+        file_id: f.id,
+        oldOrigin: existing?.drive_origin_folder,
+        newOrigin: drive_origin_folder
+      });
+    }
   }
 
   const { error } = await admin.from("drive_items").upsert({
@@ -88,7 +112,8 @@ async function upsertItem(userId: string, f: DriveFile, traceId?: string) {
     video_duration_ms: videoDurationMs,
     video_width: videoWidth,
     video_height: videoHeight,
-    path_cached: path, 
+    path_cached: path,
+    drive_origin_folder,
     last_seen_at: new Date().toISOString(),
     status: f.trashed ? "deleted" : "active",
     deleted_at: f.trashed ? new Date().toISOString() : null,

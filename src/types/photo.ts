@@ -27,4 +27,5 @@ export interface PhotoFilters {
   fileTypes: string[];
   mediaTypes: string[]; // 'photo' | 'video'
   sortBy: 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc';
+  sourceFolder?: string;
 }
