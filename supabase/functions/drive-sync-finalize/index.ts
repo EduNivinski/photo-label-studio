@@ -91,11 +91,40 @@ serve(async (req) => {
 
       console.log('[sync-finalize] ✅ Marked', missingItems.length, 'items as orphans');
 
+      // 🔧 Executar backfill de drive_origin_folder em background
+      try {
+        console.log('[sync-finalize] Starting background backfill...');
+        const backfillPromise = admin.functions.invoke('drive-origin-backfill', {
+          body: { userId, maxItems: 500 }
+        });
+        
+        // Não aguardar, deixar rodar em background
+        backfillPromise.catch(err => 
+          console.error('[sync-finalize] Backfill error:', err)
+        );
+      } catch (err) {
+        console.warn('[sync-finalize] Failed to start backfill:', err);
+      }
+
       return httpJson({
         orphansDetected: missingItems.length,
         syncId,
         message: `${missingItems.length} arquivo(s) não foram encontrados no Drive e foram movidos para Arquivos Órfãos`
       });
+    }
+
+    // 🔧 Executar backfill mesmo sem órfãos
+    try {
+      console.log('[sync-finalize] Starting background backfill...');
+      const backfillPromise = admin.functions.invoke('drive-origin-backfill', {
+        body: { userId, maxItems: 500 }
+      });
+      
+      backfillPromise.catch(err => 
+        console.error('[sync-finalize] Backfill error:', err)
+      );
+    } catch (err) {
+      console.warn('[sync-finalize] Failed to start backfill:', err);
     }
 
     return httpJson({

@@ -16,6 +16,58 @@ export function useUnifiedCollections() {
 
   useEffect(() => {
     loadCollections();
+    
+    // 🔄 Setup real-time listeners
+    const setupListeners = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      let debounceTimer: NodeJS.Timeout;
+      const debouncedReload = () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          console.log('[collections] Reloading due to data change');
+          loadCollections();
+        }, 2000);
+      };
+
+      const channel = supabase
+        .channel('collections-updates')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'drive_items',
+          filter: `user_id=eq.${user.id}`
+        }, debouncedReload)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'photos',
+          filter: `user_id=eq.${user.id}`
+        }, debouncedReload)
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'drive_sync_state',
+          filter: `user_id=eq.${user.id}`
+        }, (payload) => {
+          if (payload.new && 'status' in payload.new && payload.new.status === 'idle') {
+            console.log('[collections] Sync complete, reloading');
+            loadCollections();
+          }
+        })
+        .subscribe();
+
+      return () => {
+        clearTimeout(debounceTimer);
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanup = setupListeners();
+    return () => {
+      cleanup.then(fn => fn?.());
+    };
   }, []);
 
   const loadCollections = async () => {

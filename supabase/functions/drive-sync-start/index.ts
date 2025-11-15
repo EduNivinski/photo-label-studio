@@ -82,6 +82,18 @@ serve(async (req) => {
       });
     }
     
+    // 3.2) Registrar pasta root em drive_folders
+    await admin.from("drive_folders").upsert({
+      user_id: userId,
+      folder_id: currentFolderId,
+      name: settings.drive_folder_name || "Root",
+      parent_id: null,
+      trashed: false,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id,folder_id" });
+    
+    console.log(`[sync-start] 📁 Root folder registered: ${settings.drive_folder_name} (${currentFolderId})`);
+    
     const pending = [currentFolderId];
     const upsertData = {
       user_id: userId,
