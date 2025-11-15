@@ -37,7 +37,25 @@ async function backgroundSyncWorker(userId: string, projectUrl: string, serviceK
       console.log('[background-sync] Pending folders:', pending);
       
       if (pending === 0) {
-        // Completed!
+        // Completed! Call finalize to detect orphans
+        console.log('[background-sync] Sync completed, calling finalize...');
+        
+        const finalizeResponse = await fetch(`${projectUrl}/functions/v1/drive-sync-finalize`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          }
+        });
+        
+        if (!finalizeResponse.ok) {
+          console.error('[background-sync] Finalize failed:', await finalizeResponse.text());
+        } else {
+          const finalizeData = await finalizeResponse.json();
+          console.log('[background-sync] Finalize result:', finalizeData);
+        }
+        
         const { data: currentState } = await admin
           .from("drive_sync_state")
           .select("stats")

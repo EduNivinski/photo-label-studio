@@ -60,6 +60,12 @@ verify_jwt = true
 [functions."drive-sync-run"]
 verify_jwt = true
 
+[functions."drive-sync-finalize"]
+verify_jwt = true
+
+[functions."drive-sync-background"]
+verify_jwt = true
+
 [functions."drive-sync-diagnostics"]
 verify_jwt = true
 
@@ -118,3 +124,6 @@ verify_jwt = true
 
 [functions."drive-video-poster"] 
 verify_jwt = true
+
+[functions."drive-orphans-cleanup"]
+verify_jwt = false  # Executado via cron, não requer auth

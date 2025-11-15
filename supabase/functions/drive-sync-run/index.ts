@@ -269,6 +269,9 @@ serve(async (req) => {
                 trashed: false,
                 deleted_at: null,
                 last_seen_at: new Date().toISOString(),
+                last_sync_seen: new Date().toISOString(),
+                origin_status: 'active',
+                origin_missing_since: null,
                 updated_at: new Date().toISOString()
               }, { onConflict: "user_id,file_id" });
 

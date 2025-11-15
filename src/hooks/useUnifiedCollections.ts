@@ -3,11 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Album } from '@/types/album';
 
 export type UnifiedCollection = {
-  id: string;              // collection_id OU "drive:folder_name"
+  id: string;              // collection_id OU "drive:folder_name" OU "orphans"
   name: string;            // Nome da collection ou pasta
-  type: 'manual' | 'drive'; // Tipo para diferenciar
+  type: 'manual' | 'drive' | 'orphans'; // Tipo para diferenciar
   count: number;           // Quantidade de items
-  icon: 'folder' | 'cloud'; // Ícone visual
+  icon: 'folder' | 'cloud' | 'trash'; // Ícone visual
 }
 
 export function useUnifiedCollections() {
@@ -105,10 +105,25 @@ export function useUnifiedCollections() {
         })
       );
 
-      // Combinar e ordenar: manuais primeiro, depois Drive (ambos alfabeticamente)
+      // 5. Buscar órfãos (arquivos com origin_status='missing')
+      const { count: orphanCount } = await supabase
+        .from('drive_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('origin_status', 'missing')
+        .eq('trashed', false);
+
+      // Combinar e ordenar: manuais primeiro, depois Drive, depois Órfãos (se houver)
       const unified = [
         ...manualWithCount.sort((a, b) => a.name.localeCompare(b.name)),
-        ...driveWithCount.sort((a, b) => a.name.localeCompare(b.name))
+        ...driveWithCount.sort((a, b) => a.name.localeCompare(b.name)),
+        ...(orphanCount && orphanCount > 0 ? [{
+          id: 'orphans',
+          name: '🗑️ Arquivos Órfãos',
+          type: 'orphans' as const,
+          count: orphanCount,
+          icon: 'trash' as const
+        }] : [])
       ];
 
       setCollections(unified);

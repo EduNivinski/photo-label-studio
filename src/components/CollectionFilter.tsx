@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { X, FolderOpen, Search, Folder, Cloud } from 'lucide-react';
+import { X, FolderOpen, Search, Folder, Cloud, Trash2 } from 'lucide-react';
 import { UnifiedCollection } from '@/hooks/useUnifiedCollections';
 
 interface CollectionFilterProps {
@@ -34,6 +34,11 @@ export function CollectionFilter({
 
   const driveCollections = useMemo(() => 
     filteredCollections.filter(c => c.type === 'drive'),
+    [filteredCollections]
+  );
+
+  const orphanCollection = useMemo(() => 
+    filteredCollections.find(c => c.type === 'orphans'),
     [filteredCollections]
   );
 
@@ -154,6 +159,27 @@ export function CollectionFilter({
                         </Badge>
                       </CommandItem>
                     ))}
+                  </CommandGroup>
+                )}
+
+                {/* Arquivos Órfãos */}
+                {orphanCollection && (
+                  <CommandGroup heading="Lixeira Virtual" className="bg-background">
+                    <CommandItem
+                      key={orphanCollection.id}
+                      onSelect={() => {
+                        onCollectionChange(orphanCollection.id);
+                        setSearchTerm('');
+                        setIsOpen(false);
+                      }}
+                      className="flex items-center gap-2 cursor-pointer bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <span className="flex-1 font-medium text-red-700 dark:text-red-400">{orphanCollection.name}</span>
+                      <Badge variant="destructive" className="text-xs">
+                        {orphanCollection.count}
+                      </Badge>
+                    </CommandItem>
                   </CommandGroup>
                 )}
               </CommandList>

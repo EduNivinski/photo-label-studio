@@ -53,4 +53,5 @@ export interface MediaListRequest {
   q?: string; // busca por nome
   collectionId?: string; // Collection manual (UUID)
   driveOriginFolder?: string; // Pasta de origem do Drive
+  originStatus?: "active" | "missing" | "permanently_deleted"; // Status de órfãos
 }
