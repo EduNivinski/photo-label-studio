@@ -30,7 +30,7 @@ serve(async (req) => {
 
     // Validate input
     const body = await req.json().catch(() => ({}));
-    const { page, pageSize, source, mimeClass, labelIds, q } = validateBody(LibraryListUnifiedSchema, body);
+    const { page, pageSize, source, mimeClass, labelIds, q, collectionId, driveOriginFolder } = validateBody(LibraryListUnifiedSchema, body);
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -60,6 +60,16 @@ serve(async (req) => {
       // Apply label filter
       if (labelIds.length > 0) {
         dbQuery = dbQuery.overlaps('labels', labelIds);
+      }
+
+      // Apply collection filter (manual collection)
+      if (collectionId) {
+        dbQuery = dbQuery.contains('collections', [collectionId]);
+      }
+
+      // Apply drive origin folder filter
+      if (driveOriginFolder) {
+        dbQuery = dbQuery.eq('drive_origin_folder', driveOriginFolder);
       }
 
       const { data: dbItems, error: dbError } = await dbQuery;
@@ -112,6 +122,16 @@ if (source === "all" || source === "gdrive") {
   // Apply search filter
   if (q) {
     driveQuery = driveQuery.ilike('name', `%${q}%`);
+  }
+
+  // Apply collection filter (manual collection)
+  if (collectionId) {
+    driveQuery = driveQuery.contains('collections', [collectionId]);
+  }
+
+  // Apply drive origin folder filter
+  if (driveOriginFolder) {
+    driveQuery = driveQuery.eq('drive_origin_folder', driveOriginFolder);
   }
 
   const { data: driveItems, error: driveError } = await driveQuery;
@@ -335,7 +355,9 @@ if (source === "all" || source === "gdrive") {
           id: label.id,
           name: label.name,
           color: label.color
-        }))
+        })),
+        driveOriginFolder: item.drive_origin_folder || null,
+        collections: item.collections || []
       };
     });
 

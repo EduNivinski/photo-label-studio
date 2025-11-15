@@ -26,6 +26,10 @@ export interface MediaItem {
 
   // labels
   labels: Array<{ id: string; name: string; color?: string }>;
+  
+  // collections and origin
+  driveOriginFolder?: string | null; // Pasta de origem do Drive
+  collections?: string[]; // Collections criadas manualmente
 }
 
 export interface MediaListResponse {
@@ -47,4 +51,6 @@ export interface MediaListRequest {
   mimeClass?: "all" | "image" | "video";
   labelIds?: string[];
   q?: string; // busca por nome
+  collectionId?: string; // Collection manual (UUID)
+  driveOriginFolder?: string; // Pasta de origem do Drive
 }

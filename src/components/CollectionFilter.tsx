@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Album } from '@/types/album';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { X, FolderOpen, Search, Folder } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { X, FolderOpen, Search, Folder, Cloud } from 'lucide-react';
+import { UnifiedCollection } from '@/hooks/useUnifiedCollections';
 
 interface CollectionFilterProps {
-  collections: Album[];
+  collections: UnifiedCollection[];
   selectedCollectionId: string | null;
   onCollectionChange: (collectionId: string | null) => void;
 }
@@ -25,6 +26,16 @@ export function CollectionFilter({
       collection.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [collections, searchTerm]);
+
+  const manualCollections = useMemo(() => 
+    filteredCollections.filter(c => c.type === 'manual'),
+    [filteredCollections]
+  );
+
+  const driveCollections = useMemo(() => 
+    filteredCollections.filter(c => c.type === 'drive'),
+    [filteredCollections]
+  );
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
 
@@ -84,7 +95,9 @@ export function CollectionFilter({
               />
               <CommandList className="bg-background">
                 <CommandEmpty>Nenhuma coleção encontrada.</CommandEmpty>
-                <CommandGroup heading="Coleções disponíveis" className="bg-background">
+                
+                {/* Todos os arquivos */}
+                <CommandGroup className="bg-background">
                   <CommandItem
                     onSelect={() => {
                       onCollectionChange(null);
@@ -96,21 +109,53 @@ export function CollectionFilter({
                     <Folder className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">Todos os arquivos</span>
                   </CommandItem>
-                  {filteredCollections.map((collection) => (
-                    <CommandItem
-                      key={collection.id}
-                      onSelect={() => {
-                        onCollectionChange(collection.id);
-                        setSearchTerm('');
-                        setIsOpen(false);
-                      }}
-                      className="flex items-center gap-2 cursor-pointer bg-background hover:bg-accent"
-                    >
-                      <FolderOpen className="h-4 w-4 text-primary" />
-                      <span>{collection.name}</span>
-                    </CommandItem>
-                  ))}
                 </CommandGroup>
+
+                {/* Collections Manuais */}
+                {manualCollections.length > 0 && (
+                  <CommandGroup heading="Collections Manuais" className="bg-background">
+                    {manualCollections.map((collection) => (
+                      <CommandItem
+                        key={collection.id}
+                        onSelect={() => {
+                          onCollectionChange(collection.id);
+                          setSearchTerm('');
+                          setIsOpen(false);
+                        }}
+                        className="flex items-center gap-2 cursor-pointer bg-background hover:bg-accent"
+                      >
+                        <FolderOpen className="h-4 w-4 text-primary" />
+                        <span className="flex-1">{collection.name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          📁 {collection.count}
+                        </Badge>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
+
+                {/* Pastas do Drive */}
+                {driveCollections.length > 0 && (
+                  <CommandGroup heading="Pastas do Drive" className="bg-background">
+                    {driveCollections.map((collection) => (
+                      <CommandItem
+                        key={collection.id}
+                        onSelect={() => {
+                          onCollectionChange(collection.id);
+                          setSearchTerm('');
+                          setIsOpen(false);
+                        }}
+                        className="flex items-center gap-2 cursor-pointer bg-background hover:bg-accent"
+                      >
+                        <Cloud className="h-4 w-4 text-blue-500" />
+                        <span className="flex-1">{collection.name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          ☁️ {collection.count}
+                        </Badge>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
               </CommandList>
             </Command>
           </PopoverContent>

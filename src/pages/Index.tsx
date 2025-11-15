@@ -16,6 +16,7 @@ import { usePhotoSelection } from '@/hooks/usePhotoSelection';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAlbums } from '@/hooks/useAlbums';
 import { usePagination } from '@/hooks/usePagination';
+import { useUnifiedCollections } from '@/hooks/useUnifiedCollections';
 import { SearchBar } from '@/components/SearchBar';
 import { RelatedLabelsBar } from '@/components/RelatedLabelsBar';
 import { PhotoGallery } from '@/components/PhotoGallery';
@@ -75,9 +76,11 @@ const Index = () => {
     getAlbumPhotos
   } = useAlbums();
 
+  // Unified Collections (manual + drive folders)
+  const { collections: unifiedCollections, loading: collectionsLoading } = useUnifiedCollections();
+
   // Collection filter state
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
-  const [collectionPhotos, setCollectionPhotos] = useState<Photo[]>([]);
 
   const {
     filters,
@@ -96,7 +99,7 @@ const Index = () => {
     showFavorites,
     toggleFavorites,
     toggleFileType
-  } = usePhotoFilters(selectedCollectionId ? collectionPhotos : photos);
+  } = usePhotoFilters(photos);
 
   // Photo selection state
   const {
@@ -152,34 +155,6 @@ const Index = () => {
   } = useUnifiedMedia();
   const [unifiedMimeFilter, setUnifiedMimeFilter] = useState<"all" | "image" | "video">("all");
 
-  // Collection filter effect
-  useEffect(() => {
-    const fetchCollectionPhotos = async () => {
-      if (selectedCollectionId) {
-        const albumPhotos = await getAlbumPhotos(selectedCollectionId);
-        // Convert to Photo type format
-        const photos = albumPhotos.map(p => ({
-          id: p.id,
-          name: p.name,
-          url: p.url,
-          labels: p.labels,
-          uploadDate: p.upload_date,
-          originalDate: p.original_date,
-          alias: p.alias,
-          userId: '',
-          mediaType: (p.media_type === 'video' ? 'video' : 'photo') as 'photo' | 'video'
-        }));
-        setCollectionPhotos(photos);
-      } else {
-        setCollectionPhotos([]);
-      }
-    };
-
-    fetchCollectionPhotos();
-  }, [selectedCollectionId, getAlbumPhotos]);
-
-  // Removed unifiedParams - now using dynamic params with itemsPerPage
-
   // Apply client-side filters to unified items so home reflects label filters immediately
   const filteredUnifiedItems = useMemo(() => {
     const required = [...filters.labels, ...includedLabels];
@@ -215,11 +190,27 @@ const Index = () => {
     );
     
     try {
+      // Parse selectedCollectionId to determine filter type
+      let collectionId: string | undefined;
+      let driveOriginFolder: string | undefined;
+      
+      if (selectedCollectionId) {
+        if (selectedCollectionId.startsWith('drive:')) {
+          // Drive origin folder filter
+          driveOriginFolder = selectedCollectionId.replace('drive:', '');
+        } else {
+          // Manual collection filter
+          collectionId = selectedCollectionId;
+        }
+      }
+      
       const params = {
         page: 1,
         pageSize: itemsPerPage,
         source: "all" as const,
-        mimeClass: unifiedMimeFilter
+        mimeClass: unifiedMimeFilter,
+        collectionId,
+        driveOriginFolder
       };
       await loadUnifiedItems(params);
       
@@ -229,7 +220,7 @@ const Index = () => {
     } finally {
       setIsLoadingThumbs(false);
     }
-  }, [itemsPerPage, unifiedMimeFilter, loadUnifiedItems]);
+  }, [itemsPerPage, unifiedMimeFilter, selectedCollectionId, loadUnifiedItems]);
 
   // Load unified media items when itemsPerPage or mime filter changes
   useEffect(() => {
@@ -617,22 +608,6 @@ const Index = () => {
     setIsCreateAlbumOpen(true);
   };
 
-  // Filter labels based on selected collection
-  const availableLabels = useMemo(() => {
-    if (!selectedCollectionId || collectionPhotos.length === 0) {
-      return labels;
-    }
-
-    // Get unique label IDs from collection photos
-    const collectionLabelIds = new Set<string>();
-    collectionPhotos.forEach(photo => {
-      photo.labels.forEach(labelId => collectionLabelIds.add(labelId));
-    });
-
-    // Filter labels to only include those present in the collection
-    return labels.filter(label => collectionLabelIds.has(label.id));
-  }, [labels, selectedCollectionId, collectionPhotos]);
-
   // Setup keyboard shortcuts
   useKeyboardShortcuts({
     onSelectAll: handleSelectAll,
@@ -670,8 +645,8 @@ const Index = () => {
 
       {/* CONTAINER 1: Coleções de Projetos */}
       <div className="container mx-auto px-4 pt-6 max-w-7xl mb-4">
-        <CollectionFilter
-          collections={albums}
+        <CollectionFilter 
+          collections={unifiedCollections}
           selectedCollectionId={selectedCollectionId}
           onCollectionChange={handleCollectionChange}
         />
@@ -698,7 +673,7 @@ const Index = () => {
           onToggleUnlabeled={toggleUnlabeled}
           showUnlabeled={filters.showUnlabeled}
           onLabelToggle={(labelId) => toggleLabel(labelId)}
-          labels={availableLabels}
+          labels={labels}
           selectedLabels={filters.labels}
           onClearFilters={clearFilters}
           onManageLabels={() => setIsLabelManagerOpen(true)}
@@ -711,7 +686,7 @@ const Index = () => {
         <div className="mt-2">
           <RelatedLabelsBar
             relatedLabels={getRelatedLabels}
-            allLabels={availableLabels}
+            allLabels={labels}
             includedLabels={includedLabels}
             excludedLabels={excludedLabels}
             onIncludeLabel={includeLabel}
