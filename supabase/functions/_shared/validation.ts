@@ -26,6 +26,7 @@ export const LibraryListUnifiedSchema = z.object({
   q: z.string().max(500).default(""),
   collectionId: z.string().uuid().optional(),
   driveOriginFolder: z.string().max(500).optional(),
+  originStatus: z.enum(["active", "missing", "permanently_deleted"]).optional(),
 });
 
 // labels-apply-bulk

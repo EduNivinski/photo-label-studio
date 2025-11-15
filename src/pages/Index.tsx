@@ -46,6 +46,7 @@ import { useUnifiedMedia } from '@/hooks/useUnifiedMedia';
 import { extractSourceAndKey } from '@/lib/media-adapters';
 import { supabase } from '@/integrations/supabase/client';
 import { DriveReauthBanner } from '@/components/DriveReauthBanner';
+import { OrphanNotificationBanner } from '@/components/OrphanNotificationBanner';
 import type { Photo } from '@/types/photo';
 import type { Album } from '@/types/album';
 import type { MediaItem } from '@/types/media';
@@ -193,9 +194,13 @@ const Index = () => {
       // Parse selectedCollectionId to determine filter type
       let collectionId: string | undefined;
       let driveOriginFolder: string | undefined;
+      let originStatus: "active" | "missing" | "permanently_deleted" | undefined;
       
       if (selectedCollectionId) {
-        if (selectedCollectionId.startsWith('drive:')) {
+        if (selectedCollectionId === 'orphans') {
+          // Orphans filter
+          originStatus = 'missing';
+        } else if (selectedCollectionId.startsWith('drive:')) {
           // Drive origin folder filter
           driveOriginFolder = selectedCollectionId.replace('drive:', '');
         } else {
@@ -210,7 +215,8 @@ const Index = () => {
         source: "all" as const,
         mimeClass: unifiedMimeFilter,
         collectionId,
-        driveOriginFolder
+        driveOriginFolder,
+        originStatus
       };
       await loadUnifiedItems(params);
       
@@ -234,8 +240,18 @@ const Index = () => {
       loadCurrentItems();
     };
 
+    const handleSelectOrphans = () => {
+      console.log('[Index] Selecting orphans collection...');
+      setSelectedCollectionId('orphans');
+    };
+
     window.addEventListener('drive:reauth:complete', handleReauthComplete);
-    return () => window.removeEventListener('drive:reauth:complete', handleReauthComplete);
+    window.addEventListener('select-orphans-collection', handleSelectOrphans);
+    
+    return () => {
+      window.removeEventListener('drive:reauth:complete', handleReauthComplete);
+      window.removeEventListener('select-orphans-collection', handleSelectOrphans);
+    };
   }, [loadCurrentItems]);
 
   // Debug log for itemsPerPage changes
@@ -659,6 +675,9 @@ const Index = () => {
 
       {/* CONTAINER 2: Buscar Labels */}
       <div className="container mx-auto px-4 max-w-7xl mb-4">
+        {/* Orphan Notification Banner */}
+        <OrphanNotificationBanner />
+        
         {/* Drive Reauth Banner */}
         {needsDriveReauth && (
           <DriveReauthBanner onReauthComplete={() => {

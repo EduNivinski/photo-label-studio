@@ -71,30 +71,15 @@ serve(async (req) => {
       stateRootBefore: state?.root_folder_id ?? null
     });
 
-    // 3.1) Se a pasta mudou, limpar arquivos da pasta anterior
+    // 3.1) Se a pasta mudou, apenas logar (detecção de órfãos ocorre após full scan)
     if (state?.root_folder_id && state.root_folder_id !== currentFolderId) {
-      console.log(`[sync-start][cleanup]`, {
+      console.log(`[sync-start][root-changed]`, {
         traceId: cid,
         user_id: userId,
         oldRoot: state.root_folder_id,
-        newRoot: currentFolderId
+        newRoot: currentFolderId,
+        message: 'Orphan detection will occur after full scan'
       });
-
-      const { error: cleanupErr } = await admin
-        .from('drive_items')
-        .update({
-          status: 'deleted',
-          deleted_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId)
-        .neq('status', 'deleted');
-
-      if (cleanupErr) {
-        console.error(`[sync-start][cleanup-error]`, { traceId: cid, error: cleanupErr });
-      } else {
-        console.log(`[sync-start][cleanup-done]`, { traceId: cid });
-      }
     }
     
     const pending = [currentFolderId];

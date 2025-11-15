@@ -30,7 +30,7 @@ serve(async (req) => {
 
     // Validate input
     const body = await req.json().catch(() => ({}));
-    const { page, pageSize, source, mimeClass, labelIds, q, collectionId, driveOriginFolder } = validateBody(LibraryListUnifiedSchema, body);
+    const { page, pageSize, source, mimeClass, labelIds, q, collectionId, driveOriginFolder, originStatus } = validateBody(LibraryListUnifiedSchema, body);
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -108,6 +108,13 @@ if (source === "all" || source === "gdrive") {
   // Note: We don't filter by root_folder_id here because files in subfolders
   // have parent_id pointing to their immediate parent folder, not the root.
   // The user_id filter already ensures we only show files belonging to this user.
+
+  // Apply origin status filter
+  if (originStatus) {
+    driveQuery = driveQuery.eq('origin_status', originStatus);
+  } else {
+    driveQuery = driveQuery.eq('origin_status', 'active'); // Default: only active items
+  }
 
   // ALWAYS filter to only show images and videos (exclude .txt, .pdf, etc)
   if (mimeClass === "image") {

@@ -136,14 +136,17 @@ async function upsertFolder(userId: string, f: DriveFile) {
   if (error) throw new Error("UPSERT_FOLDER:" + error.message);
 }
 
-async function markRemoved(userId: string, fileId: string) {
-  // Marca tanto em drive_items quanto drive_folders
+async function markRemoved(userId: string, fileId: string, traceId?: string) {
+  console.log(`[changes-pull][${traceId}] Marking file as missing:`, fileId);
+  
+  // Marca itens como 'missing' ao invés de deletar
   const { error: itemErr } = await admin.from("drive_items")
     .update({ 
-      status: "deleted", 
-      trashed: true, 
-      deleted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString() 
+      origin_status: 'missing',
+      origin_missing_since: new Date().toISOString(),
+      drive_origin_folder: null,
+      origin_missing_notified: false,
+      updated_at: new Date().toISOString()
     })
     .eq("user_id", userId).eq("file_id", fileId);
   
@@ -151,8 +154,12 @@ async function markRemoved(userId: string, fileId: string) {
     .update({ trashed: true, updated_at: new Date().toISOString() })
     .eq("user_id", userId).eq("folder_id", fileId);
   
-  // Log erros mas não falha se não encontrar o item
-  if (itemErr) console.warn("MARK_ITEM_REMOVED:", itemErr.message);
+  if (itemErr) {
+    console.error(`[changes-pull][${traceId}] Failed to mark as missing:`, itemErr);
+  } else {
+    console.log(`[changes-pull][${traceId}] ✅ File marked as orphan:`, fileId);
+  }
+  
   if (folderErr) console.warn("MARK_FOLDER_REMOVED:", folderErr.message);
 }
 
