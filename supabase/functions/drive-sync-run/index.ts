@@ -199,6 +199,18 @@ serve(async (req) => {
               console.warn(`Invalid date in metadata for ${f.id}:`, dateErr);
             }
 
+            // Extrair drive_origin_folder do parent
+            let drive_origin_folder = null;
+            if (f.parents && f.parents.length > 0) {
+              const parentId = f.parents[0];
+              const { data: parentFolder } = await admin.from("drive_folders")
+                .select("name")
+                .eq("user_id", userId)
+                .eq("folder_id", parentId)
+                .maybeSingle();
+              drive_origin_folder = parentFolder?.name || null;
+            }
+
             // Converter size para string (seguro para BIGINT do Postgres)
             const sizeStr = typeof f.size === "string" ? f.size :
                             typeof f.size === "number" ? String(f.size) :
@@ -249,6 +261,7 @@ serve(async (req) => {
                 })() : null,
                 media_kind,
                 original_taken_at,
+                drive_origin_folder,
                 image_meta: f.imageMediaMetadata ?? null,
                 video_meta: f.videoMediaMetadata ?? null,
                 parents: f.parents ?? null,
