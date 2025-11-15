@@ -96,6 +96,8 @@ export function useUnifiedCollections() {
         .from('drive_items')
         .select('drive_origin_folder')
         .eq('user_id', user.id)
+        .eq('status', 'active')
+        .eq('trashed', false)
         .not('drive_origin_folder', 'is', null);
 
       // Combinar e deduplicate folders do Drive
@@ -120,6 +122,8 @@ export function useUnifiedCollections() {
             .from('drive_items')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id)
+            .eq('status', 'active')
+            .eq('trashed', false)
             .contains('collections', [col.id]);
 
           return {
@@ -145,6 +149,8 @@ export function useUnifiedCollections() {
             .from('drive_items')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id)
+            .eq('status', 'active')
+            .eq('trashed', false)
             .eq('drive_origin_folder', folder);
 
           return {
