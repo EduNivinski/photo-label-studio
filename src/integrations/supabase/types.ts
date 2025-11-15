@@ -175,11 +175,15 @@ export type Database = {
           file_id: string
           image_meta: Json | null
           last_seen_at: string
+          last_sync_seen: string | null
           md5_checksum: string | null
           media_kind: string | null
           mime_type: string
           modified_time: string | null
           name: string
+          origin_missing_notified: boolean | null
+          origin_missing_since: string | null
+          origin_status: string | null
           original_taken_at: string | null
           original_tz_offset_min: number | null
           parent_id: string | null
@@ -212,11 +216,15 @@ export type Database = {
           file_id: string
           image_meta?: Json | null
           last_seen_at?: string
+          last_sync_seen?: string | null
           md5_checksum?: string | null
           media_kind?: string | null
           mime_type: string
           modified_time?: string | null
           name: string
+          origin_missing_notified?: boolean | null
+          origin_missing_since?: string | null
+          origin_status?: string | null
           original_taken_at?: string | null
           original_tz_offset_min?: number | null
           parent_id?: string | null
@@ -249,11 +257,15 @@ export type Database = {
           file_id?: string
           image_meta?: Json | null
           last_seen_at?: string
+          last_sync_seen?: string | null
           md5_checksum?: string | null
           media_kind?: string | null
           mime_type?: string
           modified_time?: string | null
           name?: string
+          origin_missing_notified?: boolean | null
+          origin_missing_since?: string | null
+          origin_status?: string | null
           original_taken_at?: string | null
           original_tz_offset_min?: number | null
           parent_id?: string | null
@@ -304,6 +316,36 @@ export type Database = {
           has_refresh_token?: boolean | null
           id?: number
           phase?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      drive_orphan_notifications: {
+        Row: {
+          acknowledged: boolean | null
+          acknowledged_at: string | null
+          created_at: string | null
+          id: string
+          items_count: number
+          sync_id: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
+          created_at?: string | null
+          id?: string
+          items_count: number
+          sync_id: string
+          user_id: string
+        }
+        Update: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
+          created_at?: string | null
+          id?: string
+          items_count?: number
+          sync_id?: string
           user_id?: string
         }
         Relationships: []
@@ -571,6 +613,8 @@ export type Database = {
       user_drive_settings: {
         Row: {
           allow_extended_scope: boolean
+          auto_delete_enabled: boolean | null
+          auto_delete_orphans_days: number | null
           drive_folder_id: string | null
           drive_folder_name: string | null
           drive_folder_path: string | null
@@ -580,6 +624,8 @@ export type Database = {
         }
         Insert: {
           allow_extended_scope?: boolean
+          auto_delete_enabled?: boolean | null
+          auto_delete_orphans_days?: number | null
           drive_folder_id?: string | null
           drive_folder_name?: string | null
           drive_folder_path?: string | null
@@ -589,6 +635,8 @@ export type Database = {
         }
         Update: {
           allow_extended_scope?: boolean
+          auto_delete_enabled?: boolean | null
+          auto_delete_orphans_days?: number | null
           drive_folder_id?: string | null
           drive_folder_name?: string | null
           drive_folder_path?: string | null
