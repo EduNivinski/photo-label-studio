@@ -462,41 +462,67 @@ const Index = () => {
     }
   };
 
-  const handleBulkApplyLabels = async (photoIds: string[], labelIds: string[]) => {
-    let successCount = 0;
-    for (const photoId of photoIds) {
-      const photo = photos.find(p => p.id === photoId);
-      if (photo) {
-        const currentLabels = photo.labels;
-        const newLabels = Array.from(new Set([...currentLabels, ...labelIds]));
-        const success = await updatePhotoLabels(photoId, newLabels);
-        if (success) successCount++;
-      }
-    }
+  const handleBulkApplyLabels = async (assetIds: string[], labelIds: string[]) => {
+    const toastId = toast.loading(`Aplicando labels em ${assetIds.length} items...`);
     
-    if (successCount === photoIds.length) {
-      toast.success(`Labels aplicadas em ${successCount} foto${successCount !== 1 ? 's' : ''}!`);
-    } else {
-      toast.error(`Erro ao aplicar labels em algumas fotos. ${successCount} de ${photoIds.length} foram atualizadas.`);
+    try {
+      const { data, error } = await supabase.functions.invoke('labels-apply-bulk', {
+        body: { 
+          assetIds, 
+          toAdd: labelIds, 
+          toRemove: [] 
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Reload items after bulk operation
+      await loadCurrentItems();
+      
+      toast.dismiss(toastId);
+      
+      if (data?.failed && data.failed > 0) {
+        toast.warning(`Labels aplicadas em ${data.applied || 0} items. ${data.failed} falharam.`);
+        console.error('Failed items:', data.errors);
+      } else {
+        toast.success(`Labels aplicadas em ${assetIds.length} items!`);
+      }
+    } catch (error) {
+      console.error('Error applying labels:', error);
+      toast.dismiss(toastId);
+      toast.error('Erro ao aplicar labels');
     }
   };
 
-  const handleBulkRemoveLabels = async (photoIds: string[], labelIds: string[]) => {
-    let successCount = 0;
-    for (const photoId of photoIds) {
-      const photo = photos.find(p => p.id === photoId);
-      if (photo) {
-        const currentLabels = photo.labels;
-        const newLabels = currentLabels.filter(id => !labelIds.includes(id));
-        const success = await updatePhotoLabels(photoId, newLabels);
-        if (success) successCount++;
-      }
-    }
+  const handleBulkRemoveLabels = async (assetIds: string[], labelIds: string[]) => {
+    const toastId = toast.loading(`Removendo labels de ${assetIds.length} items...`);
     
-    if (successCount === photoIds.length) {
-      toast.success(`Labels removidas de ${successCount} foto${successCount !== 1 ? 's' : ''}!`);
-    } else {
-      toast.error(`Erro ao remover labels de algumas fotos. ${successCount} de ${photoIds.length} foram atualizadas.`);
+    try {
+      const { data, error } = await supabase.functions.invoke('labels-apply-bulk', {
+        body: { 
+          assetIds, 
+          toAdd: [], 
+          toRemove: labelIds 
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Reload items after bulk operation
+      await loadCurrentItems();
+      
+      toast.dismiss(toastId);
+      
+      if (data?.failed && data.failed > 0) {
+        toast.warning(`Labels removidas de ${data.removed || 0} items. ${data.failed} falharam.`);
+        console.error('Failed items:', data.errors);
+      } else {
+        toast.success(`Labels removidas de ${assetIds.length} items!`);
+      }
+    } catch (error) {
+      console.error('Error removing labels:', error);
+      toast.dismiss(toastId);
+      toast.error('Erro ao remover labels');
     }
   };
 
@@ -945,7 +971,7 @@ const Index = () => {
       <BulkLabelDialog
         isOpen={isBulkLabelDialogOpen}
         onClose={() => setIsBulkLabelDialogOpen(false)}
-        selectedPhotos={getSelectedPhotos(photos)}
+        selectedItems={unifiedItems.filter(item => selectedPhotoIds.has(item.id))}
         labels={labels}
         onApplyLabels={handleBulkApplyLabels}
         onRemoveLabels={handleBulkRemoveLabels}
@@ -976,7 +1002,7 @@ const Index = () => {
           onCreateLabel={createLabel}
           onDeleteLabel={deleteLabel}
           onUpdatePhotoLabels={handleUnifiedUpdateLabels}
-          onDeleteFromDrive={handleDeleteFromDrive}
+          onDeleteFromDrive={undefined}
           onDelete={async () => {
             if (!selectedMediaItem) return;
             
