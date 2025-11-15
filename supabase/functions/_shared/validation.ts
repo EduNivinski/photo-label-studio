@@ -24,6 +24,8 @@ export const LibraryListUnifiedSchema = z.object({
   mimeClass: z.enum(["all", "image", "video"]).default("all"),
   labelIds: z.array(z.string().uuid()).max(50).default([]),
   q: z.string().max(500).default(""),
+  collectionId: z.string().uuid().optional(),
+  driveOriginFolder: z.string().max(500).optional(),
 });
 
 // labels-apply-bulk
