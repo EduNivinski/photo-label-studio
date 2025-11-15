@@ -15,6 +15,17 @@ export function useUnifiedCollections() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 🔐 Listener de autenticação para recarregar quando sessão estiver pronta
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('[collections] Auth ready, loading collections');
+          loadCollections();
+        }
+      }
+    );
+
+    // Tentar carregar imediatamente também
     loadCollections();
     
     // 🔄 Setup real-time listeners
@@ -66,6 +77,7 @@ export function useUnifiedCollections() {
 
     const cleanup = setupListeners();
     return () => {
+      authSubscription.unsubscribe();
       cleanup.then(fn => fn?.());
     };
   }, []);
