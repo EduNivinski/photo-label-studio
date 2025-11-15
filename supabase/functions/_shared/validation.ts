@@ -26,6 +26,13 @@ export const LibraryListUnifiedSchema = z.object({
   q: z.string().max(500).default(""),
 });
 
+// labels-apply-bulk
+export const LabelsApplyBulkSchema = z.object({
+  assetIds: z.array(z.string().min(1).max(512)).min(1).max(1000),
+  toAdd: z.array(z.string().uuid()).max(100).default([]),
+  toRemove: z.array(z.string().uuid()).max(100).default([]),
+});
+
 // google-drive-auth actions
 export const GoogleDriveAuthActionSchema = z.enum([
   "status",

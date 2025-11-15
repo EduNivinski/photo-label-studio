@@ -77,6 +77,57 @@ export type Database = {
         }
         Relationships: []
       }
+      drive_delete_audit: {
+        Row: {
+          bulk_operation_id: string | null
+          deleted_at: string
+          file_id: string
+          file_name: string
+          id: string
+          ip_address: unknown
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          bulk_operation_id?: string | null
+          deleted_at?: string
+          file_id: string
+          file_name: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          bulk_operation_id?: string | null
+          deleted_at?: string
+          file_id?: string
+          file_name?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      drive_delete_rate_limit: {
+        Row: {
+          deleted_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          deleted_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       drive_folders: {
         Row: {
           created_at: string
@@ -297,7 +348,7 @@ export type Database = {
         Row: {
           action: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           success: boolean | null
           timestamp: string | null
           user_agent: string | null
@@ -306,7 +357,7 @@ export type Database = {
         Insert: {
           action: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           success?: boolean | null
           timestamp?: string | null
           user_agent?: string | null
@@ -315,7 +366,7 @@ export type Database = {
         Update: {
           action?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           success?: boolean | null
           timestamp?: string | null
           user_agent?: string | null
@@ -573,14 +624,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      check_vault_availability: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      cleanup_expired_oauth_states: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
+      check_vault_availability: { Args: never; Returns: boolean }
+      cleanup_expired_oauth_states: { Args: never; Returns: number }
+      cleanup_rate_limit: { Args: never; Returns: undefined }
       gd_token_debug_insert: {
         Args: {
           p_err: string
@@ -623,7 +669,7 @@ export type Database = {
         }[]
       }
       get_my_google_drive_status: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           created_at: string
           dedicated_folder_id: string
@@ -633,10 +679,7 @@ export type Database = {
           token_status: string
         }[]
       }
-      sanitize_sensitive_data: {
-        Args: { p_input: string }
-        Returns: string
-      }
+      sanitize_sensitive_data: { Args: { p_input: string }; Returns: string }
       store_google_drive_tokens: {
         Args: {
           p_access_token: string
@@ -652,7 +695,7 @@ export type Database = {
         Returns: boolean
       }
       verify_security_integrity: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           check_name: string
           details: string

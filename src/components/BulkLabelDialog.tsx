@@ -8,14 +8,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { StandardLabelCreator } from './StandardLabelCreator';
 import type { Photo, Label } from '@/types/photo';
+import type { MediaItem } from '@/types/media';
 
 interface BulkLabelDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedPhotos: Photo[];
+  selectedPhotos?: Photo[];
+  selectedItems?: MediaItem[];
   labels: Label[];
-  onApplyLabels: (photoIds: string[], labelIds: string[]) => Promise<void>;
-  onRemoveLabels: (photoIds: string[], labelIds: string[]) => Promise<void>;
+  onApplyLabels: (assetIds: string[], labelIds: string[]) => Promise<void>;
+  onRemoveLabels: (assetIds: string[], labelIds: string[]) => Promise<void>;
   onCreateLabel?: (name: string, color?: string) => Promise<void>;
 }
 
@@ -23,11 +25,14 @@ export function BulkLabelDialog({
   isOpen,
   onClose,
   selectedPhotos,
+  selectedItems,
   labels,
   onApplyLabels,
   onRemoveLabels,
   onCreateLabel
 }: BulkLabelDialogProps) {
+  // Use selectedItems (MediaItem[]) if provided, otherwise fallback to selectedPhotos
+  const items = selectedItems || selectedPhotos || [];
   const [labelsToAdd, setLabelsToAdd] = useState<string[]>([]);
   const [labelsToRemove, setLabelsToRemove] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,10 +40,20 @@ export function BulkLabelDialog({
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Get common labels across all selected photos
-  const commonLabels = labels.filter(label => 
-    selectedPhotos.every(photo => photo.labels.includes(label.id))
-  );
+  // Get common labels across all selected items
+  const commonLabels = labels.filter(label => {
+    return items.every(item => {
+      // For MediaItem, check labels array
+      if ('labels' in item && Array.isArray(item.labels)) {
+        return item.labels.some(l => l.id === label.id);
+      }
+      // For Photo, check labels array directly
+      if ('labels' in item && Array.isArray(item.labels)) {
+        return (item.labels as string[]).includes(label.id);
+      }
+      return false;
+    });
+  });
 
   // Filter available labels (not in common labels and not already selected to add)
   const availableLabels = useMemo(() => {
@@ -84,16 +99,16 @@ export function BulkLabelDialog({
     
     setIsApplying(true);
     try {
-      const photoIds = selectedPhotos.map(p => p.id);
+      const assetIds = items.map(item => item.id);
       
       // Apply new labels
       if (labelsToAdd.length > 0) {
-        await onApplyLabels(photoIds, labelsToAdd);
+        await onApplyLabels(assetIds, labelsToAdd);
       }
       
       // Remove marked labels
       if (labelsToRemove.length > 0) {
-        await onRemoveLabels(photoIds, labelsToRemove);
+        await onRemoveLabels(assetIds, labelsToRemove);
       }
       
       setLabelsToAdd([]);
@@ -120,7 +135,7 @@ export function BulkLabelDialog({
             Gerenciar Labels
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {selectedPhotos.length} arquivo{selectedPhotos.length !== 1 ? 's' : ''} selecionado{selectedPhotos.length !== 1 ? 's' : ''}
+            {items.length} item{items.length !== 1 ? 's' : ''} selecionado{items.length !== 1 ? 's' : ''}
           </p>
         </DialogHeader>
         
