@@ -63,6 +63,9 @@ verify_jwt = true
 [functions."drive-sync-finalize"]
 verify_jwt = true
 
+[functions."drive-origin-backfill"]
+verify_jwt = true
+
 [functions."drive-sync-background"]
 verify_jwt = true
 

@@ -184,6 +184,18 @@ serve(async (req) => {
             foundFolders++;
             console.log(`[sync-run] 📁 Folder registered: ${f.name} (${f.id})`);
           } else {
+            // 🔍 Verificar se já existe e tem drive_origin_folder inválido
+            const { data: existingItem } = await admin
+              .from("drive_items")
+              .select("drive_origin_folder")
+              .eq("user_id", userId)
+              .eq("file_id", f.id)
+              .maybeSingle();
+            
+            const needsOriginFix = existingItem?.drive_origin_folder && 
+              (existingItem.drive_origin_folder.match(/\.(jpg|jpeg|png|gif|mp4|mov|avi|mkv|webp|heic)$/i) ||
+               existingItem.drive_origin_folder.match(/^\d{8}_\d{6}/));
+            
             // Determinar media_kind
             let media_kind = null;
             if (f.mimeType?.startsWith("video/")) {
@@ -210,32 +222,41 @@ serve(async (req) => {
               console.warn(`Invalid date in metadata for ${f.id}:`, dateErr);
             }
 
-            // Extrair drive_origin_folder do parent
+            // Extrair drive_origin_folder do parent (sempre recalcular se necessário)
             let drive_origin_folder = null;
-            if (f.parents && f.parents.length > 0) {
-              const parentId = f.parents[0];
-              const { data: parentFolder } = await admin.from("drive_folders")
-                .select("name")
-                .eq("user_id", userId)
-                .eq("folder_id", parentId)
-                .maybeSingle();
-              
-              if (parentFolder) {
-                drive_origin_folder = parentFolder.name;
-              } else {
-                // Fallback: tentar buscar pela pasta atual (folderId)
-                const { data: currentFolder } = await admin.from("drive_folders")
+            if (needsOriginFix || !existingItem?.drive_origin_folder) {
+              if (f.parents && f.parents.length > 0) {
+                const parentId = f.parents[0];
+                const { data: parentFolder } = await admin.from("drive_folders")
                   .select("name")
                   .eq("user_id", userId)
-                  .eq("folder_id", folderId)
+                  .eq("folder_id", parentId)
                   .maybeSingle();
                 
-                drive_origin_folder = currentFolder?.name || null;
-                
-                if (!drive_origin_folder) {
-                  console.warn(`[sync-run] Parent folder not found: ${parentId} for file ${f.name}`);
+                if (parentFolder) {
+                  drive_origin_folder = parentFolder.name;
+                } else {
+                  // Fallback: tentar buscar pela pasta atual (folderId)
+                  const { data: currentFolder } = await admin.from("drive_folders")
+                    .select("name")
+                    .eq("user_id", userId)
+                    .eq("folder_id", folderId)
+                    .maybeSingle();
+                  
+                  drive_origin_folder = currentFolder?.name || null;
+                  
+                  if (!drive_origin_folder) {
+                    console.warn(`[sync-run] Parent folder not found: ${parentId} for file ${f.name}`);
+                  }
                 }
               }
+              
+              if (needsOriginFix && drive_origin_folder) {
+                console.log(`[sync-run] 🔧 Fixing invalid origin: "${existingItem.drive_origin_folder}" → "${drive_origin_folder}" for ${f.name}`);
+              }
+            } else {
+              // Manter valor existente se já estiver correto
+              drive_origin_folder = existingItem.drive_origin_folder;
             }
 
             // Converter size para string (seguro para BIGINT do Postgres)

@@ -32,10 +32,18 @@ export function CollectionFilter({
     [filteredCollections]
   );
 
-  const driveCollections = useMemo(() => 
-    filteredCollections.filter(c => c.type === 'drive'),
-    [filteredCollections]
-  );
+  const driveCollections = useMemo(() => {
+    // Filtrar valores que parecem nomes de arquivo
+    const validDrive = filteredCollections
+      .filter(c => c.type === 'drive')
+      .filter(c => 
+        !c.name.match(/\.(jpg|jpeg|png|gif|mp4|mov|avi|mkv|webp|heic)$/i) &&
+        !c.name.match(/^\d{8}_\d{6}/)
+      );
+    
+    // Ordenar por contagem (mais usadas primeiro)
+    return validDrive.sort((a, b) => b.count - a.count);
+  }, [filteredCollections]);
 
   const orphanCollection = useMemo(() => 
     filteredCollections.find(c => c.type === 'orphans'),
